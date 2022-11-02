@@ -18,7 +18,6 @@ local config_defaults = {
   auto_clean = true,
   compile_on_sync = true,
   disable_commands = false,
-  opt_default = false,
   auto_reload_compiled = true,
   preview_updates = false,
   git = {
@@ -204,9 +203,6 @@ local function manage(plugin_data)
   -- Some config keys modify a plugin type
   if plugin_spec.opt then
     plugin_spec.manual_opt = true
-  elseif plugin_spec.opt == nil and config.opt_default then
-    plugin_spec.manual_opt = true
-    plugin_spec.opt = true
   end
 
   local compile = require_and_configure 'compile'

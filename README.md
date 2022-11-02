@@ -290,7 +290,6 @@ default configuration values (and structure of the configuration table) are:
   auto_clean = true, -- During sync(), remove unused plugins
   compile_on_sync = true, -- During sync(), run packer.compile()
   disable_commands = false, -- Disable creating commands
-  opt_default = false, -- Default to using opt (as opposed to start) plugins
   transitive_opt = true, -- Make dependencies of opt plugins also opt by default
   transitive_disable = true, -- Automatically disable dependencies of disabled plugins
   auto_reload_compiled = true, -- Automatically reload the compiled file after creating it.
