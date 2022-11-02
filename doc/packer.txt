@@ -100,9 +100,6 @@ Then you can write your plugin specification in Lua, e.g. (in `~/.config/nvim/lu
 
     -- You can specify multiple plugins in a single call
     use {'tjdevries/colorbuddy.vim', {'nvim-treesitter/nvim-treesitter', opt = true}}
-
-    -- You can alias plugin names
-    use {'dracula/vim', as = 'dracula'}
   end)
 
 `packer` provides the following commands after you've run and configured `packer` with `require('packer').startup(...)`: *packer-default-commands* *packer-commands*
@@ -534,7 +531,6 @@ invoked as follows:
     'myusername/example',        -- The plugin location string
     -- The following keys are all optional
     disable = boolean,           -- Mark a plugin as inactive
-    as = string,                 -- Specifies an alias under which to install the plugin
     installer = function,        -- Specifies custom installer. See |packer-custom-installers|
     updater = function,          -- Specifies custom updater. See |packer-custom-installers|
     after = string or list,      -- Specifies plugins to load before this plugin.

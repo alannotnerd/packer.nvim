@@ -68,7 +68,7 @@ util.get_plugin_short_name = function(plugin)
   local path = vim.fn.expand(plugin[1])
   local name_segments = vim.split(path, util.get_separator())
   local segment_idx = #name_segments
-  local name = plugin.as or name_segments[segment_idx]
+  local name = name_segments[segment_idx]
   while name == '' and segment_idx > 0 do
     name = name_segments[segment_idx]
     segment_idx = segment_idx - 1
