@@ -1,3 +1,4 @@
+local fn = vim.fn
 -- TODO: Performance analysis/tuning
 -- TODO: Merge start plugins?
 local util = require 'packer.util'
@@ -7,7 +8,7 @@ local async = a.sync
 local await = a.wait
 
 local join_paths = util.join_paths
-local stdpath = vim.fn.stdpath
+local stdpath = fn.stdpath
 
 -- Config
 local packer = {}
@@ -120,9 +121,8 @@ packer.init = function(user_config)
   user_config = user_config or {}
   config = util.deep_extend('force', config, user_config)
   packer.reset()
-  config.package_root = vim.fn.fnamemodify(config.package_root, ':p')
-  local _
-  config.package_root, _ = string.gsub(config.package_root, util.get_separator() .. '$', '', 1)
+  config.package_root = fn.fnamemodify(config.package_root, ':p')
+  config.package_root = string.gsub(config.package_root, util.get_separator() .. '$', '', 1)
   config.pack_dir = join_paths(config.package_root, config.plugin_package)
   config.opt_dir = join_paths(config.pack_dir, 'opt')
   config.start_dir = join_paths(config.pack_dir, 'start')
@@ -139,23 +139,25 @@ packer.init = function(user_config)
     packer.make_commands()
   end
 
-  if vim.fn.mkdir(config.snapshot_path, 'p') ~= 1 then
+  if fn.mkdir(config.snapshot_path, 'p') ~= 1 then
     require_and_configure('log').warn("Couldn't create " .. config.snapshot_path)
   end
 end
 
 packer.make_commands = function()
-  vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.create PackerSnapshot  lua require('packer').snapshot(<f-args>)]]
-  vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.rollback PackerSnapshotRollback  lua require('packer').rollback(<f-args>)]]
-  vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.snapshot PackerSnapshotDelete lua require('packer.snapshot').delete(<f-args>)]]
-  vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerInstall lua require('packer').install(<f-args>)]]
-  vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerUpdate lua require('packer').update(<f-args>)]]
-  vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerSync lua require('packer').sync(<f-args>)]]
-  vim.cmd [[command! PackerClean             lua require('packer').clean()]]
-  vim.cmd [[command! -nargs=* PackerCompile  lua require('packer').compile(<q-args>)]]
-  vim.cmd [[command! PackerStatus            lua require('packer').status()]]
-  vim.cmd [[command! PackerProfile           lua require('packer').profile_output()]]
-  vim.cmd [[command! -bang -nargs=+ -complete=customlist,v:lua.require'packer'.loader_complete PackerLoad lua require('packer').loader(<f-args>, '<bang>' == '!')]]
+  vim.cmd[[
+    command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.create PackerSnapshot  lua require('packer').snapshot(<f-args>)
+    command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.rollback PackerSnapshotRollback  lua require('packer').rollback(<f-args>)
+    command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.snapshot PackerSnapshotDelete lua require('packer.snapshot').delete(<f-args>)
+    command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerInstall lua require('packer').install(<f-args>)
+    command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerUpdate lua require('packer').update(<f-args>)
+    command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerSync lua require('packer').sync(<f-args>)
+    command! PackerClean             lua require('packer').clean()
+    command! -nargs=* PackerCompile  lua require('packer').compile(<q-args>)
+    command! PackerStatus            lua require('packer').status()
+    command! PackerProfile           lua require('packer').profile_output()
+    command! -bang -nargs=+ -complete=customlist,v:lua.require'packer'.loader_complete PackerLoad lua require('packer').loader(<f-args>, '<bang>' == '!')
+  ]]
 end
 
 packer.reset = function()
@@ -349,7 +351,7 @@ packer.install = function(...)
     end
 
     await(a.main)
-    local start_time = vim.fn.reltime()
+    local start_time = fn.reltime()
     local results = {}
     await(clean(plugins, fs_state, results))
     await(a.main)
@@ -373,7 +375,7 @@ packer.install = function(...)
       await(a.main)
       plugin_utils.update_helptags(install_paths)
       plugin_utils.update_rplugins()
-      local delta = string.gsub(vim.fn.reltimestr(vim.fn.reltime(start_time)), ' ', '')
+      local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
       display_win:final_results(results, delta)
       packer.on_complete()
     else
@@ -423,7 +425,7 @@ packer.update = function(...)
 
   local opts, update_plugins = filter_opts_from_plugins(...)
   async(function()
-    local start_time = vim.fn.reltime()
+    local start_time = fn.reltime()
     local results = {}
     local fs_state = await(plugin_utils.get_fs_state(plugins))
     local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
@@ -467,7 +469,7 @@ packer.update = function(...)
     await(a.main)
     plugin_utils.update_helptags(install_paths)
     plugin_utils.update_rplugins()
-    local delta = string.gsub(vim.fn.reltimestr(vim.fn.reltime(start_time)), ' ', '')
+    local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
     display_win:final_results(results, delta, opts)
     packer.on_complete()
   end)()
@@ -494,7 +496,7 @@ packer.sync = function(...)
 
   local opts, sync_plugins = filter_opts_from_plugins(...)
   async(function()
-    local start_time = vim.fn.reltime()
+    local start_time = fn.reltime()
     local results = {}
     local fs_state = await(plugin_utils.get_fs_state(plugins))
     local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), sync_plugins)
@@ -546,7 +548,7 @@ packer.sync = function(...)
     end
     plugin_utils.update_helptags(install_paths)
     plugin_utils.update_rplugins()
-    local delta = string.gsub(vim.fn.reltimestr(vim.fn.reltime(start_time)), ' ', '')
+    local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
     display_win:final_results(results, delta, opts)
     packer.on_complete()
   end)()
@@ -609,7 +611,7 @@ packer.compile = function(raw_args, move_plugins)
     end
     local args = parse_args(raw_args)
     local output_path = args.output_path or config.compile_path
-    local output_lua = vim.fn.fnamemodify(output_path, ':e') == 'lua'
+    local output_lua = fn.fnamemodify(output_path, ':e') == 'lua'
     local should_profile = args.profile
     -- the user might explicitly choose for this value to be false in which case
     -- an or operator will not work
@@ -618,8 +620,8 @@ packer.compile = function(raw_args, move_plugins)
     end
     -- NOTE: we copy the plugins table so the in memory value is not mutated during compilation
     local compiled_loader = compile(vim.deepcopy(plugins), output_lua, should_profile)
-    output_path = vim.fn.expand(output_path, true)
-    vim.fn.mkdir(vim.fn.fnamemodify(output_path, ':h'), 'p')
+    output_path = fn.expand(output_path, true)
+    fn.mkdir(fn.fnamemodify(output_path, ':h'), 'p')
     local output_file = io.open(output_path, 'w')
     output_file:write(compiled_loader)
     output_file:close()
@@ -719,11 +721,11 @@ packer.snapshot = function(snapshot_name, ...)
   local log = require_and_configure 'log'
   local args = { ... }
   snapshot_name = snapshot_name or require('os').date '%Y-%m-%d'
-  local snapshot_path = vim.fn.expand(snapshot_name)
+  local snapshot_path = fn.expand(snapshot_name)
 
   local fmt = string.format
   log.debug(fmt('Taking snapshots of currently installed plugins to %s...', snapshot_name))
-  if vim.fn.fnamemodify(snapshot_name, ':p') ~= snapshot_path then -- is not absolute path
+  if fn.fnamemodify(snapshot_name, ':p') ~= snapshot_path then -- is not absolute path
     if config.snapshot_path == nil then
       log.warn 'config.snapshot_path is not set'
       return
@@ -752,7 +754,7 @@ packer.snapshot = function(snapshot_name, ...)
 
   local write_snapshot = true
 
-  if vim.fn.filereadable(snapshot_path) == 1 then
+  if fn.filereadable(snapshot_path) == 1 then
     vim.ui.select(
       { 'Replace', 'Cancel' },
       { prompt = fmt("Do you want to replace '%s'?", snapshot_path) },
