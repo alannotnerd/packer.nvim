@@ -60,10 +60,6 @@ local function join(...)
   return thunk_all
 end
 
-local function wait_all(...)
-  return yield(join(...))
-end
-
 local function pool(n, interrupt_check, ...)
   local thunks = { ... }
   return function(s)
@@ -114,8 +110,6 @@ local M = {
   sync = wrap(step),
   --- Alias for yielding to await the result of an async function
   wait = yield,
-  --- Await the completion of a full set of async functions
-  wait_all = wait_all,
   --- Await the completion of a full set of async functions, with a limit on how many functions can
   --  run simultaneously
   wait_pool = wait_pool,

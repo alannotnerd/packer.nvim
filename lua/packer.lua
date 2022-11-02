@@ -145,19 +145,17 @@ packer.init = function(user_config)
 end
 
 packer.make_commands = function()
-  vim.cmd[[
-    command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.create PackerSnapshot  lua require('packer').snapshot(<f-args>)
-    command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.rollback PackerSnapshotRollback  lua require('packer').rollback(<f-args>)
-    command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.snapshot PackerSnapshotDelete lua require('packer.snapshot').delete(<f-args>)
-    command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerInstall lua require('packer').install(<f-args>)
-    command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerUpdate lua require('packer').update(<f-args>)
-    command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerSync lua require('packer').sync(<f-args>)
-    command! PackerClean             lua require('packer').clean()
-    command! -nargs=* PackerCompile  lua require('packer').compile(<q-args>)
-    command! PackerStatus            lua require('packer').status()
-    command! PackerProfile           lua require('packer').profile_output()
-    command! -bang -nargs=+ -complete=customlist,v:lua.require'packer'.loader_complete PackerLoad lua require('packer').loader(<f-args>, '<bang>' == '!')
-  ]]
+  vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.create PackerSnapshot  lua require('packer').snapshot(<f-args>)]]
+  vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.rollback PackerSnapshotRollback  lua require('packer').rollback(<f-args>)]]
+  vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.snapshot PackerSnapshotDelete lua require('packer.snapshot').delete(<f-args>)]]
+  vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerInstall lua require('packer').install(<f-args>)]]
+  vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerUpdate lua require('packer').update(<f-args>)]]
+  vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerSync lua require('packer').sync(<f-args>)]]
+  vim.cmd [[command! PackerClean             lua require('packer').clean()]]
+  vim.cmd [[command! -nargs=* PackerCompile  lua require('packer').compile(<q-args>)]]
+  vim.cmd [[command! PackerStatus            lua require('packer').status()]]
+  vim.cmd [[command! PackerProfile           lua require('packer').profile_output()]]
+  vim.cmd [[command! -bang -nargs=+ -complete=customlist,v:lua.require'packer'.loader_complete PackerLoad lua require('packer').loader(<f-args>, '<bang>' == '!')]]
 end
 
 packer.reset = function()
@@ -787,7 +785,6 @@ end
 ---otherwise all the plugins will be rolled back
 packer.rollback = function(snapshot_name, ...)
   local args = { ... }
-  local wait_all = a.wait_all
   local snapshot = require 'packer.snapshot'
   local log = require_and_configure 'log'
   local fmt = string.format

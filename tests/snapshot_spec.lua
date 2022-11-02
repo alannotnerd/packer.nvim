@@ -5,7 +5,6 @@ local mocked_plugin_utils = require 'packer.plugin_utils'
 local log = require 'packer.log'
 local async = require('packer.async').sync
 local await = require('packer.async').wait
-local wait_all = require('packer.async').wait_all
 local main = require('packer.async').main
 local packer = require 'packer'
 local jobs = require 'packer.jobs'
