@@ -34,7 +34,6 @@ FEATURES                                         *packer-intro-features*
 
 - Declarative plugin specification
 - Support for dependencies
-- Support for Luarocks dependencies
 - Expressive configuration and lazy-loading options
 - Automatically compiles efficient lazy-loading code to improve startup time
 - Uses native packages
@@ -159,10 +158,6 @@ short, `startup` is a convenience function for simple setup, and is invoked as
   packer.startup({
     function() use 'tjdevries/colorbuddy.vim' end, config = { ... }
     })
-- `spec` can be a table with a table of plugin specifications as its first
-  element, config overrides as another element, and optional rock
-  specifications as another element: >
-  packer.startup({{'tjdevries/colorbuddy.vim'}, config = { ... }, rocks = { ... }})
 
 See |packer-configuration| for the allowed configuration keys.
 
@@ -337,34 +332,6 @@ installed.
 
 Plugins specified in `requires` are removed when no active plugins require
 them.
-
-LUAROCKS                                       *packer-plugin-luarocks*
-
-You may specify that a plugin requires one or more Luarocks packages using the
-`rocks` key. This key takes either a string specifying the name of a package
-(e.g. `rocks=lpeg`), or a list specifying one or more packages. Entries in the
-list may either be strings or lists --- the latter case is used to specify a
-particular version of a package, e.g. `rocks = {'lpeg', {'lua-cjson',
-'2.1.0'}}`.
-
-Currently, `packer` only supports equality constraints on package versions.
-
-`packer` also provides the function `packer.luarocks.install_commands()`, which
-creates the `PackerRocks <cmd> <packages...>` command. `<cmd>` must be one of
-"install" or "remove"; `<packages...>` is one or more package names (currently,
-version restrictions are not supported with this command). Running `PackerRocks`
-will install or remove the given packages. You can use this command even if you
-don't use `packer` to manage your plugins. However, please note that (1)
-packages installed through `PackerRocks` **will** be removed by calls to
-`packer.luarocks.clean()` (unless they are also part of a `packer` plugin
-specification), and (2) you will need to manually invoke
-`packer.luarocks.setup_paths` (or otherwise modify your `package.path`) to
-ensure that Neovim can find the installed packages.
-
-Finally, `packer` provides the function `packer.use_rocks`, which takes a string
-or table specifying one or more Luarocks packages as in the `rocks` key. You can
-use this to ensure that `packer` downloads and manages some rocks which you want
-to use, but which are not associated with any particular plugin.
 
 SEQUENCING                                     *packer-plugin-sequencing*
 
@@ -594,7 +561,6 @@ invoked as follows:
     run = string, function, or table  -- Post-update/install hook. See |packer-plugin-hooks|
     requires = string or list    -- Specifies plugin dependencies. See |packer-plugin-dependencies|
     config = string or function, -- Specifies code to run after this plugin is loaded.
-    rocks = string or list,      -- Specifies Luarocks dependencies for the plugin
     -- The following keys all imply lazy-loading
     cmd = string or list,        -- Specifies commands which load this plugin.  Can be an autocmd pattern.
     ft = string or list,         -- Specifies filetypes which load this plugin.

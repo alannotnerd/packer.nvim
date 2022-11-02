@@ -69,7 +69,6 @@ local config = {
     prompt_border = 'double',
     keybindings = { quit = 'q', toggle_info = '<CR>', diff = 'd', prompt_revert = 'r' },
   },
-  luarocks = { python_cmd = 'python' },
   log = { level = 'trace' },
   profile = { enable = false },
 }

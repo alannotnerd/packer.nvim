@@ -101,7 +101,6 @@ local status_keys = {
   'as',
   'ft',
   'event',
-  'rocks',
   'branch',
   'commit',
   'tag',
@@ -434,7 +433,6 @@ local display_mt = {
     self:update_headline_message(fmt('finished in %.3fs', time))
     local raw_lines = {}
     local item_order = {}
-    local rocks_items = {}
     if results.removals then
       for _, plugin_dir in ipairs(results.removals) do
         table.insert(item_order, plugin_dir)
@@ -517,45 +515,6 @@ local display_mt = {
       end
     end
 
-    if results.luarocks then
-      if results.luarocks.installs then
-        for package, result in pairs(results.luarocks.installs) do
-          if result.err then
-            rocks_items[package] = { lines = strip_newlines(result.err.output.data.stderr) }
-          end
-
-          table.insert(
-            raw_lines,
-            fmt(
-              ' %s %s %s',
-              result.ok and config.done_sym or config.error_sym,
-              result.ok and 'Installed' or 'Failed to install',
-              package
-            )
-          )
-          display.status.any_failed_install = display.status.any_failed_install or not result.ok
-        end
-      end
-
-      if results.luarocks.removals then
-        for package, result in pairs(results.luarocks.removals) do
-          if result.err then
-            rocks_items[package] = { lines = strip_newlines(result.err.output.data.stderr) }
-          end
-
-          table.insert(
-            raw_lines,
-            fmt(
-              ' %s %s %s',
-              result.ok and config.done_sym or config.error_sym,
-              result.ok and 'Removed' or 'Failed to remove',
-              package
-            )
-          )
-        end
-      end
-    end
-
     if #raw_lines == 0 then
       table.insert(raw_lines, ' Everything already up to date!')
     end
@@ -615,7 +574,7 @@ local display_mt = {
       plugins[plugin_name] = plugin_data
     end
 
-    self.items = vim.tbl_extend('keep', plugins, rocks_items)
+    self.items = plugins
     self.item_order = item_order
     if config.show_all_info then
       self:show_all_info()

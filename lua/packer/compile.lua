@@ -2,7 +2,6 @@
 local util = require 'packer.util'
 local log = require 'packer.log'
 local fmt = string.format
-local luarocks = require 'packer.luarocks'
 
 local config
 local function cfg(_config)
@@ -713,7 +712,6 @@ local function make_loaders(_, plugins, output_lua, should_profile)
   table.insert(result, enter_packer_compile)
   table.insert(result, profile_time(should_profile))
   table.insert(result, profile_output)
-  timed_chunk(luarocks.generate_path_setup(), 'Luarocks path setup', result)
   timed_chunk(try_loadstring, 'try_loadstring definition', result)
   timed_chunk(fmt('_G.packer_plugins = %s\n', dump_loaders(loaders)), 'Defining packer_plugins', result)
   -- Then the runtimepath line

@@ -76,7 +76,6 @@ local config_defaults = {
       retry = 'R',
     },
   },
-  luarocks = { python_cmd = 'python' },
   log = { level = 'warn' },
   profile = { enable = false },
   autoremove = false,
@@ -89,7 +88,6 @@ _G._packer = _G._packer or {}
 local config = vim.tbl_extend('force', {}, config_defaults)
 local plugins = nil
 local plugin_specifications = nil
-local rocks = nil
 
 local configurable_modules = {
   clean = false,
@@ -100,7 +98,6 @@ local configurable_modules = {
   plugin_types = false,
   plugin_utils = false,
   update = false,
-  luarocks = false,
   log = false,
   snapshot = false,
 }
@@ -165,22 +162,6 @@ end
 packer.reset = function()
   plugins = {}
   plugin_specifications = {}
-  rocks = {}
-end
-
---- Add a Luarocks package to be managed
-packer.use_rocks = function(rock)
-  if type(rock) == 'string' then
-    rock = { rock }
-  end
-  if not vim.tbl_islist(rock) and type(rock[1]) == 'string' then
-    rocks[rock[1]] = rock
-  else
-    for _, r in ipairs(rock) do
-      local rock_name = (type(r) == 'table') and r[1] or r
-      rocks[rock_name] = r
-    end
-  end
 end
 
 --- The main logic for adding a plugin (and any dependencies) to the managed set
@@ -271,9 +252,6 @@ manage = function(plugin_data)
     end
   end
   plugins[plugin_spec.short_name] = plugin_spec
-  if plugin_spec.rocks then
-    packer.use_rocks(plugin_spec.rocks)
-  end
 
   -- Add the git URL for displaying in PackerStatus and PackerSync.
   plugins[plugin_spec.short_name].url = util.remove_ending_git_url(plugin_spec.url)
@@ -374,16 +352,11 @@ packer.clean = function(results)
   local a = require 'packer.async'
   local async = a.sync
   local await = a.wait
-  local luarocks = require_and_configure 'luarocks'
   local clean = require_and_configure 'clean'
   require_and_configure 'display'
 
   manage_all_plugins()
   async(function()
-    local luarocks_clean_task = luarocks.clean(rocks, results, nil)
-    if luarocks_clean_task ~= nil then
-      await(luarocks_clean_task)
-    end
     local fs_state = await(plugin_utils.get_fs_state(plugins))
     await(clean(plugins, fs_state, results))
     packer.on_complete()
@@ -401,7 +374,6 @@ packer.install = function(...)
   local a = require 'packer.async'
   local async = a.sync
   local await = a.wait
-  local luarocks = require_and_configure 'luarocks'
   local clean = require_and_configure 'clean'
   local install = require_and_configure 'install'
   local display = require_and_configure 'display'
@@ -430,11 +402,6 @@ packer.install = function(...)
     log.debug 'Gathering install tasks'
     local tasks, display_win = install(plugins, install_plugins, results)
     if next(tasks) then
-      log.debug 'Gathering Luarocks tasks'
-      local luarocks_ensure_task = luarocks.ensure(rocks, results, display_win)
-      if luarocks_ensure_task ~= nil then
-        table.insert(tasks, luarocks_ensure_task)
-      end
       table.insert(tasks, 1, function()
         return not display.status.running
       end)
@@ -496,7 +463,6 @@ packer.update = function(...)
   local a = require 'packer.async'
   local async = a.sync
   local await = a.wait
-  local luarocks = require_and_configure 'luarocks'
   local clean = require_and_configure 'clean'
   local install = require_and_configure 'install'
   local display = require_and_configure 'display'
@@ -522,11 +488,6 @@ packer.update = function(...)
     await(a.main)
     update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
     vim.list_extend(tasks, update_tasks)
-    log.debug 'Gathering luarocks tasks'
-    local luarocks_ensure_task = luarocks.ensure(rocks, results, display_win)
-    if luarocks_ensure_task ~= nil then
-      table.insert(tasks, luarocks_ensure_task)
-    end
 
     if #tasks == 0 then
       return
@@ -576,7 +537,6 @@ packer.sync = function(...)
   local a = require 'packer.async'
   local async = a.sync
   local await = a.wait
-  local luarocks = require_and_configure 'luarocks'
   local clean = require_and_configure 'clean'
   local install = require_and_configure 'install'
   local display = require_and_configure 'display'
@@ -608,16 +568,6 @@ packer.sync = function(...)
     await(a.main)
     update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
     vim.list_extend(tasks, update_tasks)
-    log.debug 'Gathering luarocks tasks'
-    local luarocks_clean_task = luarocks.clean(rocks, results, display_win)
-    if luarocks_clean_task ~= nil then
-      table.insert(tasks, luarocks_clean_task)
-    end
-
-    local luarocks_ensure_task = luarocks.ensure(rocks, results, display_win)
-    if luarocks_ensure_task ~= nil then
-      table.insert(tasks, luarocks_ensure_task)
-    end
     if #tasks == 0 then
       return
     end
@@ -987,14 +937,12 @@ packer.config = config
 --  packer.startup({function() use 'tjdevries/colorbuddy.vim' end, config = { ... }})
 --
 --  spec can be a table with a table of plugin specifications as its first element, config overrides
---  as another element, and an optional table of Luarocks rock specifications as another element:
---  packer.startup({{'tjdevries/colorbuddy.vim'}, config = { ... }, rocks = { ... }})
+--  as another element.
 packer.startup = function(spec)
   local log = require 'packer.log'
   local user_func = nil
   local user_config = nil
   local user_plugins = nil
-  local user_rocks = nil
   if type(spec) == 'function' then
     user_func = spec
   elseif type(spec) == 'table' then
@@ -1002,7 +950,6 @@ packer.startup = function(spec)
       user_func = spec[1]
     elseif type(spec[1]) == 'table' then
       user_plugins = spec[1]
-      user_rocks = spec.rocks
     else
       log.error 'You must provide a function or table of specifications as the first element of the argument to startup!'
       return
@@ -1019,17 +966,14 @@ packer.startup = function(spec)
   log = require_and_configure 'log'
 
   if user_func then
-    setfenv(user_func, vim.tbl_extend('force', getfenv(), { use = packer.use, use_rocks = packer.use_rocks }))
-    local status, err = pcall(user_func, packer.use, packer.use_rocks)
+    setfenv(user_func, vim.tbl_extend('force', getfenv(), { use = packer.use }))
+    local status, err = pcall(user_func, packer.use, false)
     if not status then
       log.error('Failure running setup function: ' .. vim.inspect(err))
       error(err)
     end
   else
     packer.use(user_plugins)
-    if user_rocks then
-      packer.use_rocks(user_rocks)
-    end
   end
 
   if config.snapshot ~= nil then
