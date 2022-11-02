@@ -1,3 +1,5 @@
+local fn = vim.fn
+
 local a = require 'packer.async'
 local jobs = require 'packer.jobs'
 local util = require 'packer.util'
@@ -19,7 +21,7 @@ plugin_utils.git_plugin_type = 'git'
 plugin_utils.guess_type = function(plugin)
   if plugin.installer then
     plugin.type = plugin_utils.custom_plugin_type
-  elseif vim.fn.isdirectory(plugin.path) ~= 0 then
+  elseif fn.isdirectory(plugin.path) ~= 0 then
     plugin.url = plugin.path
     plugin.type = plugin_utils.local_plugin_type
   elseif
@@ -37,7 +39,7 @@ plugin_utils.guess_type = function(plugin)
 end
 
 plugin_utils.guess_dir_type = function(dir)
-  local globdir = vim.fn.glob(dir)
+  local globdir = fn.glob(dir)
   local dir_type = (vim.loop.fs_lstat(globdir) or { type = 'noexist' }).type
 
   --[[ NOTE: We're assuming here that:
@@ -55,12 +57,12 @@ end
 
 plugin_utils.helptags_stale = function(dir)
   -- Adapted directly from minpac.vim
-  local txts = vim.fn.glob(util.join_paths(dir, '*.txt'), true, true)
-  vim.list_extend(txts, vim.fn.glob(util.join_paths(dir, '*.[a-z][a-z]x'), true, true))
-  local tags = vim.fn.glob(util.join_paths(dir, 'tags'), true, true)
-  vim.list_extend(tags, vim.fn.glob(util.join_paths(dir, 'tags-[a-z][a-z]'), true, true))
-  local txt_ftimes = util.map(vim.fn.getftime, txts)
-  local tag_ftimes = util.map(vim.fn.getftime, tags)
+  local txts = fn.glob(util.join_paths(dir, '*.txt'), true, true)
+  vim.list_extend(txts, fn.glob(util.join_paths(dir, '*.[a-z][a-z]x'), true, true))
+  local tags = fn.glob(util.join_paths(dir, 'tags'), true, true)
+  vim.list_extend(tags, fn.glob(util.join_paths(dir, 'tags-[a-z][a-z]'), true, true))
+  local txt_ftimes = util.map(fn.getftime, txts)
+  local tag_ftimes = util.map(fn.getftime, tags)
   if #txt_ftimes == 0 then
     return false
   end
@@ -77,24 +79,24 @@ plugin_utils.update_helptags = vim.schedule_wrap(function(...)
     local doc_dir = util.join_paths(dir, 'doc')
     if plugin_utils.helptags_stale(doc_dir) then
       log.info('Updating helptags for ' .. doc_dir)
-      vim.cmd('silent! helptags ' .. vim.fn.fnameescape(doc_dir))
+      vim.cmd('silent! helptags ' .. fn.fnameescape(doc_dir))
     end
   end
 end)
 
 plugin_utils.update_rplugins = vim.schedule_wrap(function()
-  if vim.fn.exists ':UpdateRemotePlugins' == 2 then
+  if fn.exists ':UpdateRemotePlugins' == 2 then
     vim.cmd [[silent UpdateRemotePlugins]]
   end
 end)
 
 plugin_utils.ensure_dirs = function()
-  if vim.fn.isdirectory(config.opt_dir) == 0 then
-    vim.fn.mkdir(config.opt_dir, 'p')
+  if fn.isdirectory(config.opt_dir) == 0 then
+    fn.mkdir(config.opt_dir, 'p')
   end
 
-  if vim.fn.isdirectory(config.start_dir) == 0 then
-    vim.fn.mkdir(config.start_dir, 'p')
+  if fn.isdirectory(config.start_dir) == 0 then
+    fn.mkdir(config.start_dir, 'p')
   end
 end
 
@@ -191,7 +193,7 @@ plugin_utils.load_plugin = function(plugin)
       table.concat({ 'after', 'plugin', '**/*.vim' }, util.get_separator()),
     } do
       local path = util.join_paths(plugin.install_path, pat)
-      local glob_ok, files = pcall(vim.fn.glob, path, false, true)
+      local glob_ok, files = pcall(fn.glob, path, false, true)
       if not glob_ok then
         if string.find(files, 'E77') then
           vim.cmd('silent exe "source ' .. path .. '"')
