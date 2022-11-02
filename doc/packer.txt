@@ -436,14 +436,6 @@ the output window.
 This will rebuild your `packer_compiled.vim` with profiling code included. In order to visualise the output of the profile
 Restart your neovim and run `PackerProfile`. This will open a window with the output of your profiling.
 
-EXTENDING PACKER                               *packer-extending*
-You can add custom key handlers to `packer` by calling
-`packer.set_handler(name, func)` where `name` is the key you wish to handle
-and `func` is a function with the signature `func(plugins, plugin, value)`
-where `plugins` is the global table of managed plugins, `plugin` is the table
-for a specific plugin, and `value` is the value associated with key `name` in
-`plugin`.
-
 RESULTS WINDOW KEYBINDINGS                     *packer-results-keybindings*
 Once an operation completes, the results are shown in the display window.
 `packer` sets up default keybindings for this window:
@@ -499,10 +491,6 @@ reset()		                                     *packer.reset()*
 ensure plugin specifications are reinitialized if the specification file is
 reloaded. Called by |packer.startup()| or manually before calling
 |packer.use()|.
-
-set_handler()		                               *packer.set_handler()*
-`set_handler` allows custom extension of `packer`. See |packer-extending| for
-details.
 
 startup()		                                   *packer.startup()*
 `startup` is a convenience function for simple setup. See |packer-startup| for

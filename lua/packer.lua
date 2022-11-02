@@ -90,7 +90,6 @@ local configurable_modules = {
   clean = false,
   compile = false,
   display = false,
-  handlers = false,
   install = false,
   plugin_types = false,
   plugin_utils = false,
@@ -235,17 +234,11 @@ local function manage(plugin_data)
 
   local plugin_utils = require_and_configure 'plugin_utils'
   local plugin_types = require_and_configure 'plugin_types'
-  local handlers = require_and_configure 'handlers'
   if not plugin_spec.type then
     plugin_utils.guess_type(plugin_spec)
   end
   if plugin_spec.type ~= plugin_utils.custom_plugin_type then
     plugin_types[plugin_spec.type].setup(plugin_spec)
-  end
-  for k, v in pairs(plugin_spec) do
-    if handlers[k] then
-      handlers[k](plugins, plugin_spec, v)
-    end
   end
   plugins[plugin_spec.short_name] = plugin_spec
 
@@ -289,11 +282,6 @@ local function manage(plugin_data)
       end
     end
   end
-end
-
---- Add a new keyword handler
-packer.set_handler = function(name, func)
-  require_and_configure('handlers')[name] = func
 end
 
 --- Add a plugin to the managed set

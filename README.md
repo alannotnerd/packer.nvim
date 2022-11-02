@@ -491,12 +491,6 @@ plugins":
 - `packer.rollback(snapshot_name, ...)`: Rollback plugins status a snapshot file that will live under `config.snapshot_path/<snapshot_name>`. If `snapshot_name` is an absolute path, then that will be the location where the snapshot will be taken. Optionally, a list of plugins name can be provided to selectively choose which plugins to revert.
 - `packer.delete(snapshot_name)`: Deletes a snapshot file under `config.snapshot_path/<snapshot_name>`. If `snapshot_name` is an absolute path, then that will be the location where the snapshot will be deleted.
 
-### Extending `packer`
-You can add custom key handlers to `packer` by calling `packer.set_handler(name, func)` where `name`
-is the key you wish to handle and `func` is a function with the signature `func(plugins, plugin,
-value)` where `plugins` is the global table of managed plugins, `plugin` is the table for a specific
-plugin, and `value` is the value associated with key `name` in `plugin`.
-
 ### Compiling Lazy-Loaders
 To optimize startup time, `packer.nvim` compiles code to perform the lazy-loading operations you
 specify. This means that you do not need to load `packer.nvim` unless you want to perform some
