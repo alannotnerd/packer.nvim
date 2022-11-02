@@ -41,7 +41,6 @@ local config_defaults = {
       get_header = 'log --color=never --pretty=format:FMT --no-show-signature HEAD -n 1',
       get_bodies = 'log --color=never --pretty=format:"===COMMIT_START===%h%n%s===BODY_START===%b" --no-show-signature HEAD@{1}...HEAD',
       get_fetch_bodies = 'log --color=never --pretty=format:"===COMMIT_START===%h%n%s===BODY_START===%b" --no-show-signature HEAD...FETCH_HEAD',
-      submodules = 'submodule update --init --recursive --progress',
       revert = 'reset --hard HEAD@{1}',
       revert_to = 'reset --hard %s --',
       tags_expand_fmt = 'tag -l %s --sort -version:refname',

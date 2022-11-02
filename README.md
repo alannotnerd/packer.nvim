@@ -55,7 +55,7 @@ Have a problem or idea? Make an [issue](https://github.com/wbthomason/packer.nvi
 - Written in Lua, configured in Lua
 - Post-install/update hooks
 - Uses jobs for async installation
-- Support for `git` tags, branches, revisions, submodules
+- Support for `git` tags, branches, revisions
 - Support for local plugins
 
 ## Requirements
@@ -311,7 +311,6 @@ default configuration values (and structure of the configuration table) are:
       diff_fmt       = '%%h %%s (%%cr)',
       get_rev        = 'rev-parse --short HEAD',
       get_msg        = 'log --color=never --pretty=format:FMT --no-show-signature HEAD -n 1',
-      submodules     = 'submodule update --init --recursive --progress'
     },
     depth = 1, -- Git clone depth
     clone_timeout = 60, -- Timeout, in seconds, for git clones

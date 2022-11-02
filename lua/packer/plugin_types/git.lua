@@ -213,7 +213,6 @@ git.setup = function(plugin)
   local install_cmd =
     vim.split(config.exec_cmd .. fmt(config.subcommands.install, plugin.commit and 999999 or config.depth), '%s+')
 
-  local submodule_cmd = config.exec_cmd .. config.subcommands.submodules
   local rev_cmd = config.exec_cmd .. config.subcommands.get_rev
   local update_cmd = config.exec_cmd .. config.subcommands.update
   local update_head_cmd = config.exec_cmd .. config.subcommands.update_head
@@ -256,7 +255,6 @@ git.setup = function(plugin)
       local r = await(jobs.run(install_cmd, installer_opts))
 
       installer_opts.cwd = install_to
-      r:and_then(await, jobs.run(submodule_cmd, installer_opts))
 
       if plugin.commit then
         disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
@@ -412,7 +410,7 @@ git.setup = function(plugin)
         r:and_then(await, jobs.run(update_head_cmd, update_opts))
       else
         disp:task_update(plugin_name, 'pulling updates...')
-        r:and_then(await, jobs.run(update_cmd, update_opts)):and_then(await, jobs.run(submodule_cmd, update_opts))
+        r:and_then(await, jobs.run(update_cmd, update_opts))
       end
       r:map_err(function(err)
         plugin.output = { err = vim.list_extend(update_info.err, update_info.output), data = {} }
