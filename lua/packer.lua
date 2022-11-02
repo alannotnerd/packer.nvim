@@ -19,8 +19,6 @@ local config_defaults = {
   compile_on_sync = true,
   disable_commands = false,
   opt_default = false,
-  transitive_opt = true,
-  transitive_disable = true,
   auto_reload_compiled = true,
   preview_updates = false,
   git = {
@@ -168,8 +166,7 @@ end
 -- a list of plugin specs
 -- TODO: This should be refactored into its own module and the various keys should be implemented
 -- (as much as possible) as ordinary handlers
-local manage = nil
-manage = function(plugin_data)
+local function manage(plugin_data)
   local plugin_spec = plugin_data.spec
   local spec_line = plugin_data.line
   local spec_type = type(plugin_spec)
@@ -279,24 +276,12 @@ manage = function(plugin_data)
       -- @see: https://github.com/wbthomason/packer.nvim/issues/258#issuecomment-876568439
       req.from_requires = true
       if not plugins[req_name] then
-        if config.transitive_opt and plugin_spec.manual_opt then
+        if plugin_spec.manual_opt then
           req.opt = true
-          if type(req.after) == 'string' then
-            req.after = { req.after, plugin_spec.short_name }
-          elseif type(req.after) == 'table' then
-            local already_after = false
-            for _, name in ipairs(req.after) do
-              already_after = already_after or (name == plugin_spec.short_name)
-            end
-            if not already_after then
-              table.insert(req.after, plugin_spec.short_name)
-            end
-          elseif req.after == nil then
-            req.after = plugin_spec.short_name
-          end
+          req.after = plugin_spec.short_name
         end
 
-        if config.transitive_disable and plugin_spec.disable then
+        if plugin_spec.disable then
           req.disable = true
         end
 
@@ -329,6 +314,7 @@ local function manage_all_plugins()
   end
 end
 
+-- Use by tests
 packer.__manage_all = manage_all_plugins
 
 --- Hook to fire events after packer operations
