@@ -288,7 +288,6 @@ default configuration values (and structure of the configuration table) are:
   plugin_package = 'packer', -- The default package for plugins
   max_jobs = nil, -- Limit the number of simultaneous jobs. nil means no limit
   auto_clean = true, -- During sync(), remove unused plugins
-  compile_on_sync = true, -- During sync(), run packer.compile()
   disable_commands = false, -- Disable creating commands
   transitive_opt = true, -- Make dependencies of opt plugins also opt by default
   transitive_disable = true, -- Automatically disable dependencies of disabled plugins
@@ -500,7 +499,7 @@ configure all your lazy-loaded plugins (e.g. generating commands, autocommands, 
 If `path` is not provided to `packer.compile`, the output file will default to the value of
 `config.compile_path`.
 
-The option `compile_on_sync`, which defaults to `true`, will run `packer.compile()` during
+`packer.compile()` will run during
 `packer.sync()`, if set to `true`. Note that otherwise, you **must** run `packer.compile` yourself
 to generate the lazy-loader file!
 

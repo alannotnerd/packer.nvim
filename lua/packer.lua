@@ -21,7 +21,6 @@ local config_defaults = {
   plugin_package = 'packer',
   max_jobs = nil,
   auto_clean = true,
-  compile_on_sync = true,
   disable_commands = false,
   auto_reload_compiled = true,
   preview_updates = false,
@@ -541,9 +540,7 @@ packer.sync = function(...)
     end
 
     await(a.main)
-    if config.compile_on_sync then
-      packer.compile(nil, false)
-    end
+    packer.compile(nil, false)
     plugin_utils.update_helptags(install_paths)
     plugin_utils.update_rplugins()
     local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
