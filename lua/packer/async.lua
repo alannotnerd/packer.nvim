@@ -35,31 +35,6 @@ local function wrap(func)
   end
 end
 
-local function join(...)
-  local thunks = { ... }
-  local thunk_all = function(s)
-    if #thunks == 0 then
-      return s()
-    end
-    local to_go = #thunks
-    local results = {}
-    for i, thunk in ipairs(thunks) do
-      local callback = function(...)
-        results[i] = { ... }
-        if to_go == 1 then
-          s(unpack(results))
-        else
-          to_go = to_go - 1
-        end
-      end
-
-      thunk(callback)
-    end
-  end
-
-  return thunk_all
-end
-
 local function pool(n, interrupt_check, ...)
   local thunks = { ... }
   return function(s)
