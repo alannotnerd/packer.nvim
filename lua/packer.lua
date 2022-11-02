@@ -2,6 +2,10 @@
 -- TODO: Merge start plugins?
 local util = require 'packer.util'
 
+local a = require 'packer.async'
+local async = a.sync
+local await = a.wait
+
 local join_paths = util.join_paths
 local stdpath = vim.fn.stdpath
 
@@ -305,9 +309,6 @@ end
 -- Finds plugins present in the `packer` package but not in the managed set
 packer.clean = function(results)
   local plugin_utils = require_and_configure 'plugin_utils'
-  local a = require 'packer.async'
-  local async = a.sync
-  local await = a.wait
   local clean = require_and_configure 'clean'
   require_and_configure 'display'
 
@@ -327,9 +328,6 @@ packer.install = function(...)
   local log = require_and_configure 'log'
   log.debug 'packer.install: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
-  local a = require 'packer.async'
-  local async = a.sync
-  local await = a.wait
   local clean = require_and_configure 'clean'
   local install = require_and_configure 'install'
   local display = require_and_configure 'display'
@@ -416,9 +414,6 @@ packer.update = function(...)
   local log = require_and_configure 'log'
   log.debug 'packer.update: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
-  local a = require 'packer.async'
-  local async = a.sync
-  local await = a.wait
   local clean = require_and_configure 'clean'
   local install = require_and_configure 'install'
   local display = require_and_configure 'display'
@@ -490,9 +485,6 @@ packer.sync = function(...)
   local log = require_and_configure 'log'
   log.debug 'packer.sync: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
-  local a = require 'packer.async'
-  local async = a.sync
-  local await = a.wait
   local clean = require_and_configure 'clean'
   local install = require_and_configure 'install'
   local display = require_and_configure 'display'
@@ -561,7 +553,6 @@ packer.sync = function(...)
 end
 
 packer.status = function()
-  local async = require('packer.async').sync
   local display = require_and_configure 'display'
   local log = require_and_configure 'log'
   manage_all_plugins()
@@ -573,36 +564,6 @@ packer.status = function()
       log.warn 'packer_plugins table is nil! Cannot run packer.status()!'
     end
   end)()
-end
-
-local function reload_module(name)
-  if name then
-    package.loaded[name] = nil
-    return require(name)
-  end
-end
-
---- Search through all the loaded packages for those that
---- return a function, then cross reference them with all
---- the plugin configs and setups and if there are any matches
---- reload the user module.
-local function refresh_configs(plugs)
-  local reverse_index = {}
-  for k, v in pairs(package.loaded) do
-    if type(v) == 'function' then
-      reverse_index[v] = k
-    end
-  end
-  for _, plugin in pairs(plugs) do
-    local cfg = reload_module(reverse_index[plugin.config])
-    local setup = reload_module(reverse_index[plugin.setup])
-    if cfg then
-      plugin.config = cfg
-    end
-    if setup then
-      plugin.setup = setup
-    end
-  end
 end
 
 local function parse_value(value)
@@ -636,9 +597,6 @@ end
 packer.compile = function(raw_args, move_plugins)
   local compile = require_and_configure 'compile'
   local log = require_and_configure 'log'
-  local a = require 'packer.async'
-  local async = a.sync
-  local await = a.wait
 
   manage_all_plugins()
   async(function()
@@ -658,7 +616,6 @@ packer.compile = function(raw_args, move_plugins)
     if should_profile == nil then
       should_profile = config.profile.enable
     end
-    refresh_configs(plugins)
     -- NOTE: we copy the plugins table so the in memory value is not mutated during compilation
     local compiled_loader = compile(vim.deepcopy(plugins), output_lua, should_profile)
     output_path = vim.fn.expand(output_path, true)
@@ -692,7 +649,6 @@ packer.compile = function(raw_args, move_plugins)
 end
 
 packer.profile_output = function()
-  local async = require('packer.async').sync
   local display = require_and_configure 'display'
   local log = require_and_configure 'log'
 
@@ -759,8 +715,6 @@ end
 ---Snapshots installed plugins
 ---@param snapshot_name string absolute path or just a snapshot name
 packer.snapshot = function(snapshot_name, ...)
-  local async = require('packer.async').sync
-  local await = require('packer.async').wait
   local snapshot = require 'packer.snapshot'
   local log = require_and_configure 'log'
   local args = { ... }
@@ -831,9 +785,6 @@ end
 ---otherwise all the plugins will be rolled back
 packer.rollback = function(snapshot_name, ...)
   local args = { ... }
-  local a = require 'packer.async'
-  local async = a.sync
-  local await = a.wait
   local wait_all = a.wait_all
   local snapshot = require 'packer.snapshot'
   local log = require_and_configure 'log'
