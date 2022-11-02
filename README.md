@@ -1,3 +1,12 @@
+# 🚧 WIP 🚧
+
+Fork that aims to de-scope and refactor
+
+Aims:
+- heavily refactor
+- remove compilation
+- port to Teal
+
 # packer.nvim
 
 [![Gitter](https://badges.gitter.im/packer-nvim/community.svg)](https://gitter.im/packer-nvim/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
