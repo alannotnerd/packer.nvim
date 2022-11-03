@@ -826,25 +826,16 @@ local function setup_key_plugins(key_plugins)
   end
 end
 
-local ftdetect_patterns = {
-  table.concat({ 'ftdetect', [[**/*.\(vim\|lua\)]] }, util.get_separator()),
-  table.concat({ 'after', 'ftdetect', [[**/*.\(vim\|lua\)]] }, util.get_separator()),
-}
-
-local function detect_ftdetect(name, plugin_path)
-  local paths = {
-    plugin_path .. util.get_separator() .. ftdetect_patterns[1],
-    plugin_path .. util.get_separator() .. ftdetect_patterns[2],
-  }
+local function detect_ftdetect(plugin_path)
   local source_paths = {}
-  for i = 1, 2 do
-    local path = paths[i]
-    local glob_ok, files = pcall(vim.fn.glob, path, false, true)
-    if not glob_ok then
+  for _, parts in ipairs{ { 'ftdetect' }, { 'after', 'ftdetect' } } do
+    parts[#parts+1] = [[**/*.\(vim\|lua\)]]
+    local path = plugin_path .. util.get_separator() .. table.concat(parts, util.get_separator())
+    local ok, files = pcall(vim.fn.glob, path, false, true)
+    if not ok then
       if string.find(files, 'E77') then
         source_paths[#source_paths + 1] = path
       else
-        log.error('Error compiling ' .. name .. ': ' .. vim.inspect(files))
         error(files)
       end
     elseif #files > 0 then
@@ -870,7 +861,7 @@ local function setup_ft_plugins(ft_plugins)
       table.insert(fts[ft], name)
     end
 
-    vim.list_extend(ftdetect_paths, detect_ftdetect(name, plugin.install_path))
+    vim.list_extend(ftdetect_paths, detect_ftdetect(plugin.install_path))
   end
 
   for ft, names in pairs(fts) do
