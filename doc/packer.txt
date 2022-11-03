@@ -124,9 +124,6 @@ Perform `PackerUpdate` and then `PackerCompile`.
 Supports the `--preview` flag as an optional first argument to preview
 updates.
 
-`PackerLoad`                                    *packer-commands-load*
-Loads opt plugin immediately
-
 `PackerSnapshot`                                    *packer-commands-snapshot*
 Snapshots your plugins to a file
 
@@ -184,7 +181,6 @@ commands work well for this purpose: >
   command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerSync lua require('packer').sync(<f-args>)
   command! PackerClean packadd packer.nvim | lua require('plugins').clean()
   command! PackerCompile packadd packer.nvim | lua require('plugins').compile('~/.config/nvim/plugin/packer_load.vim')
-  command! -bang -nargs=+ -complete=customlist,v:lua.require'packer'.loader_complete PackerLoad lua require('packer').loader(<f-args>, '<bang>')
 
 CONFIGURATION                                  *packer-configuration*
 `packer` provides the following configuration variables, presented in the
