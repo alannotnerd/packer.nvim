@@ -351,18 +351,6 @@ local display_mt = {
     end
   end,
 
-  setup_profile_syntax = function(_)
-    local highlights = {
-      'hi def link packerTimeHigh ErrorMsg',
-      'hi def link packerTimeMedium WarningMsg',
-      'hi def link packerTimeLow String',
-      'hi def link packerTimeTrivial Comment',
-    }
-    for _, c in ipairs(highlights) do
-      vim.cmd(c)
-    end
-  end,
-
   status = vim.schedule_wrap(function(self, plugins)
     if not self:valid_display() then
       return
@@ -613,15 +601,6 @@ local display_mt = {
         line = line + 1
       end
     end
-  end,
-
-  profile_output = function(self, output)
-    self:setup_profile_syntax()
-    local result = {}
-    for i, line in ipairs(output) do
-      result[i] = string.rep(' ', 2) .. line
-    end
-    self:set_lines(config.header_lines, -1, result)
   end,
 
   --- Toggle the display of detailed information for a plugin in the final results display

@@ -65,7 +65,6 @@ local config = {
     keybindings = { quit = 'q', toggle_info = '<CR>', diff = 'd', prompt_revert = 'r' },
   },
   log = { level = 'trace' },
-  profile = { enable = false },
 }
 
 git.cfg(config)

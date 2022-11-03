@@ -3,11 +3,6 @@ local util = require 'packer.util'
 local log = require 'packer.log'
 local fmt = string.format
 
-local config
-local function cfg(_config)
-  config = _config.profile
-end
-
 local feature_guard = [[
 if !has('nvim-0.5')
   echohl WarningMsg
@@ -63,70 +58,6 @@ if not no_errors then
   vim.api.nvim_command('echohl ErrorMsg | echom "Error in packer_compiled: '..error_msg..'" | echom "Please check your config for correctness" | echohl None')
 end
 ]]
-
----@param should_profile boolean
----@return string
-local profile_time = function(should_profile)
-  return fmt(
-    [[
-local time
-local profile_info
-local should_profile = %s
-if should_profile then
-  local hrtime = vim.loop.hrtime
-  profile_info = {}
-  time = function(chunk, start)
-    if start then
-      profile_info[chunk] = hrtime()
-    else
-      profile_info[chunk] = (hrtime() - profile_info[chunk]) / 1e6
-    end
-  end
-else
-  time = function(chunk, start) end
-end
-]],
-    vim.inspect(should_profile)
-  )
-end
-
-local profile_output = [[
-local function save_profiles(threshold)
-  local sorted_times = {}
-  for chunk_name, time_taken in pairs(profile_info) do
-    sorted_times[#sorted_times + 1] = {chunk_name, time_taken}
-  end
-  table.sort(sorted_times, function(a, b) return a[2] > b[2] end)
-  local results = {}
-  for i, elem in ipairs(sorted_times) do
-    if not threshold or threshold and elem[2] > threshold then
-      results[i] = elem[1] .. ' took ' .. elem[2] .. 'ms'
-    end
-  end
-  if threshold then
-    table.insert(results, '(Only showing plugins that took longer than ' .. threshold .. ' ms ' .. 'to load)')
-  end
-
-  _G._packer.profile_output = results
-end
-]]
-
----@param threshold number
----@return string
-local conditionally_output_profile = function(threshold)
-  if threshold then
-    return fmt(
-      [[
-if should_profile then save_profiles(%d) end
-]],
-      threshold
-    )
-  else
-    return [[
-if should_profile then save_profiles() end
-]]
-  end
-end
 
 local try_loadstring = [[
 local function try_loadstring(s, component, name)
@@ -256,7 +187,7 @@ local function detect_bufread(plugin_path)
   return false
 end
 
-local function make_loaders(_, plugins, output_lua, should_profile)
+local function make_loaders(_, plugins, output_lua)
   local loaders = {}
   local configs = {}
   local rtps = {}
@@ -706,8 +637,6 @@ local function make_loaders(_, plugins, output_lua, should_profile)
     table.insert(result, 'lua << END')
   end
   table.insert(result, enter_packer_compile)
-  table.insert(result, profile_time(should_profile))
-  table.insert(result, profile_output)
   timed_chunk(try_loadstring, 'try_loadstring definition', result)
   timed_chunk(fmt('_G.packer_plugins = %s\n', dump_loaders(loaders)), 'Defining packer_plugins', result)
   -- Then the runtimepath line
@@ -791,7 +720,6 @@ local function make_loaders(_, plugins, output_lua, should_profile)
 
   table.insert(result, exit_packer_compile)
 
-  table.insert(result, conditionally_output_profile(config.threshold))
   if output_lua then
     table.insert(result, catch_errors_lua)
   else

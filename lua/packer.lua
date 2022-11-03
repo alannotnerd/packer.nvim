@@ -77,7 +77,6 @@ local config_defaults = {
     },
   },
   log = { level = 'warn' },
-  profile = { enable = false },
   autoremove = false,
 }
 
@@ -153,7 +152,6 @@ function packer.make_commands()
   vim.cmd [[command! PackerClean             lua require('packer').clean()]]
   vim.cmd [[command! -nargs=* PackerCompile  lua require('packer').compile(<q-args>)]]
   vim.cmd [[command! PackerStatus            lua require('packer').status()]]
-  vim.cmd [[command! PackerProfile           lua require('packer').profile_output()]]
   vim.cmd [[command! -bang -nargs=+ -complete=customlist,v:lua.require'packer'.loader_complete PackerLoad lua require('packer').loader(<f-args>, '<bang>' == '!')]]
 end
 
@@ -588,14 +586,8 @@ function packer.compile(raw_args, move_plugins)
     local args = parse_args(raw_args)
     local output_path = args.output_path or config.compile_path
     local output_lua = fn.fnamemodify(output_path, ':e') == 'lua'
-    local should_profile = args.profile
-    -- the user might explicitly choose for this value to be false in which case
-    -- an or operator will not work
-    if should_profile == nil then
-      should_profile = config.profile.enable
-    end
     -- NOTE: we copy the plugins table so the in memory value is not mutated during compilation
-    local compiled_loader = compile(vim.deepcopy(plugins), output_lua, should_profile)
+    local compiled_loader = compile(vim.deepcopy(plugins), output_lua, false)
     output_path = fn.expand(output_path, true)
     fn.mkdir(fn.fnamemodify(output_path, ':h'), 'p')
     local output_file = io.open(output_path, 'w')
@@ -623,21 +615,6 @@ function packer.compile(raw_args, move_plugins)
     end
     log.info 'Finished compiling lazy-loaders!'
   end)()
-end
-
-function packer.profile_output()
-  local display = require_and_configure 'display'
-  local log = require_and_configure 'log'
-
-  manage_all_plugins()
-  if _G._packer.profile_output then
-    async(function()
-      local display_win = display.open(config.display.open_fn or config.display.open_cmd)
-      display_win:profile_output(_G._packer.profile_output)
-    end)()
-  else
-    log.warn 'You must run PackerCompile with profiling enabled first e.g. PackerCompile profile=true'
-  end
 end
 
 -- Load plugins

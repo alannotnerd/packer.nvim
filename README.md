@@ -322,10 +322,6 @@ default configuration values (and structure of the configuration table) are:
     }
   },
   log = { level = 'warn' }, -- The default print log level. One of: "trace", "debug", "info", "warn", "error", "fatal".
-  profile = {
-    enable = false,
-    threshold = 1, -- integer in milliseconds, plugins which load faster than this won't be shown in profile output
-  },
   autoremove = false, -- Remove disabled or unused plugins without prompting the user
 }
 ```
@@ -532,32 +528,6 @@ config = {
   }
 }})
 ```
-
-## Profiling
-Packer has built in functionality that can allow you to profile the time taken loading your plugins.
-In order to use this functionality you must either enable profiling in your config, or pass in an argument
-when running packer compile.
-
-#### Setup via config
-```lua
-config = {
-  profile = {
-    enable = true,
-    threshold = 1 -- the amount in ms that a plugin's load time must be over for it to be included in the profile
-  }
-}
-```
-
-#### Using the packer compile command
-```vim
-:PackerCompile profile=true
-" or
-:PackerCompile profile=false
-```
-
-#### Profiling usage
-This will rebuild your `packer_compiled.vim` with profiling code included. In order to visualise the output of the profile
-restart your neovim and run `PackerProfile`. This will open a window with the output of your profiling.
 
 ## Debugging
 `packer.nvim` logs to `stdpath(cache)/packer.nvim.log`. Looking at this file is usually a good start
