@@ -17,7 +17,6 @@ local config_defaults = {
   snapshot = nil,
   snapshot_path = join_paths(stdpath 'cache', 'packer.nvim'),
   package_root = join_paths(stdpath 'data', 'site', 'pack'),
-  compile_path = join_paths(stdpath 'config', 'plugin', 'packer_compiled.lua'),
   plugin_package = 'packer',
   max_jobs = nil,
   auto_clean = true,
@@ -89,7 +88,6 @@ local plugin_specifications = nil
 
 local configurable_modules = {
   clean = false,
-  compile = false,
   display = false,
   install = false,
   plugin_types = false,
@@ -149,7 +147,6 @@ function packer.make_commands()
   vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerUpdate lua require('packer').update(<f-args>)]]
   vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerSync lua require('packer').sync(<f-args>)]]
   vim.cmd [[command! PackerClean             lua require('packer').clean()]]
-  vim.cmd [[command! -nargs=* PackerCompile  lua require('packer').compile(<q-args>)]]
   vim.cmd [[command! PackerStatus            lua require('packer').status()]]
   vim.cmd [[command! -bang -nargs=+ -complete=customlist,v:lua.require'packer'.loader_complete PackerLoad lua require('packer').loader(<f-args>, '<bang>' == '!')]]
 end
@@ -200,17 +197,13 @@ local function manage(plugin_data)
   plugin_spec.name = path
   plugin_spec.path = path
 
+  if plugin_spec.keys or plugin_spec.ft or plugin_spec.cmd then
+    plugin_spec.opt = true
+  end
+
   -- Some config keys modify a plugin type
   if plugin_spec.opt then
     plugin_spec.manual_opt = true
-  end
-
-  local compile = require_and_configure 'compile'
-  for _, key in ipairs(compile.opt_keys) do
-    if plugin_spec[key] ~= nil then
-      plugin_spec.opt = true
-      break
-    end
   end
 
   plugin_spec.install_path = join_paths(plugin_spec.opt and config.opt_dir or config.start_dir, plugin_spec.short_name)
@@ -519,7 +512,6 @@ function packer.sync(...)
     end
 
     await(a.main)
-    packer.compile(false)
     plugin_utils.update_helptags(install_paths)
     plugin_utils.update_rplugins()
     local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
@@ -538,34 +530,6 @@ function packer.status()
     else
       log.warn 'packer_plugins table is nil! Cannot run packer.status()!'
     end
-  end)()
-end
-
---- Update the compiled lazy-loader code
---- Takes an optional argument of a path to which to output the resulting compiled code
-function packer.compile(move_plugins)
-  local compile = require_and_configure 'compile'
-  local log = require_and_configure 'log'
-
-  manage_all_plugins()
-  async(function()
-    if move_plugins ~= false then
-      local update = require_and_configure 'update'
-      local plugin_utils = require_and_configure 'plugin_utils'
-      local fs_state = await(plugin_utils.get_fs_state(plugins))
-      await(a.main)
-      update.fix_plugin_types(plugins, vim.tbl_keys(fs_state.missing), {}, fs_state)
-    end
-    local output_path = config.compile_path
-    local output_lua = fn.fnamemodify(output_path, ':e') == 'lua'
-    -- NOTE: we copy the plugins table so the in memory value is not mutated during compilation
-    local compiled_loader = compile(vim.deepcopy(plugins), output_lua, false)
-    output_path = fn.expand(output_path, true)
-    fn.mkdir(fn.fnamemodify(output_path, ':h'), 'p')
-    local output_file = io.open(output_path, 'w')
-    output_file:write(compiled_loader)
-    output_file:close()
-    log.info 'Finished compiling lazy-loaders!'
   end)()
 end
 
@@ -737,6 +701,229 @@ end
 
 packer.config = config
 
+local function setup_cmd_plugins(cmd_plugins)
+  local commands = {}
+  for name, plugin in pairs(cmd_plugins) do
+    -- TODO(lewis6991): normalize this higher up
+    local cmds = plugin.cmd
+    if type(cmds) == 'string' then
+      cmds = { cmds }
+    end
+    plugin.commands = cmds
+
+    for _, cmd in ipairs(cmds) do
+      commands[cmd] = commands[cmd] or {}
+      table.insert(commands[cmd], name)
+    end
+  end
+
+  for cmd, names in pairs(commands) do
+    vim.api.nvim_create_user_command(cmd,
+      function(args)
+        vim.api.nvim_del_user_command(cmd)
+
+        require('packer.load')(names, {}, _G.packer_plugins)
+
+        local lines = args.line1 == args.line2 and '' or (args.line1 .. ',' .. args.line2)
+        vim.cmd(string.format(
+          '%s %s%s%s %s',
+          args.mods or '',
+          lines,
+          cmd,
+          args.bang and '!' or '',
+          args.args
+        ))
+      end,
+      { complete = 'file', bang = true, nargs = '*' }
+    )
+  end
+end
+
+local function setup_key_plugins(key_plugins)
+  local keymaps = {}
+  for name, plugin in pairs(key_plugins) do
+    if type(plugin.keys) == 'string' then
+      plugin.keys = { plugin.keys }
+    end
+
+    for _, keymap in ipairs(plugin.keys) do
+      if type(keymap) == 'string' then
+        keymap = { '', keymap }
+      end
+      keymaps[keymap] = keymaps[keymap] or {}
+      table.insert(keymaps[keymap], name)
+    end
+  end
+
+  for keymap, names in pairs(keymaps) do
+    local prefix = nil
+    if keymap[1] ~= 'i' then
+      prefix = ''
+    end
+
+    vim.keymap.set(keymap[1], keymap[2], function()
+      vim.keymap.del(keymap[1], keymap[2])
+      require('packer.load')(names, { keys = keymap[2], prefix = prefix }, _G.packer_plugins)
+    end, {
+        desc = 'Packer lazy load: '..table.concat(names, ', '),
+        silent = true
+      })
+  end
+end
+
+local ftdetect_patterns = {
+  table.concat({ 'ftdetect', [[**/*.\(vim\|lua\)]] }, util.get_separator()),
+  table.concat({ 'after', 'ftdetect', [[**/*.\(vim\|lua\)]] }, util.get_separator()),
+}
+
+local function detect_ftdetect(name, plugin_path)
+  local paths = {
+    plugin_path .. util.get_separator() .. ftdetect_patterns[1],
+    plugin_path .. util.get_separator() .. ftdetect_patterns[2],
+  }
+  local source_paths = {}
+  for i = 1, 2 do
+    local path = paths[i]
+    local glob_ok, files = pcall(vim.fn.glob, path, false, true)
+    if not glob_ok then
+      if string.find(files, 'E77') then
+        source_paths[#source_paths + 1] = path
+      else
+        log.error('Error compiling ' .. name .. ': ' .. vim.inspect(files))
+        error(files)
+      end
+    elseif #files > 0 then
+      vim.list_extend(source_paths, files)
+    end
+  end
+
+  return source_paths
+end
+
+
+local function setup_ft_plugins(ft_plugins)
+  local fts = {}
+
+  local ftdetect_paths = {}
+
+  for name, plugin in pairs(ft_plugins) do
+    if type(plugin.ft) == 'string' then
+      plugin.ft = { plugin.ft }
+    end
+    for _, ft in ipairs(plugin.ft) do
+      fts[ft] = fts[ft] or {}
+      table.insert(fts[ft], name)
+    end
+
+    vim.list_extend(ftdetect_paths, detect_ftdetect(name, plugin.install_path))
+  end
+
+  for ft, names in pairs(fts) do
+    vim.api.nvim_create_autocmd('FileType', {
+      pattern = ft,
+      once = true,
+      callback = function()
+        require("packer.load")(names, {}, _G.packer_plugins)
+        for _, group in ipairs{'filetypeplugin', 'filetypeindent', 'syntaxset'} do
+          vim.api.nvim_exec_autocmds('FileType', { group = group, pattern = ft, modeline = false })
+        end
+      end
+    })
+  end
+
+  if #ftdetect_paths > 0 then
+    vim.cmd'augroup filetypedetect'
+    for _, path in ipairs(ftdetect_paths) do
+      -- 'Sourcing ftdetect script at: ' path, result)
+      vim.cmd.source(path)
+    end
+    vim.cmd'augroup END'
+  end
+
+end
+
+local function setup_event_plugins(event_plugins)
+
+  local events = {}
+
+  for name, plugin in pairs(event_plugins) do
+    -- TODO(lewis6991): support patterns
+    if type(plugin.event) == 'string' then
+      plugin.event = { plugin.event }
+    end
+
+    for _, event in ipairs(plugin.event) do
+      events[event] = events[event] or {}
+      table.insert(events[event], name)
+    end
+  end
+
+  for event, names in pairs(events) do
+    vim.api.nvim_create_autocmd(event, {
+      once = true,
+      callback = function()
+        require("packer.load")(names, {}, _G.packer_plugins)
+        vim.api.nvim_exec_autocmds(event, { modeline = false })
+      end
+    })
+  end
+end
+
+local function setup_uncond_plugin(uncond_plugins)
+  for name, plugin in pairs(uncond_plugins) do
+    if plugin.config and not plugin._done_config then
+      plugin._done_config = true
+      if type(plugin.config) == 'function' then
+        plugin.config()
+      else
+        loadstring(plugin.config, name..'.config()')()
+      end
+    end
+  end
+end
+
+local function load_plugin_configs()
+  local cond_plugins = {
+    cmd  = {},
+    keys = {},
+    ft   = {},
+  }
+
+  local uncond_plugins = {}
+
+  for name, plugin in pairs(plugins) do
+    if not plugin.disable then
+      local has_cond = false
+      for _, cond in ipairs{'cmd', 'keys', 'ft'} do
+        if plugin[cond] then
+          has_cond = true
+          cond_plugins[cond][name] = plugin
+          break
+        end
+      end
+      if not has_cond then
+        uncond_plugins[name] = plugin
+      end
+    end
+  end
+
+  setup_uncond_plugin(uncond_plugins)
+  setup_cmd_plugins(cond_plugins.cmd)
+  setup_key_plugins(cond_plugins.keys)
+  setup_ft_plugins(cond_plugins.ft)
+
+  _G.packer_plugins = plugins
+
+--   for event, names in pairs(events) do
+--     vim.api.nvim_create_autocmd(event, {
+--       once = true,
+--       callback = function()
+--         require('packer.load')(names, {event = event}, _G.packer_plugins)
+--       end
+--     })
+--   end
+end
+
 -- Convenience function for simple setup
 -- spec can be a table with a table of plugin specifications as its first
 -- element, config overrides as another element.
@@ -749,6 +936,8 @@ function packer.startup(spec)
   packer.reset()
   require_and_configure 'log'
   packer.use(user_plugins)
+  manage_all_plugins()
+  load_plugin_configs()
 
   if config.snapshot then
     packer.rollback(config.snapshot)
