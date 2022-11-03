@@ -1,3 +1,4 @@
+local api = vim.api
 local fn = vim.fn
 -- TODO: Performance analysis/tuning
 -- TODO: Merge start plugins?
@@ -121,7 +122,7 @@ function packer.init(user_config)
   config.pack_dir = join_paths(config.package_root, config.plugin_package)
   config.opt_dir = join_paths(config.pack_dir, 'opt')
   config.start_dir = join_paths(config.pack_dir, 'start')
-  if #vim.api.nvim_list_uis() == 0 then
+  if #api.nvim_list_uis() == 0 then
     config.display.non_interactive = true
   end
 
@@ -140,14 +141,32 @@ function packer.init(user_config)
 end
 
 function packer.make_commands()
-  vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.create PackerSnapshot  lua require('packer').snapshot(<f-args>)]]
-  vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.rollback PackerSnapshotRollback  lua require('packer').rollback(<f-args>)]]
-  vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.snapshot PackerSnapshotDelete lua require('packer.snapshot').delete(<f-args>)]]
-  vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerInstall lua require('packer').install(<f-args>)]]
-  vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerUpdate lua require('packer').update(<f-args>)]]
-  vim.cmd [[command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerSync lua require('packer').sync(<f-args>)]]
-  vim.cmd [[command! PackerClean             lua require('packer').clean()]]
-  vim.cmd [[command! PackerStatus            lua require('packer').status()]]
+  api.nvim_create_user_command('PackerSnapshot', function(args)
+    require'packer.snapsot'.snapshot(unpack(args.fargs))
+  end, {nargs ='+', complete = require'packer.snapshot'.completion.create})
+
+  api.nvim_create_user_command('PackerSnapshotRollback', function(args)
+    require'packer.snapsot'.rollback(unpack(args.fargs))
+  end, {nargs ='+', complete = require'packer.snapshot'.completion.rollback})
+
+  api.nvim_create_user_command('PackerSnapshotDelete', function(args)
+    require'packer.snapsot'.delete(unpack(args.fargs))
+  end, {nargs ='+', complete = require'packer.snapshot'.completion.snapshot})
+
+  api.nvim_create_user_command('PackerInstall', function(args)
+    packer.install(unpack(args.fargs))
+  end, {nargs ='*', complete = packer.plugin_complete})
+
+  api.nvim_create_user_command('PackerUpdate', function(args)
+    packer.update(unpack(args.fargs))
+  end, {nargs ='*', complete = packer.plugin_complete})
+
+  api.nvim_create_user_command('PackerSync', function(args)
+    packer.sync(unpack(args.fargs))
+  end, {nargs ='*', complete = packer.plugin_complete})
+
+  api.nvim_create_user_command('PackerClean', function() packer.clean() end, {})
+  api.nvim_create_user_command('PackerStatus', function() packer.status() end, {})
 end
 
 function packer.reset()
@@ -764,9 +783,9 @@ local function setup_cmd_plugins(cmd_plugins)
   end
 
   for cmd, names in pairs(commands) do
-    vim.api.nvim_create_user_command(cmd,
+    api.nvim_create_user_command(cmd,
       function(args)
-        vim.api.nvim_del_user_command(cmd)
+        api.nvim_del_user_command(cmd)
 
         packer_load(names)
 
@@ -851,13 +870,13 @@ local function setup_ft_plugins(ft_plugins)
   end
 
   for ft, names in pairs(fts) do
-    vim.api.nvim_create_autocmd('FileType', {
+    api.nvim_create_autocmd('FileType', {
       pattern = ft,
       once = true,
       callback = function()
         packer_load(names)
         for _, group in ipairs{'filetypeplugin', 'filetypeindent', 'syntaxset'} do
-          vim.api.nvim_exec_autocmds('FileType', { group = group, pattern = ft, modeline = false })
+          api.nvim_exec_autocmds('FileType', { group = group, pattern = ft, modeline = false })
         end
       end
     })
@@ -891,11 +910,11 @@ local function setup_event_plugins(event_plugins)
   end
 
   for event, names in pairs(events) do
-    vim.api.nvim_create_autocmd(event, {
+    api.nvim_create_autocmd(event, {
       once = true,
       callback = function()
         packer_load(names)
-        vim.api.nvim_exec_autocmds(event, { modeline = false })
+        api.nvim_exec_autocmds(event, { modeline = false })
       end
     })
   end
