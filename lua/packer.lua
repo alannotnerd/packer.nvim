@@ -295,6 +295,13 @@ function packer.clean(results)
   end)()
 end
 
+local function reltime(start)
+  if start == nil then
+    return fn.reltime()
+  end
+  return fn.reltime(start)
+end
+
 --- Install operation:
 -- Takes an optional list of plugin names as an argument. If no list is given, operates on all
 -- managed plugins.
@@ -323,7 +330,7 @@ function packer.install(...)
     end
 
     await(a.main)
-    local start_time = fn.reltime()
+    local start_time = reltime()
     local results = {}
     await(clean(plugins, fs_state, results))
     await(a.main)
@@ -347,7 +354,7 @@ function packer.install(...)
       await(a.main)
       plugin_utils.update_helptags(install_paths)
       plugin_utils.update_rplugins()
-      local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
+      local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
       display_win:final_results(results, delta)
     else
       log.info 'Nothing to install!'
@@ -395,7 +402,7 @@ function packer.update(...)
 
   local opts, update_plugins = filter_opts_from_plugins(...)
   async(function()
-    local start_time = fn.reltime()
+    local start_time = reltime()
     local results = {}
     local fs_state = await(plugin_utils.get_fs_state(plugins))
     local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
@@ -439,7 +446,7 @@ function packer.update(...)
     await(a.main)
     plugin_utils.update_helptags(install_paths)
     plugin_utils.update_rplugins()
-    local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
+    local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
     display_win:final_results(results, delta, opts)
   end)()
 end
@@ -465,7 +472,7 @@ function packer.sync(...)
 
   local opts, sync_plugins = filter_opts_from_plugins(...)
   async(function()
-    local start_time = fn.reltime()
+    local start_time = reltime()
     local results = {}
     local fs_state = await(plugin_utils.get_fs_state(plugins))
     local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), sync_plugins)
@@ -514,7 +521,7 @@ function packer.sync(...)
     await(a.main)
     plugin_utils.update_helptags(install_paths)
     plugin_utils.update_rplugins()
-    local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
+    local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
     display_win:final_results(results, delta, opts)
   end)()
 end
