@@ -22,7 +22,6 @@ local config_defaults = {
   max_jobs = nil,
   auto_clean = true,
   disable_commands = false,
-  auto_reload_compiled = true,
   preview_updates = false,
   git = {
     mark_breaking_changes = true,
@@ -520,7 +519,7 @@ function packer.sync(...)
     end
 
     await(a.main)
-    packer.compile(nil, false)
+    packer.compile(false)
     plugin_utils.update_helptags(install_paths)
     plugin_utils.update_rplugins()
     local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
@@ -542,35 +541,9 @@ function packer.status()
   end)()
 end
 
-local function parse_value(value)
-  if value == 'true' then
-    return true
-  end
-  if value == 'false' then
-    return false
-  end
-  return value
-end
-
-local function parse_args(args)
-  local result = {}
-  if args then
-    local parts = vim.split(args, ' ')
-    for _, part in ipairs(parts) do
-      if part then
-        if part:find '=' then
-          local key, value = unpack(vim.split(part, '='))
-          result[key] = parse_value(value)
-        end
-      end
-    end
-  end
-  return result
-end
-
 --- Update the compiled lazy-loader code
 --- Takes an optional argument of a path to which to output the resulting compiled code
-function packer.compile(raw_args, move_plugins)
+function packer.compile(move_plugins)
   local compile = require_and_configure 'compile'
   local log = require_and_configure 'log'
 
@@ -583,8 +556,7 @@ function packer.compile(raw_args, move_plugins)
       await(a.main)
       update.fix_plugin_types(plugins, vim.tbl_keys(fs_state.missing), {}, fs_state)
     end
-    local args = parse_args(raw_args)
-    local output_path = args.output_path or config.compile_path
+    local output_path = config.compile_path
     local output_lua = fn.fnamemodify(output_path, ':e') == 'lua'
     -- NOTE: we copy the plugins table so the in memory value is not mutated during compilation
     local compiled_loader = compile(vim.deepcopy(plugins), output_lua, false)
@@ -593,26 +565,6 @@ function packer.compile(raw_args, move_plugins)
     local output_file = io.open(output_path, 'w')
     output_file:write(compiled_loader)
     output_file:close()
-    if config.auto_reload_compiled then
-      local configs_to_run = {}
-      if _G.packer_plugins ~= nil then
-        for plugin_name, plugin_info in pairs(_G.packer_plugins) do
-          if plugin_info.loaded and plugin_info.config and plugins[plugin_name] and plugins[plugin_name].cmd then
-            configs_to_run[plugin_name] = plugin_info.config
-          end
-        end
-      end
-
-      vim.cmd('source ' .. output_path)
-      for plugin_name, plugin_config in pairs(configs_to_run) do
-        for _, config_line in ipairs(plugin_config) do
-          local success, err = pcall(loadstring(config_line))
-          if not success then
-            log.error('Error running config for ' .. plugin_name .. ': ' .. vim.inspect(err))
-          end
-        end
-      end
-    end
     log.info 'Finished compiling lazy-loaders!'
   end)()
 end
