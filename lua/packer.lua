@@ -291,19 +291,6 @@ end
 -- Use by tests
 packer.__manage_all = manage_all_plugins
 
---- Hook to fire events after packer operations
-packer.on_complete = vim.schedule_wrap(function()
-  vim.cmd [[doautocmd User PackerComplete]]
-end)
-
---- Hook to fire events after packer compilation
-function packer.on_compile_done()
-  local log = require_and_configure 'log'
-
-  vim.cmd [[doautocmd User PackerCompileDone]]
-  log.debug 'packer.compile: Complete'
-end
-
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
 function packer.clean(results)
@@ -315,7 +302,6 @@ function packer.clean(results)
   async(function()
     local fs_state = await(plugin_utils.get_fs_state(plugins))
     await(clean(plugins, fs_state, results))
-    packer.on_complete()
   end)()
 end
 
@@ -343,7 +329,6 @@ function packer.install(...)
     end
     if #install_plugins == 0 then
       log.info 'All configured plugins are installed'
-      packer.on_complete()
       return
     end
 
@@ -374,10 +359,8 @@ function packer.install(...)
       plugin_utils.update_rplugins()
       local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
       display_win:final_results(results, delta)
-      packer.on_complete()
     else
       log.info 'Nothing to install!'
-      packer.on_complete()
     end
   end)()
 end
@@ -468,7 +451,6 @@ function packer.update(...)
     plugin_utils.update_rplugins()
     local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
     display_win:final_results(results, delta, opts)
-    packer.on_complete()
   end)()
 end
 
@@ -545,7 +527,6 @@ function packer.sync(...)
     plugin_utils.update_rplugins()
     local delta = string.gsub(fn.reltimestr(fn.reltime(start_time)), ' ', '')
     display_win:final_results(results, delta, opts)
-    packer.on_complete()
   end)()
 end
 
@@ -641,7 +622,6 @@ function packer.compile(raw_args, move_plugins)
       end
     end
     log.info 'Finished compiling lazy-loaders!'
-    packer.on_compile_done()
   end)()
 end
 
@@ -823,8 +803,6 @@ function packer.rollback(snapshot_name, ...)
         await(a.main)
         log.error(err)
       end)
-
-    packer.on_complete()
   end)()
 end
 

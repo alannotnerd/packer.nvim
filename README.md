@@ -235,13 +235,6 @@ return require('packer').startup(function(use)
 end)
 ```
 
-You can also use the following command (with `packer` bootstrapped) to have `packer` setup your
-configuration (or simply run updates) and close once all operations are completed:
-
-```sh
-$ nvim --headless -c 'autocmd User PackerComplete quitall' -c 'PackerSync'
-```
-
 ## Usage
 
 The above snippets give some examples of `packer` features and use. Examples include:
@@ -508,7 +501,6 @@ name and information table as arguments.
 require knowing when the operations are complete, you can use the following `User` autocmds (see
 `:help User` for more info on how to use):
 
-- `PackerComplete`: Fires after install, update, clean, and sync asynchronous operations finish.
 - `PackerCompileDone`: Fires after compiling (see [the section on compilation](#compiling-lazy-loaders))
 
 ### Using a floating window
