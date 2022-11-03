@@ -160,7 +160,7 @@ end
 -- a list of plugin specs
 -- TODO: This should be refactored into its own module and the various keys should be implemented
 -- (as much as possible) as ordinary handlers
-local function manage(plugin_data)
+local function process_plugin_spec(plugin_data)
   local plugin_spec = plugin_data.spec
   local spec_line = plugin_data.line
   local spec_type = type(plugin_spec)
@@ -168,7 +168,7 @@ local function manage(plugin_data)
     plugin_spec = { plugin_spec }
   elseif spec_type == 'table' and #plugin_spec > 1 then
     for _, spec in ipairs(plugin_spec) do
-      manage { spec = spec, line = spec_line }
+      process_plugin_spec { spec = spec, line = spec_line }
     end
     return
   end
@@ -253,7 +253,7 @@ local function manage(plugin_data)
           req.disable = true
         end
 
-        manage { spec = req, line = spec_line }
+        process_plugin_spec { spec = req, line = spec_line }
       end
     end
   end
@@ -267,18 +267,18 @@ function packer.use(plugin_spec)
   }
 end
 
-local function manage_all_plugins()
+local function process_plugin_specs()
   local log = require_and_configure 'log'
   log.debug 'Processing plugin specs'
   if plugins == nil or next(plugins) == nil then
     for _, spec in ipairs(plugin_specifications) do
-      manage(spec)
+      process_plugin_spec(spec)
     end
   end
 end
 
 -- Use by tests
-packer.__manage_all = manage_all_plugins
+packer.__manage_all = process_plugin_specs
 
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
@@ -287,7 +287,7 @@ function packer.clean(results)
   local clean = require_and_configure 'clean'
   require_and_configure 'display'
 
-  manage_all_plugins()
+  process_plugin_specs()
   async(function()
     local fs_state = await(plugin_utils.get_fs_state(plugins))
     await(clean(plugins, fs_state, results))
@@ -313,7 +313,7 @@ function packer.install(...)
   local install = require_and_configure 'install'
   local display = require_and_configure 'display'
 
-  manage_all_plugins()
+  process_plugin_specs()
   local install_plugins
   if ... then
     install_plugins = { ... }
@@ -397,7 +397,7 @@ function packer.update(...)
   local display = require_and_configure 'display'
   local update = require_and_configure 'update'
 
-  manage_all_plugins()
+  process_plugin_specs()
 
   local opts, update_plugins = filter_opts_from_plugins(...)
   async(function()
@@ -467,7 +467,7 @@ function packer.sync(...)
   local display = require_and_configure 'display'
   local update = require_and_configure 'update'
 
-  manage_all_plugins()
+  process_plugin_specs()
 
   local opts, sync_plugins = filter_opts_from_plugins(...)
   async(function()
@@ -528,7 +528,7 @@ end
 function packer.status()
   local display = require_and_configure 'display'
   local log = require_and_configure 'log'
-  manage_all_plugins()
+  process_plugin_specs()
   async(function()
     local display_win = display.open(config.display.open_fn or config.display.open_cmd)
     if _G.packer_plugins ~= nil then
@@ -648,7 +648,7 @@ function packer.snapshot(snapshot_name, ...)
     end
   end
 
-  manage_all_plugins()
+  process_plugin_specs()
 
   local target_plugins = plugins
   if next(args) ~= nil then -- provided extra args
@@ -706,7 +706,7 @@ function packer.rollback(snapshot_name, ...)
   local fmt = string.format
 
   async(function()
-    manage_all_plugins()
+    process_plugin_specs()
 
     local snapshot_path = vim.loop.fs_realpath(util.join_paths(config.snapshot_path, snapshot_name))
       or vim.loop.fs_realpath(snapshot_name)
@@ -961,7 +961,7 @@ function packer.startup(spec)
   packer.reset()
   require_and_configure 'log'
   packer.use(user_plugins)
-  manage_all_plugins()
+  process_plugin_specs()
   load_plugin_configs()
 
   if config.snapshot then
