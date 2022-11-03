@@ -116,7 +116,7 @@ end
 --- Initialize packer
 -- Forwards user configuration to sub-modules, resets the set of managed plugins, and ensures that
 -- the necessary package directories exist
-packer.init = function(user_config)
+function packer.init(user_config)
   user_config = user_config or {}
   config = util.deep_extend('force', config, user_config)
   packer.reset()
@@ -143,7 +143,7 @@ packer.init = function(user_config)
   end
 end
 
-packer.make_commands = function()
+function packer.make_commands()
   vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.create PackerSnapshot  lua require('packer').snapshot(<f-args>)]]
   vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.rollback PackerSnapshotRollback  lua require('packer').rollback(<f-args>)]]
   vim.cmd [[command! -nargs=+ -complete=customlist,v:lua.require'packer.snapshot'.completion.snapshot PackerSnapshotDelete lua require('packer.snapshot').delete(<f-args>)]]
@@ -157,7 +157,7 @@ packer.make_commands = function()
   vim.cmd [[command! -bang -nargs=+ -complete=customlist,v:lua.require'packer'.loader_complete PackerLoad lua require('packer').loader(<f-args>, '<bang>' == '!')]]
 end
 
-packer.reset = function()
+function packer.reset()
   plugins = {}
   plugin_specifications = {}
 end
@@ -271,7 +271,7 @@ local function manage(plugin_data)
 end
 
 --- Add a plugin to the managed set
-packer.use = function(plugin_spec)
+function packer.use(plugin_spec)
   plugin_specifications[#plugin_specifications + 1] = {
     spec = plugin_spec,
     line = debug.getinfo(2, 'l').currentline,
@@ -297,7 +297,7 @@ packer.on_complete = vim.schedule_wrap(function()
 end)
 
 --- Hook to fire events after packer compilation
-packer.on_compile_done = function()
+function packer.on_compile_done()
   local log = require_and_configure 'log'
 
   vim.cmd [[doautocmd User PackerCompileDone]]
@@ -306,7 +306,7 @@ end
 
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
-packer.clean = function(results)
+function packer.clean(results)
   local plugin_utils = require_and_configure 'plugin_utils'
   local clean = require_and_configure 'clean'
   require_and_configure 'display'
@@ -323,7 +323,7 @@ end
 -- Takes an optional list of plugin names as an argument. If no list is given, operates on all
 -- managed plugins.
 -- Installs missing plugins, then updates helptags and rplugins
-packer.install = function(...)
+function packer.install(...)
   local log = require_and_configure 'log'
   log.debug 'packer.install: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
@@ -384,7 +384,7 @@ end
 
 -- Filter out options specified as the first argument to update or sync
 -- returns the options table and the plugin names
-local filter_opts_from_plugins = function(...)
+local function filter_opts_from_plugins(...)
   local args = { ... }
   local opts = {}
   if not vim.tbl_isempty(args) then
@@ -409,7 +409,7 @@ end
 -- Fixes plugin types, installs missing plugins, then updates installed plugins and updates helptags
 -- and rplugins
 -- Options can be specified in the first argument as either a table or explicit `'--preview'`.
-packer.update = function(...)
+function packer.update(...)
   local log = require_and_configure 'log'
   log.debug 'packer.update: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
@@ -480,7 +480,7 @@ end
 --  - Clean stale plugins
 --  - Install missing plugins and update installed plugins
 --  - Update helptags and rplugins
-packer.sync = function(...)
+function packer.sync(...)
   local log = require_and_configure 'log'
   log.debug 'packer.sync: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
@@ -549,7 +549,7 @@ packer.sync = function(...)
   end)()
 end
 
-packer.status = function()
+function packer.status()
   local display = require_and_configure 'display'
   local log = require_and_configure 'log'
   manage_all_plugins()
@@ -591,7 +591,7 @@ end
 
 --- Update the compiled lazy-loader code
 --- Takes an optional argument of a path to which to output the resulting compiled code
-packer.compile = function(raw_args, move_plugins)
+function packer.compile(raw_args, move_plugins)
   local compile = require_and_configure 'compile'
   local log = require_and_configure 'log'
 
@@ -645,7 +645,7 @@ packer.compile = function(raw_args, move_plugins)
   end)()
 end
 
-packer.profile_output = function()
+function packer.profile_output()
   local display = require_and_configure 'display'
   local log = require_and_configure 'log'
 
@@ -664,7 +664,7 @@ end
 -- @param plugins string String of space separated plugins names
 --                      intended for PackerLoad command
 --                or list of plugin names as independent strings
-packer.loader = function(...)
+function packer.loader(...)
   local plugin_names = { ... }
   local force = plugin_names[#plugin_names] == true
   if type(plugin_names[#plugin_names]) == 'boolean' then
@@ -688,7 +688,7 @@ end
 
 -- Completion for not yet loaded plugins
 -- Intended to provide completion for PackerLoad command
-packer.loader_complete = function(lead, _, _)
+function packer.loader_complete(lead, _, _)
   local completion_list = {}
   for name, plugin in pairs(_G.packer_plugins) do
     if vim.startswith(name, lead) and not plugin.loaded then
@@ -701,7 +701,7 @@ end
 
 -- Completion user plugins
 -- Intended to provide completion for PackerUpdate/Sync/Install command
-packer.plugin_complete = function(lead, _, _)
+function packer.plugin_complete(lead, _, _)
   local completion_list = vim.tbl_filter(function(name)
     return vim.startswith(name, lead)
   end, vim.tbl_keys(_G.packer_plugins))
@@ -711,7 +711,7 @@ end
 
 ---Snapshots installed plugins
 ---@param snapshot_name string absolute path or just a snapshot name
-packer.snapshot = function(snapshot_name, ...)
+function packer.snapshot(snapshot_name, ...)
   local snapshot = require 'packer.snapshot'
   local log = require_and_configure 'log'
   local args = { ... }
@@ -780,7 +780,7 @@ end
 ---@param snapshot_name string @name of the snapshot or the absolute path to the snapshot
 ---@vararg string @ if provided, the only plugins to be rolled back,
 ---otherwise all the plugins will be rolled back
-packer.rollback = function(snapshot_name, ...)
+function packer.rollback(snapshot_name, ...)
   local args = { ... }
   local snapshot = require 'packer.snapshot'
   local log = require_and_configure 'log'
@@ -833,7 +833,7 @@ packer.config = config
 -- Convenience function for simple setup
 -- spec can be a table with a table of plugin specifications as its first
 -- element, config overrides as another element.
-packer.startup = function(spec)
+function packer.startup(spec)
   assert(type(spec) == 'table')
   assert(type(spec[1]) == 'table')
   local user_plugins = spec[1]
