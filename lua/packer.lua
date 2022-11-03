@@ -830,60 +830,22 @@ end
 
 packer.config = config
 
---- Convenience function for simple setup
--- Can be invoked as follows:
---  spec can be a function:
---  packer.startup(function() use 'tjdevries/colorbuddy.vim' end)
---
---  spec can be a table with a function as its first element and config overrides as another
---  element:
---  packer.startup({function() use 'tjdevries/colorbuddy.vim' end, config = { ... }})
---
---  spec can be a table with a table of plugin specifications as its first element, config overrides
---  as another element.
+-- Convenience function for simple setup
+-- spec can be a table with a table of plugin specifications as its first
+-- element, config overrides as another element.
 packer.startup = function(spec)
-  local log = require 'packer.log'
-  local user_func = nil
-  local user_config = nil
-  local user_plugins = nil
-  if type(spec) == 'function' then
-    user_func = spec
-  elseif type(spec) == 'table' then
-    if type(spec[1]) == 'function' then
-      user_func = spec[1]
-    elseif type(spec[1]) == 'table' then
-      user_plugins = spec[1]
-    else
-      log.error 'You must provide a function or table of specifications as the first element of the argument to startup!'
-      return
-    end
+  assert(type(spec) == 'table')
+  assert(type(spec[1]) == 'table')
+  local user_plugins = spec[1]
 
-    -- NOTE: It might be more convenient for users to allow arbitrary config keys to be specified
-    -- and to merge them, but I feel that only avoids a single layer of nesting and adds more
-    -- complication here, so I'm not sure if the benefit justifies the cost
-    user_config = spec.config
-  end
-
-  packer.init(user_config)
+  packer.init(spec.config)
   packer.reset()
-  log = require_and_configure 'log'
+  require_and_configure 'log'
+  packer.use(user_plugins)
 
-  if user_func then
-    setfenv(user_func, vim.tbl_extend('force', getfenv(), { use = packer.use }))
-    local status, err = pcall(user_func, packer.use, false)
-    if not status then
-      log.error('Failure running setup function: ' .. vim.inspect(err))
-      error(err)
-    end
-  else
-    packer.use(user_plugins)
-  end
-
-  if config.snapshot ~= nil then
+  if config.snapshot then
     packer.rollback(config.snapshot)
   end
-
-  return packer
 end
 
 return packer
