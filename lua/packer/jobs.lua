@@ -94,7 +94,7 @@ local spawn = a.wrap(function(cmd, options, callback)
       end
     end)
   end
-end)
+end, 3)
 
 --- Utility function to perform a common check for process success and return a result object
 local function was_successful(r)

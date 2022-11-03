@@ -1,23 +1,23 @@
--- Adapted from https://ms-jpq.github.io/neovim-async-tutorial/
-local log = require 'packer.log'
+-- do
+--   return require('packer.async2')
+-- end
+
 local yield = coroutine.yield
 
 local M = {}
 
-local function EMPTY_CALLBACK() end
 local function step(func, callback)
   local thread = coroutine.create(func)
   local function tick(...)
     local ok, val = coroutine.resume(thread, ...)
-    if ok then
-      if type(val) == 'function' then
-        val(tick)
-      else
-        (callback or EMPTY_CALLBACK)(val)
-      end
-    else
-      log.error('Error in coroutine: ' .. val);
-      (callback or EMPTY_CALLBACK)(nil)
+    if not ok then
+      error('Error in coroutine: ' .. val);
+    end
+
+    if type(val) == 'function' then
+      val(tick)
+    elseif callback then
+      callback(val)
     end
   end
 
@@ -66,8 +66,8 @@ local function pool(n, interrupt_check, ...)
   end
 end
 
-  --- Like wait_pool, but additionally checks at every function completion to see if a condition is
-  --  met indicating that it should keep running the remaining tasks
+--- Like wait_pool, but additionally checks at every function completion to see if a condition is
+--  met indicating that it should keep running the remaining tasks
 function M.interruptible_wait_pool(...)
   return yield(pool(...))
 end
