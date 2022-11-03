@@ -1,15 +1,14 @@
 -- Adapted from https://ms-jpq.github.io/neovim-async-tutorial/
 local log = require 'packer.log'
 local yield = coroutine.yield
-local resume = coroutine.resume
-local thread_create = coroutine.create
+
+local M = {}
 
 local function EMPTY_CALLBACK() end
 local function step(func, callback)
-  local thread = thread_create(func)
-  local tick = nil
-  tick = function(...)
-    local ok, val = resume(thread, ...)
+  local thread = coroutine.create(func)
+  local function tick(...)
+    local ok, val = coroutine.resume(thread, ...)
     if ok then
       if type(val) == 'function' then
         val(tick)
@@ -25,7 +24,8 @@ local function step(func, callback)
   tick()
 end
 
-local function wrap(func)
+--- Wrapper for functions that do take a callback to make async functions
+function M.wrap(func)
   return function(...)
     local params = { ... }
     return function(tick)
@@ -35,6 +35,8 @@ local function wrap(func)
   end
 end
 
+M.sync = M.wrap(step)
+
 local function pool(n, interrupt_check, ...)
   local thunks = { ... }
   return function(s)
@@ -42,60 +44,42 @@ local function pool(n, interrupt_check, ...)
       return s()
     end
     local remaining = { select(n + 1, unpack(thunks)) }
-    local results = {}
     local to_go = #thunks
-    local make_callback = nil
-    make_callback = function(idx, left)
-      local i = (left == nil) and idx or (idx + left)
-      return function(...)
-        results[i] = { ... }
+
+    local function make_callback()
+      return function()
         to_go = to_go - 1
         if to_go == 0 then
-          s(unpack(results))
+          s()
         elseif not interrupt_check or not interrupt_check() then
-          if remaining and #remaining > 0 then
+          if #remaining > 0 then
             local next_task = table.remove(remaining)
-            next_task(make_callback(n, #remaining + 1))
+            next_task(make_callback())
           end
         end
       end
     end
 
     for i = 1, math.min(n, #thunks) do
-      local thunk = thunks[i]
-      thunk(make_callback(i))
+      thunks[i](make_callback())
     end
   end
 end
 
-local function wait_pool(limit, ...)
-  return yield(pool(limit, false, ...))
+  --- Like wait_pool, but additionally checks at every function completion to see if a condition is
+  --  met indicating that it should keep running the remaining tasks
+function M.interruptible_wait_pool(...)
+  return yield(pool(...))
 end
 
-local function interruptible_wait_pool(limit, interrupt_check, ...)
-  return yield(pool(limit, interrupt_check, ...))
-end
-
-local function main(f)
+--- Convenience function to ensure a function runs on the main "thread" (i.e. for functions which
+--  use Neovim functions, etc.)
+function M.main(f)
   vim.schedule(f)
 end
 
-local M = {
-  --- Wrapper for functions that do not take a callback to make async functions
-  sync = wrap(step),
-  --- Alias for yielding to await the result of an async function
-  wait = yield,
-  --- Await the completion of a full set of async functions, with a limit on how many functions can
-  --  run simultaneously
-  wait_pool = wait_pool,
-  --- Like wait_pool, but additionally checks at every function completion to see if a condition is
-  --  met indicating that it should keep running the remaining tasks
-  interruptible_wait_pool = interruptible_wait_pool,
-  --- Wrapper for functions that do take a callback to make async functions
-  wrap = wrap,
-  --- Convenience function to ensure a function runs on the main "thread" (i.e. for functions which
-  --  use Neovim functions, etc.)
-  main = main,
-}
+--- Wrapper for functions that do not take a callback to make async functions
+--- Alias for yielding to await the result of an async function
+M.wait = yield
 
 return M
