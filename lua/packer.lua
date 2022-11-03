@@ -816,11 +816,6 @@ local function setup_key_plugins(key_plugins)
   end
 
   for keymap, names in pairs(keymaps) do
-    local prefix = nil
-    if keymap[1] ~= 'i' then
-      prefix = ''
-    end
-
     vim.keymap.set(keymap[1], keymap[2], function()
       vim.keymap.del(keymap[1], keymap[2])
       packer_load(names)
@@ -944,9 +939,10 @@ end
 
 local function load_plugin_configs()
   local cond_plugins = {
-    cmd  = {},
-    keys = {},
-    ft   = {},
+    cmd   = {},
+    keys  = {},
+    ft    = {},
+    event = {},
   }
 
   local uncond_plugins = {}
@@ -954,7 +950,7 @@ local function load_plugin_configs()
   for name, plugin in pairs(plugins) do
     if not plugin.disable then
       local has_cond = false
-      for _, cond in ipairs{'cmd', 'keys', 'ft'} do
+      for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
         if plugin[cond] then
           has_cond = true
           cond_plugins[cond][name] = plugin
@@ -973,6 +969,7 @@ local function load_plugin_configs()
   setup_cmd_plugins(cond_plugins.cmd)
   setup_key_plugins(cond_plugins.keys)
   setup_ft_plugins(cond_plugins.ft)
+  setup_event_plugins(cond_plugins.event)
 end
 
 -- Convenience function for simple setup
