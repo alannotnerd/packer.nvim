@@ -540,13 +540,66 @@ function packer.status()
   end)()
 end
 
+local function loader_apply_config(plugin, name)
+  if plugin.config and not plugin._done_config then
+    plugin._done_config = true
+    if type(plugin.config) == 'function' then
+      plugin.config()
+    else
+      loadstring(plugin.config, name..'.config()')()
+    end
+  end
+end
+
+local packer_load
+
+packer_load = function(names)
+  local some_unloaded = false
+  local needs_bufread = false
+  for i, name in ipairs(names) do
+    local plugin = _G.packer_plugins[name]
+    if not plugin then
+      local err_message = 'Error: attempted to load ' .. names[i] .. ' which is not present in plugins table!'
+      vim.notify(err_message, vim.log.levels.ERROR, { title = 'packer.nvim' })
+      error(err_message)
+    end
+
+    if not plugin.loaded then
+      -- Set the plugin as loaded before config is run in case something in the config tries to load
+      -- this same plugin again
+      plugin.loaded = true
+      some_unloaded = true
+      needs_bufread = needs_bufread or plugin.needs_bufread
+      vim.cmd.packadd(names[i])
+      if plugin.after_files then
+        for _, file in ipairs(plugin.after_files) do
+          vim.cmd.source{file, silent = true}
+        end
+      end
+      loader_apply_config(plugin, names[i])
+    end
+  end
+
+  if not some_unloaded then
+    return
+  end
+
+  if needs_bufread then
+    if _G._packer and _G._packer.inside_compile == true then
+      -- delaying BufRead to end of packer_compiled
+      _G._packer.needs_bufread = true
+    else
+      vim.cmd 'doautocmd BufRead'
+    end
+  end
+end
+
 -- Load plugins
 -- @param plugins string String of space separated plugins names
 --                      intended for PackerLoad command
 --                or list of plugin names as independent strings
 function packer.loader(...)
   local plugin_names = { ... }
-  local force = plugin_names[#plugin_names] == true
   if type(plugin_names[#plugin_names]) == 'boolean' then
     plugin_names[#plugin_names] = nil
   end
@@ -563,7 +616,7 @@ function packer.loader(...)
     )
   end
 
-  require 'packer.load'(plugin_list, {}, _G.packer_plugins, force)
+  packer_load(plugin_list)
 end
 
 -- Completion for not yet loaded plugins
@@ -729,7 +782,7 @@ local function setup_cmd_plugins(cmd_plugins)
       function(args)
         vim.api.nvim_del_user_command(cmd)
 
-        require('packer.load')(names, {}, _G.packer_plugins)
+        packer_load(names)
 
         local lines = args.line1 == args.line2 and '' or (args.line1 .. ',' .. args.line2)
         vim.cmd(string.format(
@@ -770,7 +823,7 @@ local function setup_key_plugins(key_plugins)
 
     vim.keymap.set(keymap[1], keymap[2], function()
       vim.keymap.del(keymap[1], keymap[2])
-      require('packer.load')(names, { keys = keymap[2], prefix = prefix }, _G.packer_plugins)
+      packer_load(names)
     end, {
         desc = 'Packer lazy load: '..table.concat(names, ', '),
         silent = true
@@ -830,7 +883,7 @@ local function setup_ft_plugins(ft_plugins)
       pattern = ft,
       once = true,
       callback = function()
-        require("packer.load")(names, {}, _G.packer_plugins)
+        packer_load(names)
         for _, group in ipairs{'filetypeplugin', 'filetypeindent', 'syntaxset'} do
           vim.api.nvim_exec_autocmds('FileType', { group = group, pattern = ft, modeline = false })
         end
@@ -869,7 +922,7 @@ local function setup_event_plugins(event_plugins)
     vim.api.nvim_create_autocmd(event, {
       once = true,
       callback = function()
-        require("packer.load")(names, {}, _G.packer_plugins)
+        packer_load(names)
         vim.api.nvim_exec_autocmds(event, { modeline = false })
       end
     })
@@ -914,21 +967,12 @@ local function load_plugin_configs()
     end
   end
 
+  _G.packer_plugins = plugins
+
   setup_uncond_plugin(uncond_plugins)
   setup_cmd_plugins(cond_plugins.cmd)
   setup_key_plugins(cond_plugins.keys)
   setup_ft_plugins(cond_plugins.ft)
-
-  _G.packer_plugins = plugins
-
---   for event, names in pairs(events) do
---     vim.api.nvim_create_autocmd(event, {
---       once = true,
---       callback = function()
---         require('packer.load')(names, {event = event}, _G.packer_plugins)
---       end
---     })
---   end
 end
 
 -- Convenience function for simple setup
