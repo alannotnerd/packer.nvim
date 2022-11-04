@@ -136,7 +136,7 @@ local function fetch(plugin)
   local opts = { capture_output = true, cwd = plugin.install_path, options = { env = git.job_env } }
 
   return async(function()
-    return require('packer.jobs').run('git ' .. config.git.subcommands.fetch, opts)()
+    return require('packer.jobs').run('git ' .. config.git.subcommands.fetch, opts)
   end)
 end
 

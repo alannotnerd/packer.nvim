@@ -47,56 +47,54 @@ end
 --- Wrapper for vim.loop.spawn. Takes a command, options, and callback just like vim.loop.spawn, but
 --  (1) makes an async function and (2) ensures that all output from the command has been flushed
 --  before calling the callback
-local spawn = function(cmd, options)
-  return a.wrap(function(callback)
-    local handle = nil
-    local timer = nil
-    handle = loop.spawn(cmd, options, function(exit_code, signal)
-      handle:close()
-      if timer ~= nil then
-        timer:stop()
-        timer:close()
-      end
+local spawn = a.wrap(function(cmd, options, callback)
+  local handle = nil
+  local timer = nil
+  handle = loop.spawn(cmd, options, function(exit_code, signal)
+    handle:close()
+    if timer ~= nil then
+      timer:stop()
+      timer:close()
+    end
 
-      loop.close(options.stdio[1])
-      local check = loop.new_check()
-      loop.check_start(check, function()
-        for _, pipe in pairs(options.stdio) do
-          if not loop.is_closing(pipe) then
-            return
-          end
+    loop.close(options.stdio[1])
+    local check = loop.new_check()
+    loop.check_start(check, function()
+      for _, pipe in pairs(options.stdio) do
+        if not loop.is_closing(pipe) then
+          return
         end
-        loop.check_stop(check)
-        callback(exit_code, signal)
-      end)
+      end
+      loop.check_stop(check)
+      callback(exit_code, signal)
     end)
+  end)
 
-    if options.stdio then
-      for i, pipe in pairs(options.stdio) do
-        if options.stdio_callbacks[i] then
-          loop.read_start(pipe, options.stdio_callbacks[i])
-        end
+  if options.stdio then
+    for i, pipe in pairs(options.stdio) do
+      if options.stdio_callbacks[i] then
+        loop.read_start(pipe, options.stdio_callbacks[i])
       end
     end
+  end
 
-    if options.timeout then
-      timer = loop.new_timer()
-      timer:start(options.timeout, 0, function()
-        timer:stop()
-        timer:close()
-        if loop.is_active(handle) then
-          log.warn('Killing ' .. cmd .. ' due to timeout!')
-          loop.process_kill(handle, 'sigint')
-          handle:close()
-          for _, pipe in pairs(options.stdio) do
-            loop.close(pipe)
-          end
-          callback(-9999, 'sigint')
+  if options.timeout then
+    timer = loop.new_timer()
+    timer:start(options.timeout, 0, function()
+      timer:stop()
+      timer:close()
+      if loop.is_active(handle) then
+        log.warn('Killing ' .. cmd .. ' due to timeout!')
+        loop.process_kill(handle, 'sigint')
+        handle:close()
+        for _, pipe in pairs(options.stdio) do
+          loop.close(pipe)
         end
-      end)
-    end
-  end, 1)
-end
+        callback(-9999, 'sigint')
+      end
+    end)
+  end
+end, 3)
 
 --- Utility function to perform a common check for process success and return a result object
 local function was_successful(r)
@@ -199,13 +197,13 @@ local function run_job(task, opts)
     options.stdio = { stdin, stdout, stderr }
     options.stdio_callbacks = { nil, callbacks.stdout, callbacks.stderr }
 
-    local exit_code, signal = spawn(cmd, options)()
+    local exit_code, signal = spawn(cmd, options)
     job_result = { exit_code = exit_code, signal = signal }
     if output_valid then
       job_result.output = output
     end
     return success_test(job_result)
-  end)
+  end)()
 end
 
 local jobs = {

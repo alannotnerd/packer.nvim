@@ -90,7 +90,7 @@ local spec = { 'wbthomason/packer.nvim' }
 
 local function exec_cmd(cmd, opts)
   return async(function()
-    local r = jobs.run(cmd, opts)()
+    local r = jobs.run(cmd, opts)
     if r.err then
       print(fmt("Failed on command '%s': %s", cmd, vim.inspect(r.err)))
     end

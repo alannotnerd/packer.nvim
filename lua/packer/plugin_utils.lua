@@ -247,7 +247,7 @@ plugin_utils.post_update_hook = function(plugin, disp)
             else
               cmd = { shell, '-c', task }
             end
-            hook_result = jobs.run(cmd, { capture_output = hook_callbacks, cwd = plugin.install_path })():map_err(
+            hook_result = jobs.run(cmd, { capture_output = hook_callbacks, cwd = plugin.install_path }):map_err(
               function(err)
                 return {
                   msg = string.format('Error running post update hook: %s', table.concat(hook_output.output, '\n')),
@@ -264,7 +264,7 @@ plugin_utils.post_update_hook = function(plugin, disp)
           -- TODO/NOTE: This case should also capture output in case of error. The minor difficulty is
           -- what to do if the plugin's run table (i.e. this case) already specifies output handling.
 
-          hook_result = jobs.run(task)():map_err(function(err)
+          hook_result = jobs.run(task):map_err(function(err)
             return {
               msg = string.format('Error running post update hook: %s', vim.inspect(err)),
               data = err,
