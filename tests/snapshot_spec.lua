@@ -121,7 +121,7 @@ a.describe('Packer testing ', function()
 
   a.describe('snapshot.create()', function()
     a.it(fmt("create snapshot in '%s'", test_path), function()
-      local result = snapshot.create(test_path, { spec })()
+      local result = snapshot.create(test_path, { spec })
       local stat = vim.loop.fs_stat(test_path)
       assert.truthy(stat)
     end)

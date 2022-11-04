@@ -88,14 +88,11 @@ end
 ---Resets a git repo `dest` to `commit`
 ---@param dest string @ path to the local git repo
 ---@param commit string @ commit hash
----@return function @ async function
-local function reset(dest, commit)
+local reset = async(function(dest, commit)
   local reset_cmd = fmt(config.exec_cmd .. config.subcommands.revert_to, commit)
   local opts = { capture_output = true, cwd = dest, options = { env = git.job_env } }
-  return async(function()
-    return jobs.run(reset_cmd, opts)
-  end)
-end
+  return jobs.run(reset_cmd, opts)
+end, 2)
 
 local handle_checkouts = void(function(plugin, dest, disp, opts)
   local plugin_name = util.get_plugin_full_name(plugin)
@@ -177,25 +174,22 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
   end)
 end)
 
-local get_rev = function(plugin)
+local get_rev = async(function(plugin)
   local plugin_name = util.get_plugin_full_name(plugin)
 
   local rev_cmd = config.exec_cmd .. config.subcommands.get_rev
+  local rev = jobs.run(rev_cmd, { cwd = plugin.install_path, options = { env = git.job_env }, capture_output = true })
+    :map_ok(function(ok)
+      local _, r = next(ok.output.data.stdout)
+      return r
+    end)
+    :map_err(function(err)
+      local _, msg = fmt('%s: %s', plugin_name, next(err.output.data.stderr))
+      return msg
+    end)
 
-  return async(function()
-    local rev = jobs.run(rev_cmd, { cwd = plugin.install_path, options = { env = git.job_env }, capture_output = true })
-      :map_ok(function(ok)
-        local _, r = next(ok.output.data.stdout)
-        return r
-      end)
-      :map_err(function(err)
-        local _, msg = fmt('%s: %s', plugin_name, next(err.output.data.stderr))
-        return msg
-      end)
-
-    return rev
-  end)
-end
+  return rev
+end, 1)
 
 local split_messages = function(messages)
   local lines = {}
@@ -284,16 +278,14 @@ git.setup = function(plugin)
     end)
   end
 
-  plugin.remote_url = function()
-    return async(function()
-      return jobs.run(
-        fmt('%s remote get-url origin', config.exec_cmd),
-        { capture_output = true, cwd = plugin.install_path, options = { env = git.job_env } }
-      ):map_ok(function(data)
-        return { remote = data.output.data.stdout[1] }
-      end)
+  plugin.remote_url = async(function()
+    return jobs.run(
+      fmt('%s remote get-url origin', config.exec_cmd),
+      { capture_output = true, cwd = plugin.install_path, options = { env = git.job_env } }
+    ):map_ok(function(data)
+      return { remote = data.output.data.stdout[1] }
     end)
-  end
+  end)
 
   plugin.updater = function(disp, opts)
     return async(function()
@@ -534,7 +526,7 @@ git.setup = function(plugin)
     assert(type(commit) == 'string', fmt("commit: string expected but '%s' provided", type(commit)))
     return async(function()
       require('packer.log').debug(fmt("Reverting '%s' to commit '%s'", plugin.name, commit))
-      return reset(install_to, commit)()
+      return reset(install_to, commit)
     end)
   end
 

@@ -306,8 +306,8 @@ packer.clean = void(function(results)
   require_and_configure 'display'
 
   process_plugin_specs()
-  local fs_state = plugin_utils.get_fs_state(plugins)()
-  clean(plugins, fs_state, results)()
+  local fs_state = plugin_utils.get_fs_state(plugins)
+  clean(plugins, fs_state, results)
 end)
 
 local function reltime(start)
@@ -334,7 +334,7 @@ packer.install = void(function(...)
   if ... then
     install_plugins = { ... }
   end
-  local fs_state = plugin_utils.get_fs_state(plugins)()
+  local fs_state = plugin_utils.get_fs_state(plugins)
   if not install_plugins then
     install_plugins = vim.tbl_keys(fs_state.missing)
   end
@@ -346,7 +346,7 @@ packer.install = void(function(...)
   scheduler()
   local start_time = reltime()
   local results = {}
-  clean(plugins, fs_state, results)()
+  clean(plugins, fs_state, results)
   scheduler()
   log.debug 'Gathering install tasks'
   local tasks, display_win = install(plugins, install_plugins, results)
@@ -416,10 +416,10 @@ packer.update = void(function(...)
   local opts, update_plugins = filter_opts_from_plugins(...)
   local start_time = reltime()
   local results = {}
-  local fs_state = plugin_utils.get_fs_state(plugins)()
+  local fs_state = plugin_utils.get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
   update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
-  clean(plugins, fs_state, results)()
+  clean(plugins, fs_state, results)
   local _
   _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
   log.debug 'Gathering install tasks'
@@ -484,7 +484,7 @@ packer.sync = void(function(...)
   local opts, sync_plugins = filter_opts_from_plugins(...)
   local start_time = reltime()
   local results = {}
-  local fs_state = plugin_utils.get_fs_state(plugins)()
+  local fs_state = plugin_utils.get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), sync_plugins)
 
   scheduler()
@@ -492,7 +492,7 @@ packer.sync = void(function(...)
   local _
   _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
   if config.auto_clean then
-    clean(plugins, fs_state, results)()
+    clean(plugins, fs_state, results)
     _, installed_plugins = util.partition(vim.tbl_keys(results.removals), installed_plugins)
   end
 
@@ -687,7 +687,7 @@ packer.snapshot = void(function(snapshot_name, ...)
   end
 
   if write_snapshot then
-    snapshot.create(snapshot_path, target_plugins)()
+    snapshot.create(snapshot_path, target_plugins)
       :map_ok(function(ok)
         log.info(ok.message)
         if next(ok.failed) then
@@ -735,7 +735,7 @@ packer.rollback = void(function(snapshot_name, ...)
     end, plugins)
   end
 
-  snapshot.rollback(snapshot_path, target_plugins)()
+  snapshot.rollback(snapshot_path, target_plugins)
     :map_ok(function(ok)
       scheduler()
       log.info('Rollback to "' .. snapshot_path .. '" completed')

@@ -46,12 +46,14 @@ end
 ---since it is non-blocking
 ---@param func function first argument must be a callback which is called when
 --                      fn finishes
-function M.sync(func)
-  return function(callback)
+function M.sync(func, nargs)
+  return function(...)
     if coroutine.running() then
-      return func()
+      return func(...)
     end
-    execute(func, callback)
+    nargs = nargs or 0
+    local callback = select(nargs+1, ...)
+    execute(func, callback, unpack({...}, 1, nargs))
   end
 end
 
@@ -95,6 +97,19 @@ function M.interruptible_wait_pool(n, interrupt_check, ...)
       thunks[i](cb)
     end
   end, 1)
+end
+
+---Useful for partially applying arguments to an async function
+function M.curry(fn, ...)
+  local args = {...}
+  local nargs = select('#', ...)
+  return function(...)
+    local other = {...}
+    for i = 1, select('#', ...) do
+      args[nargs+i] = other[i]
+    end
+    fn(unpack(args))
+  end
 end
 
 local scheduler = M.wrap(vim.schedule, 1)

@@ -17,7 +17,7 @@ a.describe("Packer post update hooks", function()
       run = "touch 'this_file_should_exist'"
     }
 
-    run_hook(plugin_spec, {task_update = function() end})()
+    run_hook(plugin_spec, {task_update = function() end})
 
     assert.truthy(vim.loop.fs_stat(test_plugin_path .. "this_file_should_exist"))
   end)

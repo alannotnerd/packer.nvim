@@ -72,7 +72,7 @@ end
 --- Creates a with with `completed` and `failed` keys, each containing a map with plugin name as key and commit hash/error as value
 --- @param plugins list
 --- @return { ok: { failed : table<string, string>, completed : table<string, string>}}
-local function generate_snapshot(plugins)
+local generate_snapshot = async(function(plugins)
   local completed = {}
   local failed = {}
   local opt, start = plugin_utils.list_installed_plugins()
@@ -83,21 +83,20 @@ local function generate_snapshot(plugins)
       return plugin
     end
   end, plugins)
-  return async(function()
-    for _, plugin in pairs(plugins) do
-      local rev = plugin.get_rev()()
 
-      if rev.err then
-        failed[plugin.short_name] =
-          fmt("Snapshotting %s failed because of error '%s'", plugin.short_name, vim.inspect(rev.err))
-      else
-        completed[plugin.short_name] = { commit = rev.ok }
-      end
+  for _, plugin in pairs(plugins) do
+    local rev = plugin.get_rev()
+
+    if rev.err then
+      failed[plugin.short_name] =
+        fmt("Snapshotting %s failed because of error '%s'", plugin.short_name, vim.inspect(rev.err))
+    else
+      completed[plugin.short_name] = { commit = rev.ok }
     end
+  end
 
-    return result.ok { failed = failed, completed = completed }
-  end)
-end
+  return result.ok { failed = failed, completed = completed }
+end, 1)
 
 ---Serializes a table of git-plugins with `short_name` as table key and another
 ---table with `commit`; the serialized tables will be written in the path `snapshot_path`
@@ -106,46 +105,40 @@ end
 ---other will be ignored.
 ---@param snapshot_path string realpath for snapshot file
 ---@param plugins table<string, any>[]
-snapshot.create = function(snapshot_path, plugins)
+snapshot.create = async(function(snapshot_path, plugins)
   assert(type(snapshot_path) == 'string', fmt("filename needs to be a string but '%s' provided", type(snapshot_path)))
   assert(type(plugins) == 'table', fmt("plugins needs to be an array but '%s' provided", type(plugins)))
-  return async(function()
-    local commits = generate_snapshot(plugins)()
+  local commits = generate_snapshot(plugins)
 
-    a.main()
-    local snapshot_content = vim.fn.json_encode(commits.ok.completed)
+  a.main()
+  local snapshot_content = vim.fn.json_encode(commits.ok.completed)
 
-    local status, res = pcall(function()
-      return vim.fn.writefile({ snapshot_content }, snapshot_path) == 0
-    end)
-
-    if status and res then
-      return result.ok {
-        message = fmt("Snapshot '%s' complete", snapshot_path),
-        completed = commits.ok.completed,
-        failed = commits.ok.failed,
-      }
-    else
-      return result.err { message = fmt("Error on creation of snapshot '%s': '%s'", snapshot_path, res) }
-    end
+  local status, res = pcall(function()
+    return vim.fn.writefile({ snapshot_content }, snapshot_path) == 0
   end)
-end
 
-local function fetch(plugin)
+  if status and res then
+    return result.ok {
+      message = fmt("Snapshot '%s' complete", snapshot_path),
+      completed = commits.ok.completed,
+      failed = commits.ok.failed,
+    }
+  else
+    return result.err { message = fmt("Error on creation of snapshot '%s': '%s'", snapshot_path, res) }
+  end
+end, 2)
+
+local fetch = async(function(plugin)
   local git = require 'packer.plugin_types.git'
   local opts = { capture_output = true, cwd = plugin.install_path, options = { env = git.job_env } }
-
-  return async(function()
-    return require('packer.jobs').run('git ' .. config.git.subcommands.fetch, opts)
-  end)
-end
+  return require('packer.jobs').run('git ' .. config.git.subcommands.fetch, opts)
+end, 1)
 
 ---Rollbacks `plugins` to the hash specified in `snapshot_path` if exists.
 ---It automatically runs `git fetch --depth 999999 --progress` to retrieve the history
 ---@param snapshot_path string @ realpath to the snapshot file
 ---@param plugins list @ of `plugin_utils.git_plugin_type` type of plugins
----@return {ok: {completed: table<string, string>, failed: table<string, string[]>}}
-snapshot.rollback = function(snapshot_path, plugins)
+snapshot.rollback = async(function(snapshot_path, plugins)
   assert(type(snapshot_path) == 'string', 'snapshot_path: expected string but got ' .. type(snapshot_path))
   assert(type(plugins) == 'table', 'plugins: expected table but got ' .. type(snapshot_path))
   log.debug('Rolling back to ' .. snapshot_path)
@@ -159,30 +152,28 @@ snapshot.rollback = function(snapshot_path, plugins)
   local completed = {}
   local failed = {}
 
-  return async(function()
-    for _, plugin in pairs(plugins) do
-      local function err_handler(err)
-        failed[plugin.short_name] = failed[plugin.short_name] or {}
-        failed[plugin.short_name][#failed[plugin.short_name] + 1] = err
-      end
-
-      if plugins_snapshot[plugin.short_name] then
-        local commit = plugins_snapshot[plugin.short_name].commit
-        if commit ~= nil then
-          fetch(plugin)()
-            :map_err(err_handler)
-            :and_then(plugin.revert_to(commit))
-            :map_ok(function(ok)
-              completed[plugin.short_name] = ok
-            end)
-            :map_err(err_handler)
-        end
-      end
+  for _, plugin in pairs(plugins) do
+    local function err_handler(err)
+      failed[plugin.short_name] = failed[plugin.short_name] or {}
+      failed[plugin.short_name][#failed[plugin.short_name] + 1] = err
     end
 
-    return result.ok { completed = completed, failed = failed }
-  end)
-end
+    if plugins_snapshot[plugin.short_name] then
+      local commit = plugins_snapshot[plugin.short_name].commit
+      if commit ~= nil then
+        fetch(plugin)
+          :map_err(err_handler)
+          :and_then(plugin.revert_to(commit))
+          :map_ok(function(ok)
+            completed[plugin.short_name] = ok
+          end)
+          :map_err(err_handler)
+      end
+    end
+  end
+
+  return result.ok { completed = completed, failed = failed }
+end, 2)
 
 ---Deletes the snapshot provided
 ---@param snapshot_name string absolute path or just a snapshot name
