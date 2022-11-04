@@ -384,7 +384,7 @@ local function filter_opts_from_plugins(...)
       opts = { preview_updates = true }
     end
   end
-  if opts.preview_updates == nil and config.preview_updates then
+  if config.preview_updates then
     opts.preview_updates = true
   end
   return opts, util.nonempty_or(args, vim.tbl_keys(plugins))
@@ -555,9 +555,7 @@ local function loader_apply_config(plugin, name)
   end
 end
 
-local packer_load
-
-packer_load = function(names)
+local function packer_load(names)
   local some_unloaded = false
   local needs_bufread = false
   for i, name in ipairs(names) do
@@ -593,7 +591,7 @@ packer_load = function(names)
       -- delaying BufRead to end of packer_compiled
       _G._packer.needs_bufread = true
     else
-      vim.cmd 'doautocmd BufRead'
+      api.nvim_exec_autocmds('BufRead', {})
     end
   end
 end
