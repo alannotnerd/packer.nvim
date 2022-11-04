@@ -110,7 +110,7 @@ a.describe('Packer testing ', function()
   before_each(function()
     packer.reset()
     packer.init(config)
-    packer.use(spec)
+    packer.__use(spec)
     packer.__manage_all()
   end)
 

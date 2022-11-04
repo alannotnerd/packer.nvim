@@ -345,13 +345,13 @@ packer.install = void(function()
   log.debug 'Gathering install tasks'
   local tasks, display_win = install(plugins, install_plugins, results)
   if next(tasks) then
-    table.insert(tasks, 1, function()
+    local function check()
       return not display.status.running
-    end)
-    table.insert(tasks, 1, config.max_jobs and config.max_jobs or (#tasks - 1))
+    end
+    local limit = config.max_jobs and config.max_jobs or #tasks
     log.debug 'Running tasks'
-    display_win:update_headline_message('installing ' .. #tasks - 2 .. ' / ' .. #tasks - 2 .. ' plugins')
-    interruptible_wait_pool(unpack(tasks))
+    display_win:update_headline_message('installing ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
+    interruptible_wait_pool(limit, check, unpack(tasks))
     local install_paths = {}
     for plugin_name, r in pairs(results.installs) do
       if r.ok then
@@ -429,13 +429,14 @@ packer.update = void(function(...)
     return
   end
 
-  table.insert(tasks, 1, function()
+  local function check()
     return not display.status.running
-  end)
-  table.insert(tasks, 1, config.max_jobs and config.max_jobs or (#tasks - 1))
-  display_win:update_headline_message('updating ' .. #tasks - 2 .. ' / ' .. #tasks - 2 .. ' plugins')
+  end
+  local limit = config.max_jobs and config.max_jobs or #tasks
+
+  display_win:update_headline_message('updating ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
   log.debug 'Running tasks'
-  interruptible_wait_pool(unpack(tasks))
+  interruptible_wait_pool(limit, check, unpack(tasks))
   local install_paths = {}
   for plugin_name, r in pairs(results.installs) do
     if r.ok then
@@ -502,13 +503,15 @@ packer.sync = void(function(...)
     return
   end
 
-  table.insert(tasks, 1, function()
+  local function check()
     return not display.status.running
-  end)
-  table.insert(tasks, 1, config.max_jobs and config.max_jobs or (#tasks - 1))
+  end
+
+  local limit = config.max_jobs and config.max_jobs or #tasks
+
   log.debug 'Running tasks'
-  display_win:update_headline_message('syncing ' .. #tasks - 2 .. ' / ' .. #tasks - 2 .. ' plugins')
-  interruptible_wait_pool(unpack(tasks))
+  display_win:update_headline_message('syncing ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
+  interruptible_wait_pool(limit, check, unpack(tasks))
   local install_paths = {}
   for plugin_name, r in pairs(results.installs) do
     if r.ok then
