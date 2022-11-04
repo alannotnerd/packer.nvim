@@ -1,10 +1,7 @@
-local plugin_utils = require 'packer.plugin_utils'
 local a = require 'packer.async'
 local display = require 'packer.display'
 local log = require 'packer.log'
-local util = require 'packer.util'
 
-local await = a.wait
 local async = a.sync
 
 local config
@@ -65,8 +62,8 @@ local clean_plugins = function(_, plugins, fs_state, results)
       for _, path in ipairs(dirty_plugins) do
         table.insert(lines, '  - ' .. path)
       end
-      await(a.main)
-      if config.autoremove or await(display.ask_user('Removing the following directories. OK? (y/N)', lines)) then
+      a.main()
+      if config.autoremove or display.ask_user('Removing the following directories. OK? (y/N)', lines)() then
         results.removals = dirty_plugins
         log.debug('Removed ' .. vim.inspect(dirty_plugins))
         for _, path in ipairs(dirty_plugins) do

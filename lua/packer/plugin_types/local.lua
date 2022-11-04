@@ -4,12 +4,8 @@ local util = require 'packer.util'
 local result = require 'packer.result'
 
 local async = a.sync
-local await = a.wait
-local fmt = string.format
 
-local config = nil
 local function cfg(_config)
-  config = _config
 end
 
 -- Due to #679, we know that fs_symlink requires admin privileges on Windows. This is a workaround,
@@ -26,8 +22,8 @@ else
   symlink_fn = vim.loop.fs_symlink
 end
 
-local symlink = a.wrap(symlink_fn)
-local unlink = a.wrap(vim.loop.fs_unlink)
+local symlink = a.wrap(symlink_fn, 4)
+local unlink = a.wrap(vim.loop.fs_unlink, 2)
 
 local function setup_local(plugin)
   local from = vim.loop.fs_realpath(util.strip_trailing_sep(plugin.path))
@@ -37,7 +33,7 @@ local function setup_local(plugin)
   plugin.installer = function(disp)
     return async(function()
       disp:task_update(plugin_name, 'making symlink...')
-      local err, success = await(symlink(from, to, { dir = true }))
+      local err, success = symlink(from, to, { dir = true })()
       if not success then
         plugin.output = { err = { err } }
         return result.err(err)
@@ -53,7 +49,7 @@ local function setup_local(plugin)
       local resolved_path = vim.loop.fs_realpath(to)
       if resolved_path ~= from then
         disp:task_update(plugin_name, 'updating symlink...')
-        r = await(unlink(to)):and_then(symlink(from, to, { dir = true }))
+        r = unlink(to)():and_then(symlink(from, to, { dir = true }))
       end
 
       return r

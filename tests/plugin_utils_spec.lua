@@ -1,5 +1,4 @@
 local a = require('plenary.async_lib.tests')
-local await = require('packer.async').wait
 local async = require('packer.async').sync
 local plugin_utils = require('packer.plugin_utils')
 local helpers = require("tests.helpers")
@@ -33,7 +32,7 @@ a.describe('Plugin utils -', function()
           end
         }
       }
-      local result = await(plugin_utils.find_missing_plugins(plugins, {}, {[path] = true}))
+      local result = plugin_utils.find_missing_plugins(plugins, {}, {[path] = true})()
       assert.truthy(result)
       assert.equal(1, #vim.tbl_keys(result))
     end)
@@ -53,7 +52,7 @@ a.describe('Plugin utils -', function()
           end
         }
       }
-      local result = await(plugin_utils.find_missing_plugins(plugins, {}, {[path] = true}))
+      local result = plugin_utils.find_missing_plugins(plugins, {}, {[path] = true})()
       assert.truthy(result)
       assert.equal(0, #result)
     end)
@@ -73,7 +72,7 @@ a.describe('Plugin utils -', function()
           end
         }
       }
-      local result = await(plugin_utils.find_missing_plugins(plugins, {}, {[path] = true}))
+      local result = plugin_utils.find_missing_plugins(plugins, {}, {[path] = true})()
       assert.truthy(result)
       assert.equal(1, #vim.tbl_keys(result))
     end)

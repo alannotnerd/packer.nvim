@@ -6,8 +6,6 @@ local util = require 'packer.util'
 local result = require 'packer.result'
 local log = require 'packer.log'
 
-local await = a.wait
-
 local config = nil
 local plugin_utils = {}
 plugin_utils.cfg = function(_config)
@@ -145,12 +143,12 @@ plugin_utils.find_missing_plugins = function(plugins, opt_plugins, start_plugins
         local plugin_path = util.join_paths(config[plugin.opt and 'opt_dir' or 'start_dir'], plugin.short_name)
         local plugin_installed = (plugin.opt and opt_plugins or start_plugins)[plugin_path]
 
-        await(a.main)
+        a.main()
         local guessed_type = plugin_utils.guess_dir_type(plugin_path)
         if not plugin_installed or plugin.type ~= guessed_type then
           missing_plugins[plugin_name] = true
         elseif guessed_type == plugin_utils.git_plugin_type then
-          local r = await(plugin.remote_url())
+          local r = plugin.remote_url()()
           local remote = r.ok and r.ok.remote or nil
           if remote then
             -- Form a Github-style user/repo string
@@ -178,7 +176,7 @@ plugin_utils.get_fs_state = function(plugins)
   log.debug 'Updating FS state'
   local opt_plugins, start_plugins = plugin_utils.list_installed_plugins()
   return a.sync(function()
-    local missing_plugins = await(plugin_utils.find_missing_plugins(plugins, opt_plugins, start_plugins))
+    local missing_plugins = plugin_utils.find_missing_plugins(plugins, opt_plugins, start_plugins)()
     return { opt = opt_plugins, start = start_plugins, missing = missing_plugins }
   end)
 end
@@ -214,7 +212,7 @@ plugin_utils.post_update_hook = function(plugin, disp)
   local plugin_name = util.get_plugin_full_name(plugin)
   return a.sync(function()
     if plugin.run or not plugin.opt then
-      await(a.main)
+      a.main()
       plugin_utils.load_plugin(plugin)
     end
 
@@ -234,7 +232,7 @@ plugin_utils.post_update_hook = function(plugin, disp)
           end
         elseif type(task) == 'string' then
           if string.sub(task, 1, 1) == ':' then
-            await(a.main)
+            a.main()
             vim.cmd(string.sub(task, 2))
           else
             local hook_output = { err = {}, output = {} }
@@ -249,7 +247,7 @@ plugin_utils.post_update_hook = function(plugin, disp)
             else
               cmd = { shell, '-c', task }
             end
-            hook_result = await(jobs.run(cmd, { capture_output = hook_callbacks, cwd = plugin.install_path })):map_err(
+            hook_result = jobs.run(cmd, { capture_output = hook_callbacks, cwd = plugin.install_path })():map_err(
               function(err)
                 return {
                   msg = string.format('Error running post update hook: %s', table.concat(hook_output.output, '\n')),
@@ -266,7 +264,7 @@ plugin_utils.post_update_hook = function(plugin, disp)
           -- TODO/NOTE: This case should also capture output in case of error. The minor difficulty is
           -- what to do if the plugin's run table (i.e. this case) already specifies output handling.
 
-          hook_result = await(jobs.run(task)):map_err(function(err)
+          hook_result = jobs.run(task)():map_err(function(err)
             return {
               msg = string.format('Error running post update hook: %s', vim.inspect(err)),
               data = err,

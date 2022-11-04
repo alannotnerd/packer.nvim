@@ -6,7 +6,6 @@ local plugin_utils = require 'packer.plugin_utils'
 
 local fmt = string.format
 local async = a.sync
-local await = a.wait
 
 local config = nil
 
@@ -16,8 +15,8 @@ local function install_plugin(plugin, display_win, results)
     display_win:task_start(plugin_name, 'installing...')
     -- TODO: If the user provided a custom function as an installer, we would like to use pcall
     -- here. Need to figure out how that integrates with async code
-    local r = await(plugin.installer(display_win))
-    r = r:and_then(await, plugin_utils.post_update_hook(plugin, display_win))
+    local r = plugin.installer(display_win)()
+    r = r:and_then(plugin_utils.post_update_hook(plugin, display_win))
     if r.ok then
       display_win:task_succeeded(plugin_name, 'installed')
       log.debug('Installed ' .. plugin_name)

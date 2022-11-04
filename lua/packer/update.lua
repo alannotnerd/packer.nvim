@@ -7,7 +7,6 @@ local plugin_utils = require 'packer.plugin_utils'
 
 local fmt = string.format
 local async = a.sync
-local await = a.wait
 
 local config = nil
 
@@ -77,7 +76,7 @@ local function update_plugin(plugin, display_win, results, opts)
       return
     end
     display_win:task_start(plugin_name, 'updating...')
-    local r = await(plugin.updater(display_win, opts))
+    local r = plugin.updater(display_win, opts)()
     if r ~= nil and r.ok then
       local msg = 'up to date'
       if plugin.type == plugin_utils.git_plugin_type then
@@ -86,7 +85,7 @@ local function update_plugin(plugin, display_win, results, opts)
         msg = actual_update and ('updated: ' .. info.revs[1] .. '...' .. info.revs[2]) or 'already up to date'
         if actual_update and not opts.preview_updates then
           log.debug(fmt('Updated %s: %s', plugin_name, vim.inspect(info)))
-          r = r:and_then(await, plugin_utils.post_update_hook(plugin, display_win))
+          r = r:and_then(plugin_utils.post_update_hook(plugin, display_win))
         end
       end
 

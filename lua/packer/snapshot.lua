@@ -5,7 +5,6 @@ local plugin_utils = require 'packer.plugin_utils'
 local plugin_complete = require('packer').plugin_complete
 local result = require 'packer.result'
 local async = a.sync
-local await = a.wait
 local fmt = string.format
 
 local config = {}
@@ -86,7 +85,7 @@ local function generate_snapshot(plugins)
   end, plugins)
   return async(function()
     for _, plugin in pairs(plugins) do
-      local rev = await(plugin.get_rev())
+      local rev = plugin.get_rev()()
 
       if rev.err then
         failed[plugin.short_name] =
@@ -111,9 +110,9 @@ snapshot.create = function(snapshot_path, plugins)
   assert(type(snapshot_path) == 'string', fmt("filename needs to be a string but '%s' provided", type(snapshot_path)))
   assert(type(plugins) == 'table', fmt("plugins needs to be an array but '%s' provided", type(plugins)))
   return async(function()
-    local commits = await(generate_snapshot(plugins))
+    local commits = generate_snapshot(plugins)()
 
-    await(a.main)
+    a.main()
     local snapshot_content = vim.fn.json_encode(commits.ok.completed)
 
     local status, res = pcall(function()
@@ -137,7 +136,7 @@ local function fetch(plugin)
   local opts = { capture_output = true, cwd = plugin.install_path, options = { env = git.job_env } }
 
   return async(function()
-    return await(require('packer.jobs').run('git ' .. config.git.subcommands.fetch, opts))
+    return require('packer.jobs').run('git ' .. config.git.subcommands.fetch, opts)()
   end)
 end
 
@@ -170,9 +169,9 @@ snapshot.rollback = function(snapshot_path, plugins)
       if plugins_snapshot[plugin.short_name] then
         local commit = plugins_snapshot[plugin.short_name].commit
         if commit ~= nil then
-          await(fetch(plugin))
+          fetch(plugin)()
             :map_err(err_handler)
-            :and_then(await, plugin.revert_to(commit))
+            :and_then(plugin.revert_to(commit))
             :map_ok(function(ok)
               completed[plugin.short_name] = ok
             end)

@@ -1,12 +1,11 @@
 local api = vim.api
 local fn = vim.fn
--- TODO: Performance analysis/tuning
--- TODO: Merge start plugins?
+
 local util = require 'packer.util'
 
-local a = require 'packer.async'
-local async = a.sync
-local await = a.wait
+local void                    = require 'packer.async'.void
+local scheduler               = require 'packer.async'.main
+local interruptible_wait_pool = require 'packer.async'.interruptible_wait_pool
 
 local join_paths = util.join_paths
 local stdpath = fn.stdpath
@@ -301,17 +300,15 @@ packer.__manage_all = process_plugin_specs
 
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
-function packer.clean(results)
+packer.clean = void(function(results)
   local plugin_utils = require_and_configure 'plugin_utils'
   local clean = require_and_configure 'clean'
   require_and_configure 'display'
 
   process_plugin_specs()
-  async(function()
-    local fs_state = await(plugin_utils.get_fs_state(plugins))
-    await(clean(plugins, fs_state, results))
-  end)()
-end
+  local fs_state = plugin_utils.get_fs_state(plugins)()
+  clean(plugins, fs_state, results)()
+end)
 
 local function reltime(start)
   if start == nil then
@@ -324,7 +321,7 @@ end
 -- Takes an optional list of plugin names as an argument. If no list is given, operates on all
 -- managed plugins.
 -- Installs missing plugins, then updates helptags and rplugins
-function packer.install(...)
+packer.install = void(function(...)
   local log = require_and_configure 'log'
   log.debug 'packer.install: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
@@ -337,48 +334,46 @@ function packer.install(...)
   if ... then
     install_plugins = { ... }
   end
-  async(function()
-    local fs_state = await(plugin_utils.get_fs_state(plugins))
-    if not install_plugins then
-      install_plugins = vim.tbl_keys(fs_state.missing)
-    end
-    if #install_plugins == 0 then
-      log.info 'All configured plugins are installed'
-      return
-    end
+  local fs_state = plugin_utils.get_fs_state(plugins)()
+  if not install_plugins then
+    install_plugins = vim.tbl_keys(fs_state.missing)
+  end
+  if #install_plugins == 0 then
+    log.info 'All configured plugins are installed'
+    return
+  end
 
-    await(a.main)
-    local start_time = reltime()
-    local results = {}
-    await(clean(plugins, fs_state, results))
-    await(a.main)
-    log.debug 'Gathering install tasks'
-    local tasks, display_win = install(plugins, install_plugins, results)
-    if next(tasks) then
-      table.insert(tasks, 1, function()
-        return not display.status.running
-      end)
-      table.insert(tasks, 1, config.max_jobs and config.max_jobs or (#tasks - 1))
-      log.debug 'Running tasks'
-      display_win:update_headline_message('installing ' .. #tasks - 2 .. ' / ' .. #tasks - 2 .. ' plugins')
-      a.interruptible_wait_pool(unpack(tasks))
-      local install_paths = {}
-      for plugin_name, r in pairs(results.installs) do
-        if r.ok then
-          table.insert(install_paths, results.plugins[plugin_name].install_path)
-        end
+  scheduler()
+  local start_time = reltime()
+  local results = {}
+  clean(plugins, fs_state, results)()
+  scheduler()
+  log.debug 'Gathering install tasks'
+  local tasks, display_win = install(plugins, install_plugins, results)
+  if next(tasks) then
+    table.insert(tasks, 1, function()
+      return not display.status.running
+    end)
+    table.insert(tasks, 1, config.max_jobs and config.max_jobs or (#tasks - 1))
+    log.debug 'Running tasks'
+    display_win:update_headline_message('installing ' .. #tasks - 2 .. ' / ' .. #tasks - 2 .. ' plugins')
+    interruptible_wait_pool(unpack(tasks))
+    local install_paths = {}
+    for plugin_name, r in pairs(results.installs) do
+      if r.ok then
+        table.insert(install_paths, results.plugins[plugin_name].install_path)
       end
-
-      await(a.main)
-      plugin_utils.update_helptags(install_paths)
-      plugin_utils.update_rplugins()
-      local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
-      display_win:final_results(results, delta)
-    else
-      log.info 'Nothing to install!'
     end
-  end)()
-end
+
+    scheduler()
+    plugin_utils.update_helptags(install_paths)
+    plugin_utils.update_rplugins()
+    local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
+    display_win:final_results(results, delta)
+  else
+    log.info 'Nothing to install!'
+  end
+end)
 
 -- Filter out options specified as the first argument to update or sync
 -- returns the options table and the plugin names
@@ -407,7 +402,7 @@ end
 -- Fixes plugin types, installs missing plugins, then updates installed plugins and updates helptags
 -- and rplugins
 -- Options can be specified in the first argument as either a table or explicit `'--preview'`.
-function packer.update(...)
+packer.update = void(function(...)
   local log = require_and_configure 'log'
   log.debug 'packer.update: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
@@ -419,55 +414,53 @@ function packer.update(...)
   process_plugin_specs()
 
   local opts, update_plugins = filter_opts_from_plugins(...)
-  async(function()
-    local start_time = reltime()
-    local results = {}
-    local fs_state = await(plugin_utils.get_fs_state(plugins))
-    local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
-    update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
-    await(clean(plugins, fs_state, results))
-    local _
-    _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
-    log.debug 'Gathering install tasks'
-    await(a.main)
-    local tasks, display_win = install(plugins, missing_plugins, results)
-    local update_tasks
-    log.debug 'Gathering update tasks'
-    await(a.main)
-    update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
-    vim.list_extend(tasks, update_tasks)
+  local start_time = reltime()
+  local results = {}
+  local fs_state = plugin_utils.get_fs_state(plugins)()
+  local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
+  update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
+  clean(plugins, fs_state, results)()
+  local _
+  _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
+  log.debug 'Gathering install tasks'
+  scheduler()
+  local tasks, display_win = install(plugins, missing_plugins, results)
+  local update_tasks
+  log.debug 'Gathering update tasks'
+  scheduler()
+  update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
+  vim.list_extend(tasks, update_tasks)
 
-    if #tasks == 0 then
-      return
+  if #tasks == 0 then
+    return
+  end
+
+  table.insert(tasks, 1, function()
+    return not display.status.running
+  end)
+  table.insert(tasks, 1, config.max_jobs and config.max_jobs or (#tasks - 1))
+  display_win:update_headline_message('updating ' .. #tasks - 2 .. ' / ' .. #tasks - 2 .. ' plugins')
+  log.debug 'Running tasks'
+  interruptible_wait_pool(unpack(tasks))
+  local install_paths = {}
+  for plugin_name, r in pairs(results.installs) do
+    if r.ok then
+      table.insert(install_paths, results.plugins[plugin_name].install_path)
     end
+  end
 
-    table.insert(tasks, 1, function()
-      return not display.status.running
-    end)
-    table.insert(tasks, 1, config.max_jobs and config.max_jobs or (#tasks - 1))
-    display_win:update_headline_message('updating ' .. #tasks - 2 .. ' / ' .. #tasks - 2 .. ' plugins')
-    log.debug 'Running tasks'
-    a.interruptible_wait_pool(unpack(tasks))
-    local install_paths = {}
-    for plugin_name, r in pairs(results.installs) do
-      if r.ok then
-        table.insert(install_paths, results.plugins[plugin_name].install_path)
-      end
+  for plugin_name, r in pairs(results.updates) do
+    if r.ok then
+      table.insert(install_paths, results.plugins[plugin_name].install_path)
     end
+  end
 
-    for plugin_name, r in pairs(results.updates) do
-      if r.ok then
-        table.insert(install_paths, results.plugins[plugin_name].install_path)
-      end
-    end
-
-    await(a.main)
-    plugin_utils.update_helptags(install_paths)
-    plugin_utils.update_rplugins()
-    local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
-    display_win:final_results(results, delta, opts)
-  end)()
-end
+  scheduler()
+  plugin_utils.update_helptags(install_paths)
+  plugin_utils.update_rplugins()
+  local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
+  display_win:final_results(results, delta, opts)
+end)
 
 --- Sync operation:
 -- Takes an optional list of plugin names as an argument. If no list is given, operates on all
@@ -477,7 +470,7 @@ end
 --  - Clean stale plugins
 --  - Install missing plugins and update installed plugins
 --  - Update helptags and rplugins
-function packer.sync(...)
+packer.sync = void(function(...)
   local log = require_and_configure 'log'
   log.debug 'packer.sync: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
@@ -489,74 +482,70 @@ function packer.sync(...)
   process_plugin_specs()
 
   local opts, sync_plugins = filter_opts_from_plugins(...)
-  async(function()
-    local start_time = reltime()
-    local results = {}
-    local fs_state = await(plugin_utils.get_fs_state(plugins))
-    local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), sync_plugins)
+  local start_time = reltime()
+  local results = {}
+  local fs_state = plugin_utils.get_fs_state(plugins)()
+  local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), sync_plugins)
 
-    await(a.main)
-    update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
-    local _
-    _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
-    if config.auto_clean then
-      await(clean(plugins, fs_state, results))
-      _, installed_plugins = util.partition(vim.tbl_keys(results.removals), installed_plugins)
+  scheduler()
+  update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
+  local _
+  _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
+  if config.auto_clean then
+    clean(plugins, fs_state, results)()
+    _, installed_plugins = util.partition(vim.tbl_keys(results.removals), installed_plugins)
+  end
+
+  scheduler()
+  log.debug 'Gathering install tasks'
+  local tasks, display_win = install(plugins, missing_plugins, results)
+  local update_tasks
+  log.debug 'Gathering update tasks'
+  scheduler()
+  update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
+  vim.list_extend(tasks, update_tasks)
+  if #tasks == 0 then
+    return
+  end
+
+  table.insert(tasks, 1, function()
+    return not display.status.running
+  end)
+  table.insert(tasks, 1, config.max_jobs and config.max_jobs or (#tasks - 1))
+  log.debug 'Running tasks'
+  display_win:update_headline_message('syncing ' .. #tasks - 2 .. ' / ' .. #tasks - 2 .. ' plugins')
+  interruptible_wait_pool(unpack(tasks))
+  local install_paths = {}
+  for plugin_name, r in pairs(results.installs) do
+    if r.ok then
+      table.insert(install_paths, results.plugins[plugin_name].install_path)
     end
+  end
 
-    await(a.main)
-    log.debug 'Gathering install tasks'
-    local tasks, display_win = install(plugins, missing_plugins, results)
-    local update_tasks
-    log.debug 'Gathering update tasks'
-    await(a.main)
-    update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
-    vim.list_extend(tasks, update_tasks)
-    if #tasks == 0 then
-      return
+  for plugin_name, r in pairs(results.updates) do
+    if r.ok then
+      table.insert(install_paths, results.plugins[plugin_name].install_path)
     end
+  end
 
-    table.insert(tasks, 1, function()
-      return not display.status.running
-    end)
-    table.insert(tasks, 1, config.max_jobs and config.max_jobs or (#tasks - 1))
-    log.debug 'Running tasks'
-    display_win:update_headline_message('syncing ' .. #tasks - 2 .. ' / ' .. #tasks - 2 .. ' plugins')
-    a.interruptible_wait_pool(unpack(tasks))
-    local install_paths = {}
-    for plugin_name, r in pairs(results.installs) do
-      if r.ok then
-        table.insert(install_paths, results.plugins[plugin_name].install_path)
-      end
-    end
+  scheduler()
+  plugin_utils.update_helptags(install_paths)
+  plugin_utils.update_rplugins()
+  local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
+  display_win:final_results(results, delta, opts)
+end)
 
-    for plugin_name, r in pairs(results.updates) do
-      if r.ok then
-        table.insert(install_paths, results.plugins[plugin_name].install_path)
-      end
-    end
-
-    await(a.main)
-    plugin_utils.update_helptags(install_paths)
-    plugin_utils.update_rplugins()
-    local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
-    display_win:final_results(results, delta, opts)
-  end)()
-end
-
-function packer.status()
+packer.status = void(function()
   local display = require_and_configure 'display'
   local log = require_and_configure 'log'
   process_plugin_specs()
-  async(function()
-    local display_win = display.open(config.display.open_fn or config.display.open_cmd)
-    if _G.packer_plugins ~= nil then
-      display_win:status(_G.packer_plugins)
-    else
-      log.warn 'packer_plugins table is nil! Cannot run packer.status()!'
-    end
-  end)()
-end
+  local display_win = display.open(config.display.open_fn or config.display.open_cmd)
+  if _G.packer_plugins ~= nil then
+    display_win:status(_G.packer_plugins)
+  else
+    log.warn 'packer_plugins table is nil! Cannot run packer.status()!'
+  end
+end)
 
 local function loader_apply_config(plugin, name)
   if plugin.config and not plugin._done_config then
@@ -649,7 +638,7 @@ end
 
 ---Snapshots installed plugins
 ---@param snapshot_name string absolute path or just a snapshot name
-function packer.snapshot(snapshot_name, ...)
+packer.snapshot = void(function(snapshot_name, ...)
   local snapshot = require 'packer.snapshot'
   local log = require_and_configure 'log'
   local args = { ... }
@@ -697,72 +686,68 @@ function packer.snapshot(snapshot_name, ...)
     )
   end
 
-  async(function()
-    if write_snapshot then
-      await(snapshot.create(snapshot_path, target_plugins))
-        :map_ok(function(ok)
-          log.info(ok.message)
-          if next(ok.failed) then
-            log.warn("Couldn't snapshot " .. vim.inspect(ok.failed))
-          end
-        end)
-        :map_err(function(err)
-          log.warn(err.message)
-        end)
-    end
-  end)()
-end
+  if write_snapshot then
+    snapshot.create(snapshot_path, target_plugins)()
+      :map_ok(function(ok)
+        log.info(ok.message)
+        if next(ok.failed) then
+          log.warn("Couldn't snapshot " .. vim.inspect(ok.failed))
+        end
+      end)
+      :map_err(function(err)
+        log.warn(err.message)
+      end)
+  end
+end)
 
 ---Instantly rolls back plugins to a previous state specified by `snapshot_name`
 ---If `snapshot_name` doesn't exist an error will be displayed
 ---@param snapshot_name string @name of the snapshot or the absolute path to the snapshot
 ---@vararg string @ if provided, the only plugins to be rolled back,
 ---otherwise all the plugins will be rolled back
-function packer.rollback(snapshot_name, ...)
+packer.rollback = void(function(snapshot_name, ...)
   local args = { ... }
   local snapshot = require 'packer.snapshot'
   local log = require_and_configure 'log'
   local fmt = string.format
 
-  async(function()
-    process_plugin_specs()
+  process_plugin_specs()
 
-    local snapshot_path = vim.loop.fs_realpath(util.join_paths(config.snapshot_path, snapshot_name))
-      or vim.loop.fs_realpath(snapshot_name)
+  local snapshot_path = vim.loop.fs_realpath(util.join_paths(config.snapshot_path, snapshot_name))
+    or vim.loop.fs_realpath(snapshot_name)
 
-    if snapshot_path == nil then
-      local warn = fmt("Snapshot '%s' is wrong or doesn't exist", snapshot_name)
-      log.warn(warn)
-      return
-    end
+  if snapshot_path == nil then
+    local warn = fmt("Snapshot '%s' is wrong or doesn't exist", snapshot_name)
+    log.warn(warn)
+    return
+  end
 
-    local target_plugins = plugins
+  local target_plugins = plugins
 
-    if next(args) ~= nil then -- provided extra args
-      target_plugins = vim.tbl_filter(function(plugin)
-        for _, plugin_sname in pairs(args) do
-          if plugin_sname == plugin.short_name then
-            return true
-          end
+  if next(args) ~= nil then -- provided extra args
+    target_plugins = vim.tbl_filter(function(plugin)
+      for _, plugin_sname in pairs(args) do
+        if plugin_sname == plugin.short_name then
+          return true
         end
-        return false
-      end, plugins)
-    end
+      end
+      return false
+    end, plugins)
+  end
 
-    await(snapshot.rollback(snapshot_path, target_plugins))
-      :map_ok(function(ok)
-        await(a.main)
-        log.info('Rollback to "' .. snapshot_path .. '" completed')
-        if next(ok.failed) then
-          log.warn("Couldn't rollback " .. vim.inspect(ok.failed))
-        end
-      end)
-      :map_err(function(err)
-        await(a.main)
-        log.error(err)
-      end)
-  end)()
-end
+  snapshot.rollback(snapshot_path, target_plugins)()
+    :map_ok(function(ok)
+      scheduler()
+      log.info('Rollback to "' .. snapshot_path .. '" completed')
+      if next(ok.failed) then
+        log.warn("Couldn't rollback " .. vim.inspect(ok.failed))
+      end
+    end)
+    :map_err(function(err)
+      scheduler()
+      log.error(err)
+    end)
+end)
 
 packer.config = config
 

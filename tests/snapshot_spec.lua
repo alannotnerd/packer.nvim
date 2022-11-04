@@ -4,7 +4,6 @@ local util = require 'packer.util'
 local mocked_plugin_utils = require 'packer.plugin_utils'
 local log = require 'packer.log'
 local async = require('packer.async').sync
-local await = require('packer.async').wait
 local main = require('packer.async').main
 local packer = require 'packer'
 local jobs = require 'packer.jobs'
@@ -91,7 +90,7 @@ local spec = { 'wbthomason/packer.nvim' }
 
 local function exec_cmd(cmd, opts)
   return async(function()
-    local r = await(jobs.run(cmd, opts))
+    local r = jobs.run(cmd, opts)()
     if r.err then
       print(fmt("Failed on command '%s': %s", cmd, vim.inspect(r.err)))
     end
@@ -122,7 +121,7 @@ a.describe('Packer testing ', function()
 
   a.describe('snapshot.create()', function()
     a.it(fmt("create snapshot in '%s'", test_path), function()
-      local result = await(snapshot.create(test_path, { spec }))
+      local result = snapshot.create(test_path, { spec })()
       local stat = vim.loop.fs_stat(test_path)
       assert.truthy(stat)
     end)
@@ -131,7 +130,7 @@ a.describe('Packer testing ', function()
       async(function()
         local file_content = vim.fn.readfile(test_path)
         snapshotted_plugins = vim.fn.json_decode(file_content)
-        local expected_rev = await(spec.get_rev())
+        local expected_rev = spec.get_rev()()
         assert.are.equals(expected_rev.ok, snapshotted_plugins['packer.nvim'].commit)
       end)()
     end)
@@ -155,13 +154,13 @@ a.describe('Packer testing ', function()
 
     a.it("restore 'packer' to the commit hash HEAD~5", function()
       async(function()
-        local commit = await(exec_cmd(prev_commit_cmd, opts))
+        local commit = exec_cmd(prev_commit_cmd, opts)()
         snapshotted_plugins['packer.nvim'] = { commit = commit }
-        await(main)
+        main()
         local encoded_json = vim.fn.json_encode(snapshotted_plugins)
         vim.fn.writefile({ encoded_json }, rollback_test_path)
-        await(snapshot.rollback(rollback_test_path, { spec }))
-        local rev = await(exec_cmd(get_rev_cmd, opts))
+        snapshot.rollback(rollback_test_path, { spec })()
+        local rev = exec_cmd(get_rev_cmd, opts)()
         assert.are.equals(snapshotted_plugins['packer.nvim'].commit, rev)
       end)()
     end)
