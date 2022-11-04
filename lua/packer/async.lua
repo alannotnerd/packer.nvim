@@ -1,12 +1,7 @@
 ---Executes a future with a callback when it is done
 ---@param func function: the future to execute
-local function execute(func, nargs_e, ...)
+local function execute(func, callback, ...)
   local thread = coroutine.create(func)
-
-  local callback
-  if nargs_e then
-    callback = select(nargs_e, ...)
-  end
 
   local function step(...)
     local ret = {coroutine.resume(thread, ...)}
@@ -56,7 +51,7 @@ function M.sync(func)
     if coroutine.running() then
       return func()
     end
-    execute(func, 1, callback)
+    execute(func, callback)
   end
 end
 

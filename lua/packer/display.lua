@@ -1,38 +1,16 @@
 local api = vim.api
 local log = require 'packer.log'
-local a = require 'packer.async'
+local awrap = require 'packer.async'.wrap
 local plugin_utils = require 'packer.plugin_utils'
 local fmt = string.format
 
 local in_headless = #api.nvim_list_uis() == 0
 
--- Temporary wrappers to compensate for the updated extmark API, until most people have updated to
--- the latest HEAD (2020-09-04)
 local function set_extmark(buf, ns, id, line, col)
   if not api.nvim_buf_is_valid(buf) then
     return
   end
-  local opts = { id = id }
-  local result, mark_id = pcall(api.nvim_buf_set_extmark, buf, ns, line, col, opts)
-  if result then
-    return mark_id
-  end
-  -- We must be in an older version of Neovim
-  if not id then
-    id = 0
-  end
-  return api.nvim_buf_set_extmark(buf, ns, id, line, col, {})
-end
-
-local function get_extmark_by_id(buf, ns, id)
-  local result, line, col = pcall(api.nvim_buf_get_extmark_by_id, buf, ns, id, {})
-  if result then
-    return line, col
-  else
-    log.error('Failed to get extmark: ' .. line)
-  end
-  -- We must be in an older version of Neovim
-  return api.nvim_buf_get_extmark_by_id(buf, ns, id)
+  return api.nvim_buf_set_extmark(buf, ns, line, col, {id = id})
 end
 
 local function strip_newlines(raw_lines)
@@ -276,7 +254,7 @@ local display_mt = {
     if not self:valid_display() then
       return
     end
-    local line, _ = get_extmark_by_id(self.buf, self.ns, self.marks[plugin])
+    local line = api.nvim_buf_get_extmark_by_id(self.buf, self.ns, self.marks[plugin], {})
     self:set_lines(line[1], line[1] + 1, { fmt(' %s %s: %s', config.done_sym, plugin, message) })
     api.nvim_buf_del_extmark(self.buf, self.ns, self.marks[plugin])
     self.marks[plugin] = nil
@@ -288,7 +266,7 @@ local display_mt = {
     if not self:valid_display() then
       return
     end
-    local line, _ = get_extmark_by_id(self.buf, self.ns, self.marks[plugin])
+    local line = api.nvim_buf_get_extmark_by_id(self.buf, self.ns, self.marks[plugin], {})
     self:set_lines(line[1], line[1] + 1, { fmt(' %s %s: %s', config.error_sym, plugin, message) })
     api.nvim_buf_del_extmark(self.buf, self.ns, self.marks[plugin])
     self.marks[plugin] = nil
@@ -303,7 +281,7 @@ local display_mt = {
     if not self.marks[plugin] then
       return
     end
-    local line, _ = get_extmark_by_id(self.buf, self.ns, self.marks[plugin])
+    local line = api.nvim_buf_get_extmark_by_id(self.buf, self.ns, self.marks[plugin], {})
     self:set_lines(line[1], line[1] + 1, { fmt(' %s %s: %s', config.working_sym, plugin, message) })
     set_extmark(self.buf, self.ns, self.marks[plugin], line[1], 0)
   end),
@@ -696,7 +674,7 @@ local display_mt = {
 
   toggle_plugin_text = function(self, plugin_name, plugin_data)
     local mark_ids = self.marks[plugin_name]
-    local start_idx = get_extmark_by_id(self.buf, self.ns, mark_ids.start)[1]
+    local start_idx = api.nvim_buf_get_extmark_by_id(self.buf, self.ns, mark_ids.start, {})[1]
     local symbol
     local status_msg
     if plugin_data.ignore_update then
@@ -761,12 +739,7 @@ local display_mt = {
           .. '?',
       }, function(ans)
         if ans then
-          local r = plugin_data.revert_last()
-          if r.ok then
-            log.info('Reverted update for ' .. plugin_name)
-          else
-            log.error('Reverting update for ' .. plugin_name .. ' failed!')
-          end
+          plugin_data.revert_last()
         end
       end)
     else
@@ -973,6 +946,6 @@ display.retry = function()
 end
 
 --- Async prompt_user
-display.ask_user = a.wrap(prompt_user)
+display.ask_user = awrap(prompt_user, 3)
 
 return display

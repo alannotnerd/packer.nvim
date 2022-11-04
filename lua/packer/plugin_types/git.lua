@@ -1,6 +1,7 @@
 local util = require 'packer.util'
 local jobs = require 'packer.jobs'
 local a = require 'packer.async'
+local void = require 'packer.async'.void
 local result = require 'packer.result'
 local log = require 'packer.log'
 local async = a.sync
@@ -10,7 +11,7 @@ local vim = vim
 
 local git = {}
 
-local blocked_env_vars = {
+local BLOCKED_ENV_VARS = {
   GIT_DIR = true,
   GIT_INDEX_FILE = true,
   GIT_OBJECT_DIRECTORY = true,
@@ -23,7 +24,7 @@ local function ensure_git_env()
   if git.job_env == nil then
     local job_env = {}
     for k, v in pairs(vim.fn.environ()) do
-      if not blocked_env_vars[k] then
+      if not BLOCKED_ENV_VARS[k] then
         table.insert(job_env, k .. '=' .. v)
       end
     end
@@ -40,10 +41,11 @@ local function has_wildcard(tag)
   return string.match(tag, '*') ~= nil
 end
 
-local break_tag_pattern = [=[[bB][rR][eE][aA][kK]!?:]=]
-local breaking_change_pattern = [=[[bB][rR][eE][aA][kK][iI][nN][gG][ _][cC][hH][aA][nN][gG][eE]]=]
-local type_exclam_pattern = [=[[a-zA-Z]+!:]=]
-local type_scope_exclam_pattern = [=[[a-zA-Z]+%([^)]+%)!:]=]
+local BREAK_TAG_PAT          = [=[[bB][rR][eE][aA][kK]!?:]=]
+local BREAKING_CHANGE_PAT    = [=[[bB][rR][eE][aA][kK][iI][nN][gG][ _][cC][hH][aA][nN][gG][eE]]=]
+local TYPE_EXCLAIM_PAT       = [=[[a-zA-Z]+!:]=]
+local TYPE_SCOPE_EXPLAIN_PAT = [=[[a-zA-Z]+%([^)]+%)!:]=]
+
 local function mark_breaking_commits(plugin, commit_bodies)
   local commits = vim.gsplit(table.concat(commit_bodies, '\n'), '===COMMIT_START===', true)
   for commit in commits do
@@ -53,19 +55,19 @@ local function mark_breaking_commits(plugin, commit_bodies)
     local is_breaking = (
       body ~= nil
       and (
-        (string.match(body, breaking_change_pattern) ~= nil)
-        or (string.match(body, break_tag_pattern) ~= nil)
-        or (string.match(body, type_exclam_pattern) ~= nil)
-        or (string.match(body, type_scope_exclam_pattern) ~= nil)
+        (string.match(body, BREAKING_CHANGE_PAT) ~= nil)
+        or (string.match(body, BREAK_TAG_PAT) ~= nil)
+        or (string.match(body, TYPE_EXCLAIM_PAT) ~= nil)
+        or (string.match(body, TYPE_SCOPE_EXPLAIN_PAT) ~= nil)
       )
     )
       or (
         lines[2] ~= nil
         and (
-          (string.match(lines[2], breaking_change_pattern) ~= nil)
-          or (string.match(lines[2], break_tag_pattern) ~= nil)
-          or (string.match(lines[2], type_exclam_pattern) ~= nil)
-          or (string.match(lines[2], type_scope_exclam_pattern) ~= nil)
+          (string.match(lines[2], BREAKING_CHANGE_PAT) ~= nil)
+          or (string.match(lines[2], BREAK_TAG_PAT) ~= nil)
+          or (string.match(lines[2], TYPE_EXCLAIM_PAT) ~= nil)
+          or (string.match(lines[2], TYPE_SCOPE_EXPLAIN_PAT) ~= nil)
         )
       )
     if is_breaking then
@@ -95,87 +97,85 @@ local function reset(dest, commit)
   end)
 end
 
-local handle_checkouts = function(plugin, dest, disp, opts)
+local handle_checkouts = void(function(plugin, dest, disp, opts)
   local plugin_name = util.get_plugin_full_name(plugin)
-  return async(function()
+  if disp ~= nil then
+    disp:task_update(plugin_name, 'fetching reference...')
+  end
+  local output = jobs.output_table()
+  local callbacks = {
+    stdout = jobs.logging_callback(output.err.stdout, output.data.stdout, nil, disp, plugin_name),
+    stderr = jobs.logging_callback(output.err.stderr, output.data.stderr),
+  }
+
+  local job_opts = { capture_output = callbacks, cwd = dest, options = { env = git.job_env } }
+
+  local r = result.ok()
+
+  if plugin.tag and has_wildcard(plugin.tag) then
+    disp:task_update(plugin_name, fmt('getting tag for wildcard %s...', plugin.tag))
+    local fetch_tags = config.exec_cmd .. fmt(config.subcommands.tags_expand_fmt, plugin.tag)
+    r:and_then(jobs.run(fetch_tags, job_opts))
+    local data = output.data.stdout[1]
+    if data then
+      plugin.tag = vim.split(data, '\n')[1]
+    else
+      log.warn(
+        fmt('Wildcard expansion did not found any tag for plugin %s: defaulting to latest commit...', plugin.name)
+      )
+      plugin.tag = nil -- Wildcard is not found, then we bypass the tag
+    end
+  end
+
+  if plugin.branch or (plugin.tag and not opts.preview_updates) then
+    local branch_or_tag = plugin.branch and plugin.branch or plugin.tag
     if disp ~= nil then
-      disp:task_update(plugin_name, 'fetching reference...')
+      disp:task_update(plugin_name, fmt('checking out %s %s...', plugin.branch and 'branch' or 'tag', branch_or_tag))
     end
-    local output = jobs.output_table()
-    local callbacks = {
-      stdout = jobs.logging_callback(output.err.stdout, output.data.stdout, nil, disp, plugin_name),
-      stderr = jobs.logging_callback(output.err.stderr, output.data.stderr),
-    }
-
-    local job_opts = { capture_output = callbacks, cwd = dest, options = { env = git.job_env } }
-
-    local r = result.ok()
-
-    if plugin.tag and has_wildcard(plugin.tag) then
-      disp:task_update(plugin_name, fmt('getting tag for wildcard %s...', plugin.tag))
-      local fetch_tags = config.exec_cmd .. fmt(config.subcommands.tags_expand_fmt, plugin.tag)
-      r:and_then(jobs.run(fetch_tags, job_opts))
-      local data = output.data.stdout[1]
-      if data then
-        plugin.tag = vim.split(data, '\n')[1]
-      else
-        log.warn(
-          fmt('Wildcard expansion did not found any tag for plugin %s: defaulting to latest commit...', plugin.name)
-        )
-        plugin.tag = nil -- Wildcard is not found, then we bypass the tag
-      end
-    end
-
-    if plugin.branch or (plugin.tag and not opts.preview_updates) then
-      local branch_or_tag = plugin.branch and plugin.branch or plugin.tag
-      if disp ~= nil then
-        disp:task_update(plugin_name, fmt('checking out %s %s...', plugin.branch and 'branch' or 'tag', branch_or_tag))
-      end
-      r:and_then(jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, branch_or_tag), job_opts))
-        :map_err(function(err)
-          return {
-            msg = fmt(
-              'Error checking out %s %s for %s',
-              plugin.branch and 'branch' or 'tag',
-              branch_or_tag,
-              plugin_name
-            ),
-            data = err,
-            output = output,
-          }
-        end)
-    end
-
-    if plugin.commit then
-      if disp ~= nil then
-        disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
-      end
-      r:and_then(jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), job_opts))
-        :map_err(function(err)
-          return {
-            msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
-            data = err,
-            output = output,
-          }
-        end)
-    end
-
-    return r:map_ok(function(ok)
-      return { status = ok, output = output }
-    end):map_err(function(err)
-      if not err.msg then
+    r:and_then(jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, branch_or_tag), job_opts))
+      :map_err(function(err)
         return {
-          msg = fmt('Error updating %s: %s', plugin_name, table.concat(err, '\n')),
+          msg = fmt(
+            'Error checking out %s %s for %s',
+            plugin.branch and 'branch' or 'tag',
+            branch_or_tag,
+            plugin_name
+          ),
           data = err,
           output = output,
         }
-      end
+      end)
+  end
 
-      err.output = output
-      return err
-    end)
+  if plugin.commit then
+    if disp ~= nil then
+      disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
+    end
+    r:and_then(jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), job_opts))
+      :map_err(function(err)
+        return {
+          msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
+          data = err,
+          output = output,
+        }
+      end)
+  end
+
+  return r:map_ok(function(ok)
+    return { status = ok, output = output }
+  end):map_err(function(err)
+    if not err.msg then
+      return {
+        msg = fmt('Error updating %s: %s', plugin_name, table.concat(err, '\n')),
+        data = err,
+        output = output,
+      }
+    end
+
+    err.output = output
+    return err
   end)
-end
+end)
 
 local get_rev = function(plugin)
   local plugin_name = util.get_plugin_full_name(plugin)
@@ -374,7 +374,7 @@ git.setup = function(plugin)
 
       if needs_checkout then
         r:and_then(jobs.run(config.exec_cmd .. config.subcommands.fetch, update_opts))
-        r:and_then(handle_checkouts(plugin, install_to, disp, opts))
+        r:and_then(handle_checkouts, plugin, install_to, disp, opts)
         local function merge_output(res)
           if res.output ~= nil then
             vim.list_extend(update_info.err, res.output.err.stderr)
@@ -502,36 +502,36 @@ git.setup = function(plugin)
     end)
   end
 
-  plugin.diff = function(commit, callback)
-    async(function()
-      local diff_cmd = config.exec_cmd .. fmt(config.subcommands.git_diff_fmt, commit)
-      local diff_info = { err = {}, output = {}, messages = {} }
-      local diff_onread = jobs.logging_callback(diff_info.err, diff_info.messages)
-      local diff_callbacks = { stdout = diff_onread, stderr = diff_onread }
-      return jobs.run(diff_cmd, { capture_output = diff_callbacks, cwd = install_to, options = { env = git.job_env } })()
-        :map_ok(function(_)
-          return callback(split_messages(diff_info.messages))
-        end)
-        :map_err(function(err)
-          return callback(nil, err)
-        end)
-    end)()
-  end
+  plugin.diff = void(function(commit, callback)
+    local diff_cmd = config.exec_cmd .. fmt(config.subcommands.git_diff_fmt, commit)
+    local diff_info = { err = {}, output = {}, messages = {} }
+    local diff_onread = jobs.logging_callback(diff_info.err, diff_info.messages)
+    local diff_callbacks = { stdout = diff_onread, stderr = diff_onread }
+    return jobs.run(diff_cmd, { capture_output = diff_callbacks, cwd = install_to, options = { env = git.job_env } })()
+      :map_ok(function(_)
+        return callback(split_messages(diff_info.messages))
+      end)
+      :map_err(function(err)
+        return callback(nil, err)
+      end)
+  end)
 
-  plugin.revert_last = function()
+  plugin.revert_last = void(function()
     local r = result.ok()
-    async(function()
-      local revert_cmd = config.exec_cmd .. config.subcommands.revert
-      r:and_then(
-        jobs.run(revert_cmd, { capture_output = true, cwd = install_to, options = { env = git.job_env } })
-      )
-      if needs_checkout then
-        r:and_then(handle_checkouts(plugin, install_to, nil, {}))
-      end
-      return r
-    end)()
-    return r
-  end
+    local revert_cmd = config.exec_cmd .. config.subcommands.revert
+    r:and_then(
+      jobs.run(revert_cmd, { capture_output = true, cwd = install_to, options = { env = git.job_env } })
+    )
+    if needs_checkout then
+      r:and_then(handle_checkouts, plugin, install_to, nil, {})
+        :map_ok(function(_)
+          log.info('Reverted update for ' .. plugin_name)
+        end)
+        :map_err(function(_)
+          log.error('Reverting update for ' .. plugin_name .. ' failed!')
+        end)
+    end
+  end)
 
   ---Reset the plugin to `commit`
   ---@param commit string

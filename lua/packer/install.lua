@@ -1,11 +1,10 @@
-local a = require 'packer.async'
+local async = require 'packer.async'.sync
 local log = require 'packer.log'
 local util = require 'packer.util'
 local display = require 'packer.display'
 local plugin_utils = require 'packer.plugin_utils'
 
 local fmt = string.format
-local async = a.sync
 
 local config = nil
 

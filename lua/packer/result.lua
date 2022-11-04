@@ -20,7 +20,7 @@ local ok_result_mt = {
     self.ok = f(self.ok) or self.ok
     return self
   end,
-  map_err = function(self)
+  map_err = function(self, _)
     return self
   end,
 }
@@ -42,7 +42,7 @@ local err_result_mt = {
     setmetatable(self, getmetatable(r))
     return self
   end,
-  map_ok = function(self)
+  map_ok = function(self, _)
     return self
   end,
   map_err = function(self, f)

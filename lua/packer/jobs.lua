@@ -118,7 +118,7 @@ end
 --    "capture_output" (either a boolean, in which case default output capture is set up and the
 --    resulting tables are included in the result, or a set of tables, in which case output is logged
 --    to the given tables)
-local run_job = function(task, opts)
+local function run_job(task, opts)
   return a.sync(function()
     local options = opts.options or { hide = true }
     local stdout = nil
