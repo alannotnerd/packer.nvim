@@ -136,18 +136,14 @@ local function prompt_user(headline, body, callback)
   local x = (vim.o.columns - width) / 2.0
   local y = (vim.o.lines - height) / 2.0
   local pad_width = math.max(math.floor((width - string.len(headline)) / 2.0), 0)
-  api.nvim_buf_set_lines(
-    buf,
-    0,
-    -1,
-    true,
-    vim.list_extend({
-      string.rep(' ', pad_width) .. headline .. string.rep(' ', pad_width),
-      '',
-    }, body)
-  )
+  local lines = vim.list_extend({
+    string.rep(' ', pad_width) .. headline .. string.rep(' ', pad_width),
+    '',
+  }, body)
+  api.nvim_buf_set_lines(buf, 0, -1, true, lines)
   api.nvim_buf_set_option(buf, 'modifiable', false)
-  local opts = {
+
+  local win = api.nvim_open_win(buf, false, {
     relative = 'editor',
     width = width,
     height = height,
@@ -157,26 +153,23 @@ local function prompt_user(headline, body, callback)
     style = 'minimal',
     border = config.prompt_border,
     noautocmd = true,
-  }
+  })
 
-  local win = api.nvim_open_win(buf, false, opts)
   local check = vim.loop.new_prepare()
+  assert(check)
   local prompted = false
-  vim.loop.prepare_start(
-    check,
-    vim.schedule_wrap(function()
-      if not api.nvim_win_is_valid(win) then
-        return
-      end
-      vim.loop.prepare_stop(check)
-      if not prompted then
-        prompted = true
-        local ans = string.lower(vim.fn.input 'OK to remove? [y/N] ') == 'y'
-        api.nvim_win_close(win, true)
-        callback(ans)
-      end
-    end)
-  )
+  check:start(vim.schedule_wrap(function()
+    if not api.nvim_win_is_valid(win) then
+      return
+    end
+    check:stop()
+    if not prompted then
+      prompted = true
+      local ans = string.lower(vim.fn.input 'OK to remove? [y/N] ') == 'y'
+      api.nvim_win_close(win, true)
+      callback(ans)
+    end
+  end))
 end
 
 local make_update_msg = function(symbol, status, plugin_name, plugin)

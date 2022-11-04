@@ -67,10 +67,6 @@ function M.void(func)
   end
 end
 
-function M.wait(fn)
-  return fn()
-end
-
 function M.interruptible_wait_pool(n, interrupt_check, ...)
   local thunks = { ... }
 
@@ -112,9 +108,8 @@ function M.curry(fn, ...)
   end
 end
 
-local scheduler = M.wrap(vim.schedule, 1)
 ---An async function that when called will yield to the Neovim scheduler to be
 ---able to call the API.
-M.main = scheduler
+M.main = M.wrap(vim.schedule, 1)
 
 return M

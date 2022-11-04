@@ -4,11 +4,8 @@ local log = require 'packer.log'
 
 local config
 
-local PLUGIN_OPTIONAL_LIST = 1
-local PLUGIN_START_LIST = 2
-
-local function is_dirty(plugin, typ)
-  return (plugin.opt and typ == PLUGIN_START_LIST) or (not plugin.opt and typ == PLUGIN_OPTIONAL_LIST)
+local function is_dirty(plugin, isopt)
+  return (plugin.opt and isopt == false) or (not plugin.opt and isopt == true)
 end
 
 -- Find and remove any plugins not currently configured for use
@@ -23,12 +20,12 @@ local clean_plugins = a.sync(function(_, plugins, fs_state, results)
   -- test for dirty / 'missing' plugins
   for _, plugin_config in pairs(plugins) do
     local path = plugin_config.install_path
-    local plugin_source = nil
+    local plugin_isopt = nil
     if opt_plugins[path] then
-      plugin_source = PLUGIN_OPTIONAL_LIST
+      plugin_isopt = true
       opt_plugins[path] = nil
     elseif start_plugins[path] then
-      plugin_source = PLUGIN_START_LIST
+      plugin_isopt = false
       start_plugins[path] = nil
     end
 
@@ -40,7 +37,7 @@ local clean_plugins = a.sync(function(_, plugins, fs_state, results)
 
     local plugin_missing = path_exists and missing_plugins[plugin_config.short_name]
     local disabled_but_installed = path_exists and plugin_config.disable
-    if plugin_missing or is_dirty(plugin_config, plugin_source) or disabled_but_installed then
+    if plugin_missing or is_dirty(plugin_config, plugin_isopt) or disabled_but_installed then
       dirty_plugins[#dirty_plugins + 1] = path
     end
   end
@@ -54,6 +51,7 @@ local clean_plugins = a.sync(function(_, plugins, fs_state, results)
 
   mark_remaining_as_dirty(opt_plugins)
   mark_remaining_as_dirty(start_plugins)
+
   if next(dirty_plugins) then
     local lines = {}
     for _, path in ipairs(dirty_plugins) do

@@ -1,5 +1,5 @@
 local packer = require("packer")
-local use = packer.use
+local use = packer.__use
 local packer_path = vim.fn.stdpath("data").."/site/pack/packer/start/"
 
 describe("Packer use tests", function()

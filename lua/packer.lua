@@ -278,12 +278,14 @@ local function process_plugin_spec(plugin_data)
 end
 
 --- Add a plugin to the managed set
-function packer.use(plugin_spec)
+local function use(plugin_spec)
   plugin_specifications[#plugin_specifications + 1] = {
     spec = plugin_spec,
     line = debug.getinfo(2, 'l').currentline,
   }
 end
+
+packer.__use = use
 
 local function process_plugin_specs()
   local log = require_and_configure 'log'
@@ -318,10 +320,8 @@ local function reltime(start)
 end
 
 --- Install operation:
--- Takes an optional list of plugin names as an argument. If no list is given, operates on all
--- managed plugins.
 -- Installs missing plugins, then updates helptags and rplugins
-packer.install = void(function(...)
+packer.install = void(function()
   local log = require_and_configure 'log'
   log.debug 'packer.install: requiring modules'
   local plugin_utils = require_and_configure 'plugin_utils'
@@ -330,14 +330,8 @@ packer.install = void(function(...)
   local display = require_and_configure 'display'
 
   process_plugin_specs()
-  local install_plugins
-  if ... then
-    install_plugins = { ... }
-  end
   local fs_state = plugin_utils.get_fs_state(plugins)
-  if not install_plugins then
-    install_plugins = vim.tbl_keys(fs_state.missing)
-  end
+  local install_plugins = vim.tbl_keys(fs_state.missing)
   if #install_plugins == 0 then
     log.info 'All configured plugins are installed'
     return
@@ -964,7 +958,7 @@ function packer.startup(spec)
   packer.init(spec.config)
   packer.reset()
   require_and_configure 'log'
-  packer.use(user_plugins)
+  use(user_plugins)
   process_plugin_specs()
   load_plugin_configs()
 
