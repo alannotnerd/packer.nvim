@@ -596,31 +596,6 @@ local function packer_load(names)
   end
 end
 
--- Load plugins
--- @param plugins string String of space separated plugins names
---                      intended for PackerLoad command
---                or list of plugin names as independent strings
-function packer.loader(...)
-  local plugin_names = { ... }
-  if type(plugin_names[#plugin_names]) == 'boolean' then
-    plugin_names[#plugin_names] = nil
-  end
-
-  -- We make a new table here because it's more convenient than expanding a space-separated string
-  -- into the existing plugin_names
-  local plugin_list = {}
-  for _, plugin_name in ipairs(plugin_names) do
-    vim.list_extend(
-      plugin_list,
-      vim.tbl_filter(function(name)
-        return #name > 0
-      end, vim.split(plugin_name, ' '))
-    )
-  end
-
-  packer_load(plugin_list)
-end
-
 -- Completion user plugins
 -- Intended to provide completion for PackerUpdate/Sync/Install command
 function packer.plugin_complete(lead, _, _)
@@ -830,7 +805,6 @@ local function detect_ftdetect(plugin_path)
 
   return source_paths
 end
-
 
 local function setup_ft_plugins(ft_plugins)
   local fts = {}
