@@ -7,14 +7,16 @@ local result = require 'packer.result'
 local log = require 'packer.log'
 
 local config = nil
-local plugin_utils = {}
-plugin_utils.cfg = function(_config)
+
+local plugin_utils = {
+  custom_plugin_type = 'custom',
+  local_plugin_type = 'local',
+  git_plugin_type = 'git'
+}
+
+function plugin_utils.cfg(_config)
   config = _config
 end
-
-plugin_utils.custom_plugin_type = 'custom'
-plugin_utils.local_plugin_type = 'local'
-plugin_utils.git_plugin_type = 'git'
 
 plugin_utils.guess_type = function(plugin)
   if plugin.installer then
@@ -36,7 +38,7 @@ plugin_utils.guess_type = function(plugin)
   end
 end
 
-plugin_utils.guess_dir_type = function(dir)
+function plugin_utils.guess_dir_type(dir)
   local globdir = fn.glob(dir)
   local dir_type = (vim.loop.fs_lstat(globdir) or { type = 'noexist' }).type
 
@@ -53,7 +55,7 @@ plugin_utils.guess_dir_type = function(dir)
   end
 end
 
-plugin_utils.helptags_stale = function(dir)
+function plugin_utils.helptags_stale(dir)
   -- Adapted directly from minpac.vim
   local txts = fn.glob(util.join_paths(dir, '*.txt'), true, true)
   vim.list_extend(txts, fn.glob(util.join_paths(dir, '*.[a-z][a-z]x'), true, true))
@@ -88,7 +90,7 @@ plugin_utils.update_rplugins = vim.schedule_wrap(function()
   end
 end)
 
-plugin_utils.ensure_dirs = function()
+function plugin_utils.ensure_dirs()
   if fn.isdirectory(config.opt_dir) == 0 then
     fn.mkdir(config.opt_dir, 'p')
   end
@@ -98,7 +100,7 @@ plugin_utils.ensure_dirs = function()
   end
 end
 
-plugin_utils.list_installed_plugins = function()
+function plugin_utils.list_installed_plugins()
   local opt_plugins = {}
   local start_plugins = {}
   local opt_dir_handle = vim.loop.fs_opendir(config.opt_dir, nil, 50)
@@ -177,28 +179,28 @@ plugin_utils.get_fs_state = a.sync(function(plugins)
   return { opt = opt_plugins, start = start_plugins, missing = missing_plugins }
 end, 1)
 
-plugin_utils.load_plugin = function(plugin)
+function plugin_utils.load_plugin(plugin)
   if plugin.opt then
-    vim.cmd('packadd ' .. plugin.short_name)
-  else
-    vim.o.runtimepath = vim.o.runtimepath .. ',' .. plugin.install_path
-    for _, pat in ipairs {
-      table.concat({ 'plugin', '**/*.vim' }, util.get_separator()),
-      table.concat({ 'after', 'plugin', '**/*.vim' }, util.get_separator()),
-    } do
-      local path = util.join_paths(plugin.install_path, pat)
-      local glob_ok, files = pcall(fn.glob, path, false, true)
-      if not glob_ok then
-        if string.find(files, 'E77') then
-          vim.cmd('silent exe "source ' .. path .. '"')
-        else
-          error(files)
-        end
-      elseif #files > 0 then
-        for _, file in ipairs(files) do
-          file = file:gsub('\\', '/')
-          vim.cmd('silent exe "source ' .. file .. '"')
-        end
+    vim.cmd.packadd(plugin.short_name)
+    return
+  end
+
+  vim.o.runtimepath = vim.o.runtimepath .. ',' .. plugin.install_path
+  for _, pat in ipairs {
+    table.concat({ 'plugin', '**/*.vim' }, util.get_separator()),
+    table.concat({ 'after', 'plugin', '**/*.vim' }, util.get_separator()),
+  } do
+    local path = util.join_paths(plugin.install_path, pat)
+    local ok, files = pcall(fn.glob, path, false, true)
+    if not ok then
+      if files:find('E77') then
+        vim.cmd('silent exe "source ' .. path .. '"')
+      else
+        error(files)
+      end
+    else
+      for _, file in ipairs(files) do
+        vim.cmd.source{file, silent=true}
       end
     end
   end
@@ -211,71 +213,55 @@ plugin_utils.post_update_hook = a.sync(function(plugin, disp)
     plugin_utils.load_plugin(plugin)
   end
 
-  if plugin.run then
-    if type(plugin.run) ~= 'table' then
-      plugin.run = { plugin.run }
-    end
-    disp:task_update(plugin_name, 'running post update hooks...')
-    local hook_result = result.ok()
-    for _, task in ipairs(plugin.run) do
-      if type(task) == 'function' then
-        local success, err = pcall(task, plugin, disp)
-        if not success then
-          return result.err {
-            msg = 'Error running post update hook: ' .. vim.inspect(err),
-          }
-        end
-      elseif type(task) == 'string' then
-        if string.sub(task, 1, 1) == ':' then
-          a.main()
-          vim.cmd(string.sub(task, 2))
-        else
-          local hook_output = { err = {}, output = {} }
-          local hook_callbacks = {
-            stderr = jobs.logging_callback(hook_output.err, hook_output.output, nil, disp, plugin_name),
-            stdout = jobs.logging_callback(hook_output.err, hook_output.output, nil, disp, plugin_name),
-          }
-          local cmd
-          local shell = os.getenv 'SHELL' or vim.o.shell
-          if shell:find 'cmd.exe$' then
-            cmd = { shell, '/c', task }
-          else
-            cmd = { shell, '-c', task }
-          end
-          hook_result = jobs.run(cmd, { capture_output = hook_callbacks, cwd = plugin.install_path }):map_err(
-            function(err)
-              return {
-                msg = string.format('Error running post update hook: %s', table.concat(hook_output.output, '\n')),
-                data = err,
-              }
-            end
-          )
+  if not plugin.run then
+    return result.ok
+  end
 
-          if hook_result.err then
-            return hook_result
-          end
-        end
-      else
-        -- TODO/NOTE: This case should also capture output in case of error. The minor difficulty is
-        -- what to do if the plugin's run table (i.e. this case) already specifies output handling.
+  if type(plugin.run) ~= 'table' then
+    plugin.run = { plugin.run }
+  end
 
-        hook_result = jobs.run(task):map_err(function(err)
+  disp:task_update(plugin_name, 'running post update hooks...')
+
+  for _, run_task in ipairs(plugin.run) do
+    if type(run_task) == 'function' then
+      local ok, err = pcall(run_task, plugin, disp)
+      if not ok then
+        return result.err {
+          msg = 'Error running post update hook: ' .. vim.inspect(err),
+        }
+      end
+    elseif type(run_task) == 'string' and run_task:sub(1, 1) == ':' then
+      -- Run a vim command
+      a.main()
+      vim.cmd(run_task:sub(2))
+    else
+      -- Run a shell command
+      -- run_task can be either a string or an array
+      local res = { err = {}, output = {} }
+
+      local hook_result = jobs.run(run_task, {
+        capture_output = {
+          stderr = jobs.logging_callback(res.err, res.output, nil, disp, plugin_name),
+          stdout = jobs.logging_callback(res.err, res.output, nil, disp, plugin_name),
+        },
+        cwd = plugin.install_path
+      }):map_err(
+        function(err)
           return {
-            msg = string.format('Error running post update hook: %s', vim.inspect(err)),
+            msg = string.format('Error running post update hook: %s', table.concat(res.output, '\n')),
             data = err,
           }
-        end)
-
-        if hook_result.err then
-          return hook_result
         end
+      )
+
+      if hook_result.err then
+        return hook_result
       end
     end
-
-    return hook_result
-  else
-    return result.ok()
   end
+
+  return result.ok
 end, 2)
 
 return plugin_utils

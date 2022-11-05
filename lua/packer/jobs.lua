@@ -180,8 +180,9 @@ local run_job = function(task, opts)
   end
 
   if type(task) == 'string' then
-    local split_pattern = '%s+'
-    task = split(task, split_pattern)
+    local shell = os.getenv 'SHELL' or vim.o.shell
+    local minus_c = shell:find 'cmd.exe$' and '/c' or '-c'
+    task = { shell, minus_c, task }
   end
 
   local cmd = task[1]

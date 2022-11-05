@@ -100,12 +100,15 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
     disp:task_update(plugin_name, 'fetching reference...')
   end
   local output = jobs.output_table()
-  local callbacks = {
-    stdout = jobs.logging_callback(output.err.stdout, output.data.stdout, nil, disp, plugin_name),
-    stderr = jobs.logging_callback(output.err.stderr, output.data.stderr),
-  }
 
-  local job_opts = { capture_output = callbacks, cwd = dest, options = { env = git.job_env } }
+  local job_opts = {
+    capture_output = {
+      stdout = jobs.logging_callback(output.err.stdout, output.data.stdout, nil, disp, plugin_name),
+      stderr = jobs.logging_callback(output.err.stderr, output.data.stderr),
+    },
+    cwd = dest,
+    options = { env = git.job_env }
+  }
 
   local r = result.ok()
 
