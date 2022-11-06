@@ -50,59 +50,20 @@ local function init_modules()
 end
 
 local function make_commands()
-  local create_command = api.nvim_create_user_command
-
-  create_command('PackerSnapshot', function(args)
-    snapshot.snapshot(unpack(args.fargs))
-  end, {nargs ='+', complete = snapshot.completion.create})
-
-  create_command('PackerSnapshotRollback', function(args)
-    snapshot.rollback(unpack(args.fargs))
-  end, {nargs ='+', complete = snapshot.completion.rollback})
-
-  create_command('PackerSnapshotDelete', function(args)
-    snapshot.delete(unpack(args.fargs))
-  end, {nargs ='+', complete = snapshot.completion.snapshot})
-
-  create_command('PackerInstall', function(args)
-    packer.install(unpack(args.fargs))
-  end, {nargs ='*', complete = packer.plugin_complete})
-
-  create_command('PackerUpdate', function(args)
-    packer.update(unpack(args.fargs))
-  end, {nargs ='*', complete = packer.plugin_complete})
-
-  create_command('PackerSync', function(args)
-    packer.sync(unpack(args.fargs))
-  end, {nargs ='*', complete = packer.plugin_complete})
-
-  create_command('PackerClean', function() packer.clean() end, {})
-  create_command('PackerStatus', function() packer.status() end, {})
-end
-
---- Initialize packer
--- Forwards user configuration to sub-modules, resets the set of managed plugins, and ensures that
--- the necessary package directories exist
-local function init(user_config)
-  packer.reset()
-  config = require('packer.config')(user_config)
-
-  init_modules()
-
-  plugin_utils.ensure_dirs()
-
-  if not config.disable_commands then
-    make_commands()
+  for _, cmd in ipairs {
+    { 'PackerSnapshot'         , snapshot.snapshot, snapshot.completion.create   },
+    { 'PackerSnapshotRollback' , snapshot.rollback, snapshot.completion.rollback },
+    { 'PackerSnapshotDelete'   , snapshot.delete  , snapshot.completion.snapshot },
+    { 'PackerInstall'          , packer.install   , packer.plugin_complete },
+    { 'PackerUpdate'           , packer.update    , packer.plugin_complete },
+    { 'PackerSync'             , packer.sync      , packer.plugin_complete },
+    { 'PackerClean'            , packer.clean },
+    { 'PackerStatus'           , packer.status },
+  } do
+    api.nvim_create_user_command(cmd[1], function(args)
+      cmd[2](unpack(args.fargs))
+    end, {nargs ='+', complete = cmd[3]})
   end
-
-  if fn.mkdir(config.snapshot_path, 'p') ~= 1 then
-    log.warn("Couldn't create " .. config.snapshot_path)
-  end
-end
-
-function packer.reset()
-  plugins = {}
-  plugin_specifications = {}
 end
 
 --- The main logic for adding a plugin (and any dependencies) to the managed set
@@ -829,8 +790,22 @@ function packer.startup(spec)
   assert(type(spec[1]) == 'table')
   local user_plugins = spec[1]
 
-  init(spec.config)
-  packer.reset()
+  plugins = {}
+  plugin_specifications = {}
+
+  config = require('packer.config')(spec.config)
+  init_modules()
+
+  plugin_utils.ensure_dirs()
+
+  if not config.disable_commands then
+    make_commands()
+  end
+
+  if fn.mkdir(config.snapshot_path, 'p') ~= 1 then
+    log.warn("Couldn't create " .. config.snapshot_path)
+  end
+
   use(user_plugins)
   process_plugin_specs()
   load_plugin_configs()
