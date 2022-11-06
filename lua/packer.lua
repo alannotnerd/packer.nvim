@@ -639,6 +639,7 @@ local function setup_key_plugins(key_plugins)
     vim.keymap.set(keymap[1], keymap[2], function()
       vim.keymap.del(keymap[1], keymap[2])
       packer_load(names)
+      api.nvim_feedkeys(keymap[2], keymap[1], false)
     end, {
         desc = 'Packer lazy load: '..table.concat(names, ', '),
         silent = true
