@@ -200,7 +200,7 @@ function plugin_utils.load_plugin(plugin)
       end
     else
       for _, file in ipairs(files) do
-        vim.cmd.source{file, silent=true}
+        vim.cmd.source{file, mods = {silent=true}}
       end
     end
   end
