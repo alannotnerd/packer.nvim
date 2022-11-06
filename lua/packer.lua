@@ -735,19 +735,6 @@ local function setup_event_plugins(event_plugins)
   end
 end
 
-local function setup_uncond_plugin(uncond_plugins)
-  for name, plugin in pairs(uncond_plugins) do
-    if plugin.config and not plugin._done_config then
-      plugin._done_config = true
-      if type(plugin.config) == 'function' then
-        plugin.config()
-      else
-        loadstring(plugin.config, name..'.config()')()
-      end
-    end
-  end
-end
-
 local function load_plugin_configs()
   local cond_plugins = {
     cmd   = {},
@@ -776,7 +763,9 @@ local function load_plugin_configs()
 
   _G.packer_plugins = plugins
 
-  setup_uncond_plugin(uncond_plugins)
+  for name, plugin in pairs(uncond_plugins) do
+    loader_apply_config(plugin, name)
+  end
   setup_cmd_plugins(cond_plugins.cmd)
   setup_key_plugins(cond_plugins.keys)
   setup_ft_plugins(cond_plugins.ft)
