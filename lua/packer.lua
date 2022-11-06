@@ -1,6 +1,8 @@
 local api = vim.api
 local fn = vim.fn
 
+local fmt = string.format
+
 local util = require 'packer.util'
 
 local void                    = require 'packer.async'.void
@@ -109,10 +111,61 @@ local function require_and_configure(module_name)
   return module
 end
 
+local clean
+local display
+local install
+local log
+local plugin_types
+local plugin_utils
+local update
+local snapshot
+
+local function init_modules()
+  clean        = require_and_configure 'clean'
+  display      = require_and_configure 'display'
+  install      = require_and_configure 'install'
+  log          = require_and_configure 'log'
+  plugin_types = require_and_configure 'plugin_types'
+  plugin_utils = require_and_configure 'plugin_utils'
+  snapshot     = require_and_configure 'snapshot'
+  update       = require_and_configure 'update'
+end
+
+local function make_commands()
+  local create_command = api.nvim_create_user_command
+
+  create_command('PackerSnapshot', function(args)
+    snapshot.snapshot(unpack(args.fargs))
+  end, {nargs ='+', complete = snapshot.completion.create})
+
+  create_command('PackerSnapshotRollback', function(args)
+    snapshot.rollback(unpack(args.fargs))
+  end, {nargs ='+', complete = snapshot.completion.rollback})
+
+  create_command('PackerSnapshotDelete', function(args)
+    snapshot.delete(unpack(args.fargs))
+  end, {nargs ='+', complete = snapshot.completion.snapshot})
+
+  create_command('PackerInstall', function(args)
+    packer.install(unpack(args.fargs))
+  end, {nargs ='*', complete = packer.plugin_complete})
+
+  create_command('PackerUpdate', function(args)
+    packer.update(unpack(args.fargs))
+  end, {nargs ='*', complete = packer.plugin_complete})
+
+  create_command('PackerSync', function(args)
+    packer.sync(unpack(args.fargs))
+  end, {nargs ='*', complete = packer.plugin_complete})
+
+  create_command('PackerClean', function() packer.clean() end, {})
+  create_command('PackerStatus', function() packer.status() end, {})
+end
+
 --- Initialize packer
 -- Forwards user configuration to sub-modules, resets the set of managed plugins, and ensures that
 -- the necessary package directories exist
-function packer.init(user_config)
+local function init(user_config)
   user_config = user_config or {}
   config = util.deep_extend('force', config, user_config)
   packer.reset()
@@ -125,47 +178,17 @@ function packer.init(user_config)
     config.display.non_interactive = true
   end
 
-  local plugin_utils = require_and_configure 'plugin_utils'
+  init_modules()
+
   plugin_utils.ensure_dirs()
 
-  require_and_configure 'snapshot'
-
   if not config.disable_commands then
-    packer.make_commands()
+    make_commands()
   end
 
   if fn.mkdir(config.snapshot_path, 'p') ~= 1 then
-    require_and_configure('log').warn("Couldn't create " .. config.snapshot_path)
+    log.warn("Couldn't create " .. config.snapshot_path)
   end
-end
-
-function packer.make_commands()
-  api.nvim_create_user_command('PackerSnapshot', function(args)
-    require'packer.snapsot'.snapshot(unpack(args.fargs))
-  end, {nargs ='+', complete = require'packer.snapshot'.completion.create})
-
-  api.nvim_create_user_command('PackerSnapshotRollback', function(args)
-    require'packer.snapsot'.rollback(unpack(args.fargs))
-  end, {nargs ='+', complete = require'packer.snapshot'.completion.rollback})
-
-  api.nvim_create_user_command('PackerSnapshotDelete', function(args)
-    require'packer.snapsot'.delete(unpack(args.fargs))
-  end, {nargs ='+', complete = require'packer.snapshot'.completion.snapshot})
-
-  api.nvim_create_user_command('PackerInstall', function(args)
-    packer.install(unpack(args.fargs))
-  end, {nargs ='*', complete = packer.plugin_complete})
-
-  api.nvim_create_user_command('PackerUpdate', function(args)
-    packer.update(unpack(args.fargs))
-  end, {nargs ='*', complete = packer.plugin_complete})
-
-  api.nvim_create_user_command('PackerSync', function(args)
-    packer.sync(unpack(args.fargs))
-  end, {nargs ='*', complete = packer.plugin_complete})
-
-  api.nvim_create_user_command('PackerClean', function() packer.clean() end, {})
-  api.nvim_create_user_command('PackerStatus', function() packer.status() end, {})
 end
 
 function packer.reset()
@@ -191,7 +214,6 @@ local function process_plugin_spec(plugin_data)
     return
   end
 
-  local log = require_and_configure 'log'
   if plugin_spec[1] == vim.NIL or plugin_spec[1] == nil then
     log.warn('No plugin name provided at line ' .. spec_line .. '!')
     return
@@ -225,8 +247,6 @@ local function process_plugin_spec(plugin_data)
 
   plugin_spec.install_path = join_paths(plugin_spec.opt and config.opt_dir or config.start_dir, plugin_spec.short_name)
 
-  local plugin_utils = require_and_configure 'plugin_utils'
-  local plugin_types = require_and_configure 'plugin_types'
   if not plugin_spec.type then
     plugin_utils.guess_type(plugin_spec)
   end
@@ -288,7 +308,7 @@ end
 packer.__use = use
 
 local function process_plugin_specs()
-  local log = require_and_configure 'log'
+  init_modules()
   log.debug 'Processing plugin specs'
   if plugins == nil or next(plugins) == nil then
     for _, spec in ipairs(plugin_specifications) do
@@ -303,10 +323,7 @@ packer.__manage_all = process_plugin_specs
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
 packer.clean = void(function(results)
-  local plugin_utils = require_and_configure 'plugin_utils'
-  local clean = require_and_configure 'clean'
-  require_and_configure 'display'
-
+  init_modules()
   process_plugin_specs()
   local fs_state = plugin_utils.get_fs_state(plugins)
   clean(plugins, fs_state, results)
@@ -322,12 +339,8 @@ end
 --- Install operation:
 -- Installs missing plugins, then updates helptags and rplugins
 packer.install = void(function()
-  local log = require_and_configure 'log'
+  init_modules()
   log.debug 'packer.install: requiring modules'
-  local plugin_utils = require_and_configure 'plugin_utils'
-  local clean = require_and_configure 'clean'
-  local install = require_and_configure 'install'
-  local display = require_and_configure 'display'
 
   process_plugin_specs()
   local fs_state = plugin_utils.get_fs_state(plugins)
@@ -350,7 +363,7 @@ packer.install = void(function()
     end
     local limit = config.max_jobs and config.max_jobs or #tasks
     log.debug 'Running tasks'
-    display_win:update_headline_message('installing ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
+    display_win:update_headline_message(fmt('installing %d / %d plugins', #tasks, #tasks))
     interruptible_wait_pool(limit, check, unpack(tasks))
     local install_paths = {}
     for plugin_name, r in pairs(results.installs) do
@@ -397,13 +410,8 @@ end
 -- and rplugins
 -- Options can be specified in the first argument as either a table or explicit `'--preview'`.
 packer.update = void(function(...)
-  local log = require_and_configure 'log'
+  init_modules()
   log.debug 'packer.update: requiring modules'
-  local plugin_utils = require_and_configure 'plugin_utils'
-  local clean = require_and_configure 'clean'
-  local install = require_and_configure 'install'
-  local display = require_and_configure 'display'
-  local update = require_and_configure 'update'
 
   process_plugin_specs()
 
@@ -466,13 +474,8 @@ end)
 --  - Install missing plugins and update installed plugins
 --  - Update helptags and rplugins
 packer.sync = void(function(...)
-  local log = require_and_configure 'log'
+  init_modules()
   log.debug 'packer.sync: requiring modules'
-  local plugin_utils = require_and_configure 'plugin_utils'
-  local clean = require_and_configure 'clean'
-  local install = require_and_configure 'install'
-  local display = require_and_configure 'display'
-  local update = require_and_configure 'update'
 
   process_plugin_specs()
 
@@ -533,8 +536,7 @@ packer.sync = void(function(...)
 end)
 
 packer.status = void(function()
-  local display = require_and_configure 'display'
-  local log = require_and_configure 'log'
+  init_modules()
   process_plugin_specs()
   local display_win = display.open(config.display.open_fn or config.display.open_cmd)
   if _G.packer_plugins ~= nil then
@@ -561,7 +563,7 @@ local function packer_load(names)
   for i, name in ipairs(names) do
     local plugin = _G.packer_plugins[name]
     if not plugin then
-      local err_message = 'Error: attempted to load ' .. names[i] .. ' which is not present in plugins table!'
+      local err_message = fmt('Error: attempted to load %s which is not present in plugins table!', names[i])
       vim.notify(err_message, vim.log.levels.ERROR, { title = 'packer.nvim' })
       error(err_message)
     end
@@ -609,13 +611,12 @@ end
 ---Snapshots installed plugins
 ---@param snapshot_name string absolute path or just a snapshot name
 packer.snapshot = void(function(snapshot_name, ...)
+  init_modules()
   local snapshot = require 'packer.snapshot'
-  local log = require_and_configure 'log'
   local args = { ... }
   snapshot_name = snapshot_name or require('os').date '%Y-%m-%d'
   local snapshot_path = fn.expand(snapshot_name)
 
-  local fmt = string.format
   log.debug(fmt('Taking snapshots of currently installed plugins to %s...', snapshot_name))
   if fn.fnamemodify(snapshot_name, ':p') ~= snapshot_path then -- is not absolute path
     if config.snapshot_path == nil then
@@ -676,10 +677,8 @@ end)
 ---@vararg string @ if provided, the only plugins to be rolled back,
 ---otherwise all the plugins will be rolled back
 packer.rollback = void(function(snapshot_name, ...)
+  init_modules()
   local args = { ... }
-  local snapshot = require 'packer.snapshot'
-  local log = require_and_configure 'log'
-  local fmt = string.format
 
   process_plugin_specs()
 
@@ -708,7 +707,7 @@ packer.rollback = void(function(snapshot_name, ...)
   snapshot.rollback(snapshot_path, target_plugins)
     :map_ok(function(ok)
       scheduler()
-      log.info('Rollback to "' .. snapshot_path .. '" completed')
+      log.info(fmt('Rollback to "%s" completed', snapshot_path))
       if next(ok.failed) then
         log.warn("Couldn't rollback " .. vim.inspect(ok.failed))
       end
@@ -745,7 +744,7 @@ local function setup_cmd_plugins(cmd_plugins)
         packer_load(names)
 
         local lines = args.line1 == args.line2 and '' or (args.line1 .. ',' .. args.line2)
-        vim.cmd(string.format(
+        vim.cmd(fmt(
           '%s %s%s%s %s',
           args.mods or '',
           lines,
@@ -930,9 +929,8 @@ function packer.startup(spec)
   assert(type(spec[1]) == 'table')
   local user_plugins = spec[1]
 
-  packer.init(spec.config)
+  init(spec.config)
   packer.reset()
-  require_and_configure 'log'
   use(user_plugins)
   process_plugin_specs()
   load_plugin_configs()

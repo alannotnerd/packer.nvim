@@ -42,19 +42,17 @@ local function setup_local(plugin)
     end)
   end
 
-  plugin.updater = function(disp)
-    return async(function()
-      local r = result.ok()
-      disp:task_update(plugin_name, 'checking symlink...')
-      local resolved_path = vim.loop.fs_realpath(to)
-      if resolved_path ~= from then
-        disp:task_update(plugin_name, 'updating symlink...')
-        r = unlink(to)():and_then(symlink(from, to, { dir = true }))
-      end
+  plugin.updater = async(function(disp)
+    local r = result.ok()
+    disp:task_update(plugin_name, 'checking symlink...')
+    local resolved_path = vim.loop.fs_realpath(to)
+    if resolved_path ~= from then
+      disp:task_update(plugin_name, 'updating symlink...')
+      r = unlink(to)():and_then(symlink(from, to, { dir = true }))
+    end
 
-      return r
-    end)
-  end
+    return r
+  end, 1)
 
   plugin.revert_last = function(_)
     log.warn "Can't revert a local plugin!"
