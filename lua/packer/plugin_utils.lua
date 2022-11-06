@@ -214,7 +214,7 @@ plugin_utils.post_update_hook = a.sync(function(plugin, disp)
   end
 
   if not plugin.run then
-    return result.ok
+    return result.ok()
   end
 
   if type(plugin.run) ~= 'table' then
@@ -261,7 +261,7 @@ plugin_utils.post_update_hook = a.sync(function(plugin, disp)
     end
   end
 
-  return result.ok
+  return result.ok()
 end, 2)
 
 return plugin_utils
