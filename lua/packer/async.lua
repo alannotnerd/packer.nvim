@@ -1,10 +1,12 @@
+local co = coroutine
+
 ---Executes a future with a callback when it is done
 ---@param func function: the future to execute
 local function execute(func, callback, ...)
-  local thread = coroutine.create(func)
+  local thread = co.create(func)
 
   local function step(...)
-    local ret = {coroutine.resume(thread, ...)}
+    local ret = {co.resume(thread, ...)}
     local stat, err_or_fn_or_ret, nargs = unpack(ret)
 
     if not stat then
@@ -12,7 +14,7 @@ local function execute(func, callback, ...)
         err_or_fn_or_ret, debug.traceback(thread)))
     end
 
-    if coroutine.status(thread) == 'dead' then
+    if co.status(thread) == 'dead' then
       if callback then
         callback(err_or_fn_or_ret)
       end
@@ -34,10 +36,10 @@ local M = {}
 ---@param argc number: The number of arguments of func. Must be included.
 function M.wrap(func, argc)
   return function(...)
-    if not coroutine.running() or select('#', ...) == argc then
+    if not co.running() or select('#', ...) == argc then
       return func(...)
     end
-    return coroutine.yield(func, argc, ...)
+    return co.yield(func, argc, ...)
   end
 end
 
@@ -48,7 +50,7 @@ end
 --                      fn finishes
 function M.sync(func, nargs)
   return function(...)
-    if coroutine.running() then
+    if co.running() then
       return func(...)
     end
     nargs = nargs or 0
@@ -60,17 +62,17 @@ end
 ---For functions that don't provide a callback as there last argument
 function M.void(func)
   return function(...)
-    if coroutine.running() then
+    if co.running() then
       return func(...)
     end
     execute(func, nil, ...)
   end
 end
 
-function M.interruptible_wait_pool(n, interrupt_check, ...)
+function M.join(n, interrupt_check, ...)
   local thunks = { ... }
 
-  return coroutine.yield(function(finish)
+  return co.yield(function(finish)
     if #thunks == 0 then
       return finish()
     end

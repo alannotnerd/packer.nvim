@@ -26,14 +26,14 @@ plugin_utils.guess_type = function(plugin)
     plugin.type = plugin_utils.local_plugin_type
   elseif
     string.sub(plugin.path, 1, 6) == 'git://'
-    or string.sub(plugin.path, 1, 4) == 'http'
-    or string.match(plugin.path, '@')
+    or plugin.path:sub(1, 4) == 'http'
+    or plugin.path:match('@')
   then
     plugin.url = plugin.path
     plugin.type = plugin_utils.git_plugin_type
   else
     local path = table.concat(vim.split(plugin.path, '\\', true), '/')
-    plugin.url = string.format(config.git.default_url_format, path)
+    plugin.url = config.git.default_url_format:format(path)
     plugin.type = plugin_utils.git_plugin_type
   end
 end

@@ -5,20 +5,19 @@ local fmt = string.format
 
 local util = require 'packer.util'
 
-local void                    = require 'packer.async'.void
-local scheduler               = require 'packer.async'.main
-local interruptible_wait_pool = require 'packer.async'.interruptible_wait_pool
+local void      = require 'packer.async'.void
+local scheduler = require 'packer.async'.main
+local join      = require 'packer.async'.join
 
 local join_paths = util.join_paths
-local stdpath = fn.stdpath
 
 -- Config
 local packer = {}
 local config_defaults = {
   ensure_dependencies = true,
   snapshot = nil,
-  snapshot_path = join_paths(stdpath 'cache', 'packer.nvim'),
-  package_root = join_paths(stdpath 'data', 'site', 'pack'),
+  snapshot_path = join_paths(fn.stdpath 'cache', 'packer.nvim'),
+  package_root = join_paths(fn.stdpath 'data', 'site', 'pack'),
   plugin_package = 'packer',
   max_jobs = nil,
   auto_clean = true,
@@ -88,29 +87,6 @@ local config = vim.tbl_extend('force', {}, config_defaults)
 local plugins = nil
 local plugin_specifications = nil
 
-local configurable_modules = {
-  clean = false,
-  display = false,
-  install = false,
-  plugin_types = false,
-  plugin_utils = false,
-  update = false,
-  log = false,
-  snapshot = false,
-}
-
-local function require_and_configure(module_name)
-  local fully_qualified_name = 'packer.' .. module_name
-  local module = require(fully_qualified_name)
-  if not configurable_modules[module_name] and module.cfg then
-    configurable_modules[module_name] = true
-    module.cfg(config)
-    return module
-  end
-
-  return module
-end
-
 local clean
 local display
 local install
@@ -121,6 +97,11 @@ local update
 local snapshot
 
 local function init_modules()
+  local function require_and_configure(module_name)
+    local module = require('packer.' .. module_name)
+    module.cfg(config)
+    return module
+  end
   clean        = require_and_configure 'clean'
   display      = require_and_configure 'display'
   install      = require_and_configure 'install'
@@ -129,6 +110,7 @@ local function init_modules()
   plugin_utils = require_and_configure 'plugin_utils'
   snapshot     = require_and_configure 'snapshot'
   update       = require_and_configure 'update'
+  init_modules = function() end
 end
 
 local function make_commands()
@@ -170,7 +152,7 @@ local function init(user_config)
   config = util.deep_extend('force', config, user_config)
   packer.reset()
   config.package_root = fn.fnamemodify(config.package_root, ':p')
-  config.package_root = string.gsub(config.package_root, util.get_separator() .. '$', '', 1)
+  config.package_root = config.package_root:gsub(util.get_separator() .. '$', '', 1)
   config.pack_dir = join_paths(config.package_root, config.plugin_package)
   config.opt_dir = join_paths(config.pack_dir, 'opt')
   config.start_dir = join_paths(config.pack_dir, 'start')
@@ -308,7 +290,6 @@ end
 packer.__use = use
 
 local function process_plugin_specs()
-  init_modules()
   log.debug 'Processing plugin specs'
   if plugins == nil or next(plugins) == nil then
     for _, spec in ipairs(plugin_specifications) do
@@ -323,7 +304,6 @@ packer.__manage_all = process_plugin_specs
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
 packer.clean = void(function(results)
-  init_modules()
   process_plugin_specs()
   local fs_state = plugin_utils.get_fs_state(plugins)
   clean(plugins, fs_state, results)
@@ -339,7 +319,6 @@ end
 --- Install operation:
 -- Installs missing plugins, then updates helptags and rplugins
 packer.install = void(function()
-  init_modules()
   log.debug 'packer.install: requiring modules'
 
   process_plugin_specs()
@@ -364,7 +343,7 @@ packer.install = void(function()
     local limit = config.max_jobs and config.max_jobs or #tasks
     log.debug 'Running tasks'
     display_win:update_headline_message(fmt('installing %d / %d plugins', #tasks, #tasks))
-    interruptible_wait_pool(limit, check, unpack(tasks))
+    join(limit, check, unpack(tasks))
     local install_paths = {}
     for plugin_name, r in pairs(results.installs) do
       if r.ok then
@@ -410,7 +389,6 @@ end
 -- and rplugins
 -- Options can be specified in the first argument as either a table or explicit `'--preview'`.
 packer.update = void(function(...)
-  init_modules()
   log.debug 'packer.update: requiring modules'
 
   process_plugin_specs()
@@ -444,7 +422,7 @@ packer.update = void(function(...)
 
   display_win:update_headline_message('updating ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
   log.debug 'Running tasks'
-  interruptible_wait_pool(limit, check, unpack(tasks))
+  join(limit, check, unpack(tasks))
   local install_paths = {}
   for plugin_name, r in pairs(results.installs) do
     if r.ok then
@@ -474,7 +452,6 @@ end)
 --  - Install missing plugins and update installed plugins
 --  - Update helptags and rplugins
 packer.sync = void(function(...)
-  init_modules()
   log.debug 'packer.sync: requiring modules'
 
   process_plugin_specs()
@@ -514,7 +491,7 @@ packer.sync = void(function(...)
 
   log.debug 'Running tasks'
   display_win:update_headline_message('syncing ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
-  interruptible_wait_pool(limit, check, unpack(tasks))
+  join(limit, check, unpack(tasks))
   local install_paths = {}
   for plugin_name, r in pairs(results.installs) do
     if r.ok then
@@ -536,7 +513,6 @@ packer.sync = void(function(...)
 end)
 
 packer.status = void(function()
-  init_modules()
   process_plugin_specs()
   local display_win = display.open(config.display.open_fn or config.display.open_cmd)
   if _G.packer_plugins ~= nil then
@@ -611,8 +587,6 @@ end
 ---Snapshots installed plugins
 ---@param snapshot_name string absolute path or just a snapshot name
 packer.snapshot = void(function(snapshot_name, ...)
-  init_modules()
-  local snapshot = require 'packer.snapshot'
   local args = { ... }
   snapshot_name = snapshot_name or require('os').date '%Y-%m-%d'
   local snapshot_path = fn.expand(snapshot_name)
@@ -623,7 +597,7 @@ packer.snapshot = void(function(snapshot_name, ...)
       log.warn 'config.snapshot_path is not set'
       return
     else
-      snapshot_path = util.join_paths(config.snapshot_path, snapshot_path) -- set to default path
+      snapshot_path = join_paths(config.snapshot_path, snapshot_path) -- set to default path
     end
   end
 
@@ -677,12 +651,11 @@ end)
 ---@vararg string @ if provided, the only plugins to be rolled back,
 ---otherwise all the plugins will be rolled back
 packer.rollback = void(function(snapshot_name, ...)
-  init_modules()
   local args = { ... }
 
   process_plugin_specs()
 
-  local snapshot_path = vim.loop.fs_realpath(util.join_paths(config.snapshot_path, snapshot_name))
+  local snapshot_path = vim.loop.fs_realpath(join_paths(config.snapshot_path, snapshot_name))
     or vim.loop.fs_realpath(snapshot_name)
 
   if snapshot_path == nil then

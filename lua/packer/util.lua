@@ -96,17 +96,17 @@ end
 
 util.deep_extend = function(policy, ...)
   local result = {}
-  local function helper(policy, k, v1, v2)
+  local function helper(policy0, k, v1, v2)
     if type(v1) ~= 'table' or type(v2) ~= 'table' then
-      if policy == 'error' then
+      if policy0 == 'error' then
         error('Key ' .. vim.inspect(k) .. ' is already present with value ' .. vim.inspect(v1))
-      elseif policy == 'force' then
+      elseif policy0 == 'force' then
         return v2
       else
         return v1
       end
     else
-      return util.deep_extend(policy, v1, v2)
+      return util.deep_extend(policy0, v1, v2)
     end
   end
 

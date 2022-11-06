@@ -76,7 +76,7 @@ local update_plugin = async(function(plugin, display_win, results, opts)
   end
   display_win:task_start(plugin_name, 'updating...')
   local r = plugin.updater(display_win, opts)
-  if r ~= nil and r.ok then
+  if r.ok then
     local msg = 'up to date'
     if plugin.type == plugin_utils.git_plugin_type then
       local info = r.info
@@ -84,7 +84,7 @@ local update_plugin = async(function(plugin, display_win, results, opts)
       msg = actual_update and fmt('updated: %s...%s', info.revs[1], info.revs[2]) or 'already up to date'
       if actual_update and not opts.preview_updates then
         log.debug(fmt('Updated %s: %s', plugin_name, vim.inspect(info)))
-        r = r:and_then(plugin_utils.post_update_hook, plugin, display_win)
+        r = plugin_utils.post_update_hook(plugin, display_win)
       end
     end
 
