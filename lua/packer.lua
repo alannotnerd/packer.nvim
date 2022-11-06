@@ -51,18 +51,18 @@ end
 
 local function make_commands()
   for _, cmd in ipairs {
-    { 'PackerSnapshot'         , snapshot.snapshot, snapshot.completion.create   },
-    { 'PackerSnapshotRollback' , snapshot.rollback, snapshot.completion.rollback },
-    { 'PackerSnapshotDelete'   , snapshot.delete  , snapshot.completion.snapshot },
-    { 'PackerInstall'          , packer.install   , packer.plugin_complete },
-    { 'PackerUpdate'           , packer.update    , packer.plugin_complete },
-    { 'PackerSync'             , packer.sync      , packer.plugin_complete },
-    { 'PackerClean'            , packer.clean },
-    { 'PackerStatus'           , packer.status },
+    { 'PackerSnapshot'         , '+', snapshot.snapshot, snapshot.completion.create   },
+    { 'PackerSnapshotRollback' , '+', snapshot.rollback, snapshot.completion.rollback },
+    { 'PackerSnapshotDelete'   , '+', snapshot.delete  , snapshot.completion.snapshot },
+    { 'PackerInstall'          , '*', packer.install   , packer.plugin_complete },
+    { 'PackerUpdate'           , '*', packer.update    , packer.plugin_complete },
+    { 'PackerSync'             , '*', packer.sync      , packer.plugin_complete },
+    { 'PackerClean'            , '*', packer.clean },
+    { 'PackerStatus'           , '*', packer.status },
   } do
     api.nvim_create_user_command(cmd[1], function(args)
-      cmd[2](unpack(args.fargs))
-    end, {nargs ='+', complete = cmd[3]})
+      cmd[3](unpack(args.fargs))
+    end, { nargs = cmd[2], complete = cmd[4] })
   end
 end
 
