@@ -33,7 +33,7 @@ local function setup_local(plugin)
   plugin.installer = function(disp)
     return async(function()
       disp:task_update(plugin_name, 'making symlink...')
-      local err, success = symlink(from, to, { dir = true })()
+      local err, success = symlink(from, to, { dir = true })
       if not success then
         plugin.output = { err = { err } }
         return result.err(err)
