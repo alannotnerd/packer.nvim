@@ -653,7 +653,7 @@ function setup_plugins.cmd(cmd_plugins)
   end
 end
 
-function setup_plugins.key(key_plugins)
+function setup_plugins.keys(key_plugins)
   local keymaps = {}
   for name, plugin in pairs(key_plugins) do
     if type(plugin.keys) == 'string' then
