@@ -18,6 +18,18 @@ local packer = {}
 --- running
 _G._packer = _G._packer or {}
 
+---@class DisplayConfig
+---@field open_fn string
+---@field open_cmd string
+
+---@class Config
+---@field max_jobs        integer
+---@field start_dir       string
+---@field opt_dir         string
+---@field snapshot_path   string
+---@field preview_updates boolean
+---@field auto_clean      boolean
+---@field display         DisplayConfig
 local config
 
 local plugins = nil
@@ -67,23 +79,28 @@ local function make_commands()
 end
 
 ---@class PluginSpec
----@field name string
----@field path string
----@field short_name string
----@field keys  string|string[]
----@field event string|string[]
----@field ft    string|string[]
----@field cmd   string|string[]
----@field type  string
----@field url  string
+---@field name         string
+---@field path         string
+---@field short_name   string
+---@field install_path string
+---@field keys         string|string[]
+---@field event        string|string[]
+---@field ft           string|string[]
+---@field cmd          string|string[]
+---@field type         string
+---@field url          string
+
+---@class PluginData
+---@field line string
+---@field spec PluginSpec
 
 --- The main logic for adding a plugin (and any dependencies) to the managed set
 -- Can be invoked with (1) a single plugin spec as a string, (2) a single plugin spec table, or (3)
 -- a list of plugin specs
 -- TODO: This should be refactored into its own module and the various keys should be implemented
 -- (as much as possible) as ordinary handlers
+---@param plugin_data PluginData
 local function process_plugin_spec(plugin_data)
-  ---@type PluginSpec
   local plugin_spec = plugin_data.spec
   local spec_line = plugin_data.line
   local spec_type = type(plugin_spec)
@@ -96,35 +113,35 @@ local function process_plugin_spec(plugin_data)
     return
   end
 
-  if plugin_spec[1] == vim.NIL or plugin_spec[1] == nil then
+  if plugin_spec[1] == nil then
     log.warn('No plugin name provided at line ' .. spec_line .. '!')
     return
   end
 
-  local name, path = util.get_plugin_short_name(plugin_spec)
+  local short_name, path = util.get_plugin_short_name(plugin_spec[1])
 
-  if name == '' then
+  if short_name == '' then
     log.warn('"' .. plugin_spec[1] .. '" is an invalid plugin name!')
     return
   end
 
-  if plugins[name] and not plugins[name].from_requires then
-    log.warn('Plugin "' .. name .. '" is used twice! (line ' .. spec_line .. ')')
+  if plugins[short_name] and not plugins[short_name].from_requires then
+    log.warn('Plugin "' .. short_name .. '" is used twice! (line ' .. spec_line .. ')')
     return
   end
 
   -- Handle aliases
-  plugin_spec.short_name = name
+  plugin_spec.short_name = short_name
   plugin_spec.name = path
   plugin_spec.path = path
-
-  if plugin_spec.keys or plugin_spec.ft or plugin_spec.cmd then
-    plugin_spec.opt = true
-  end
 
   -- Some config keys modify a plugin type
   if plugin_spec.opt then
     plugin_spec.manual_opt = true
+  end
+
+  if plugin_spec.keys or plugin_spec.ft or plugin_spec.cmd or plugin_spec.event then
+    plugin_spec.opt = true
   end
 
   plugin_spec.install_path = join_paths(plugin_spec.opt and config.opt_dir or config.start_dir, plugin_spec.short_name)
@@ -136,7 +153,7 @@ local function process_plugin_spec(plugin_data)
   -- Add the git URL for displaying in PackerStatus and PackerSync.
   plugins[plugin_spec.short_name].url = util.remove_ending_git_url(plugin_spec.url)
 
-  if plugin_spec.requires and config.ensure_dependencies then
+  if plugin_spec.requires then
     -- Handle single plugins given as strings or single plugin specs given as tables
     if
       type(plugin_spec.requires) == 'string'
@@ -152,6 +169,7 @@ local function process_plugin_spec(plugin_data)
       if type(req) == 'string' then
         req = { req }
       end
+      ---@diagnostic disable-next-line
       local req_name_segments = vim.split(req[1], '/')
       local req_name = req_name_segments[#req_name_segments]
       -- this flag marks a plugin as being from a require which we use to allow
@@ -203,8 +221,10 @@ end)
 
 local function reltime(start)
   if start == nil then
+    ---@diagnostic disable-next-line
     return fn.reltime()
   end
+  ---@diagnostic disable-next-line
   return fn.reltime(start)
 end
 
@@ -660,12 +680,14 @@ local function detect_ftdetect(plugin_path)
     local path = plugin_path .. util.get_separator() .. table.concat(parts, util.get_separator())
     local ok, files = pcall(vim.fn.glob, path, false, true)
     if not ok then
+      ---@diagnostic disable-next-line
       if string.find(files, 'E77') then
         source_paths[#source_paths + 1] = path
       else
         error(files)
       end
     elseif #files > 0 then
+      ---@diagnostic disable-next-line
       vim.list_extend(source_paths, files)
     end
   end

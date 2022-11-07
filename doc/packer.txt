@@ -35,7 +35,6 @@ FEATURES                                         *packer-intro-features*
 - Declarative plugin specification
 - Support for dependencies
 - Expressive configuration and lazy-loading options
-- Automatically compiles efficient lazy-loading code to improve startup time
 - Uses native packages
 - Extensible
 - Written in Lua, configured in Lua
@@ -62,54 +61,48 @@ Then you can write your plugin specification in Lua, e.g. (in `~/.config/nvim/lu
   -- Only if your version of Neovim doesn't have https://github.com/neovim/neovim/pull/12632 merged
   vim._update_package_paths()
 
-  return require('packer').startup(function()
+  return require('packer').startup({
     -- Packer can manage itself as an optional plugin
-    use {'wbthomason/packer.nvim', opt = true}
+    {'wbthomason/packer.nvim'},
 
     -- Simple plugins can be specified as strings
-    use '9mm/vim-closer'
+    '9mm/vim-closer'
 
-    -- Lazy loading:
     -- Load on specific commands
-    use {'tpope/vim-dispatch', opt = true, cmd = {'Dispatch', 'Make', 'Focus', 'Start'}}
+    {'tpope/vim-dispatch', cmd = {'Dispatch', 'Make', 'Focus', 'Start'}},
 
     -- Load on an autocommand event
-    use {'andymass/vim-matchup', event = 'VimEnter *'}
+    {'andymass/vim-matchup', event = 'VimEnter *'},
 
     -- Load on a combination of conditions: specific filetypes or commands
     -- Also run code after load (see the "config" key)
-    use {
+    {
       'w0rp/ale',
       ft = {'sh', 'zsh', 'bash', 'c', 'cpp', 'cmake', 'html', 'markdown', 'racket', 'vim', 'tex'},
       cmd = 'ALEEnable',
       config = 'vim.cmd[[ALEEnable]]'
-    }
+    },
 
     -- Plugins can have dependencies on other plugins
-    use {
+    {
       'haorenW1025/completion-nvim',
-      opt = true,
-      requires = {{'hrsh7th/vim-vsnip', opt = true}, {'hrsh7th/vim-vsnip-integ', opt = true}}
-    }
+      requires = {
+        'hrsh7th/vim-vsnip',
+        'hrsh7th/vim-vsnip-integ',
+      }
+    },
 
     -- Local plugins can be included
-    use '~/projects/personal/hover.nvim'
+    '~/projects/personal/hover.nvim',
 
     -- Plugins can have post-install/update hooks
-    use {'iamcco/markdown-preview.nvim', run = 'cd app && yarn install', cmd = 'MarkdownPreview'}
-
-    -- You can specify multiple plugins in a single call
-    use {'tjdevries/colorbuddy.vim', {'nvim-treesitter/nvim-treesitter', opt = true}}
-  end)
+    {'iamcco/markdown-preview.nvim', run = 'cd app && yarn install', cmd = 'MarkdownPreview'}
+  })
 
 `packer` provides the following commands after you've run and configured `packer` with `require('packer').startup(...)`: *packer-default-commands* *packer-commands*
 
 `PackerClean`                                   *packer-commands-clean*
 Remove any disabled or unused plugins.
-
-`PackerCompile`                                 *packer-commands-compile*
-You must run this or `PackerSync` whenever you make changes to your plugin
-configuration. Regenerate compiled loader file.
 
 `PackerInstall`                                 *packer-commands-install*
 Clean, then install missing plugins.
@@ -120,7 +113,7 @@ Supports the `--preview` flag as an optional first argument to preview
 updates.
 
 `PackerSync`                                    *packer-commands-sync*
-Perform `PackerUpdate` and then `PackerCompile`.
+Perform `PackerUpdate`
 Supports the `--preview` flag as an optional first argument to preview
 updates.
 
@@ -164,24 +157,6 @@ loading, you may use custom initialization for `packer`. This approach has the
 benefit of not requiring that the `packer` plugin be loaded unless you want to
 perform plugin management operations, but it is more involved to use.
 
-To take this approach, load `packer` like any other Lua module. You must call
-|packer.init()| before performing any operations; it is recommended to call
-|packer.reset()| if you may be re-running your specification code (e.g. by
-sourcing your plugin specification file with `luafile`).
-
-See |packer.init()| for more details on initialization; in short, `init` takes
-a table of configuration values like that which can be passed to `startup`.
-
-If you use custom initialization, you'll probably want to define commands to
-load `packer` and perform common package management operations. The following
-commands work well for this purpose: >
-
-  command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete  PackerInstall lua require('packer').install(<f-args>)
-  command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerUpdate lua require('packer').update(<f-args>)
-  command! -nargs=* -complete=customlist,v:lua.require'packer'.plugin_complete PackerSync lua require('packer').sync(<f-args>)
-  command! PackerClean packadd packer.nvim | lua require('plugins').clean()
-  command! PackerCompile packadd packer.nvim | lua require('plugins').compile('~/.config/nvim/plugin/packer_load.vim')
-
 CONFIGURATION                                  *packer-configuration*
 `packer` provides the following configuration variables, presented in the
 structure of the `config` table expected by `startup` or `init`, with their
@@ -189,14 +164,12 @@ default values: >
   {
     ensure_dependencies   = true, -- Should packer install plugin dependencies?
     package_root   = util.join_paths(vim.fn.stdpath('data'), 'site', 'pack'),
-    compile_path = util.join_paths(vim.fn.stdpath('config'), 'plugin', 'packer_compiled.lua'),
     plugin_package = 'packer', -- The default package for plugins
     max_jobs = nil, -- Limit the number of simultaneous jobs. nil means no limit
     auto_clean = true, -- During sync(), remove unused plugins
     disable_commands = false, -- Disable creating commands
     transitive_opt = true, -- Make dependencies of opt plugins also opt by default
     transitive_disable = true, -- Automatically disable dependencies of disabled plugins
-    auto_reload_compiled = true, -- Automatically reload the compiled file after creating it.
     preview_updates = false, -- If true, always preview updates before choosing which plugins to update, same as `PackerUpdate --preview`.
     git = {
       cmd = 'git', -- The base command for git operations
@@ -312,50 +285,11 @@ installed.
 Plugins specified in `requires` are removed when no active plugins require
 them.
 
-SEQUENCING                                     *packer-plugin-sequencing*
-
-You may specify a loading order for plugins using the `after` key. This key can
-be a string or a list (table).
-
-If `after` is a string, it must be the name of another plugin managed by
-`packer` (e.g. the final segment of a plugin's path - for a Github plugin
-`FooBar/Baz`, the name would be just `Baz`). If `after` is a table, it must be a
-list of plugin names. If a plugin has an alias (i.e. uses the `as` key), this
-alias is its name.
-
-The set of plugins specified in a plugin's `after` key must *all* be loaded
-before the plugin using `after` will be loaded. For example, in the
-specification >
-  use {'FooBar/Baz', ft = 'bax'}
-  use {'Something/Else', after = 'Baz'}
-
-the plugin `Else` will only be loaded after the plugin `Baz`, which itself is
-only loaded for files with `bax` filetype.
-
 KEYBINDINGS                                    *packer-plugin-keybindings*
 Plugins may be lazy-loaded on the use of keybindings/maps. Individual
 keybindings are specified under the `keys` key in a plugin specification
 either as a string (in which case they are treated as normal mode maps) or a
 table in the format `{mode, map}`.
-
-LAZY-LOADING                                   *packer-lazy-load*
-To optimize startup time, `packer.nvim` compiles code to perform the
-lazy-loading operations you specify. This means that you do not need to load
-`packer.nvim` unless you want to perform some plugin management operations.
-
-To generate the compiled code, call `packer.compile(path)`, where `path` is
-some file path on your `runtimepath`, with a `.vim` extension. This will
-generate a blend of Lua and Vimscript to load and configure all your
-lazy-loaded plugins (e.g. generating commands, autocommands, etc.) and save it
-to `path`. Then, when you start vim, the file at `path` is loaded (because
-`path` must be on your `runtimepath`), and lazy-loading works.
-
-If `path` is not provided to |packer.compile()|, the output file will default
-to the value of `config.compile_path`.
-
-`packer.compile()` will run during `packer.sync().
-Note that otherwise, you **must** run `packer.compile` yourself to generate
-the lazy-loader file!
 
 USING A FLOATING WINDOW                        *packer-floating-window*
 You can configure Packer to use a floating window for command outputs by
@@ -404,31 +338,12 @@ clean()		                                     *packer.clean()*
 `clean` scans for and removes all disabled or no longer managed plugins. It is
 invoked without arguments.
 
-compile()		                                   *packer.compile()*
-`compile` builds lazy-loader code from your plugin specification and saves it
-to either `config.compile_path` if it is invoked with no argument, or to the
-path it is invoked with if it is given a single argument. This path should end
-in `.vim` and be on your |runtimepath| in order for lazy-loading to work. You
-**must** call `compile` to update lazy-loaders after your configuration
-changes.
-
-init()		                                     *packer.init()*
-Initializes `packer`; must be called before any calls to any other `packer`
-function. Takes an optional table of configuration values as described in
-|packer-configuration|.
-
 install()		                                   *packer.install()*
 `install` installs any missing plugins, runs post-update hooks, and updates
 rplugins (|remote-plugin|) and helptags.
 
 It can be invoked with no arguments or with a list of plugin names to install.
 These plugin names must already be managed by `packer` via a call to
-|packer.use()|.
-
-reset()		                                     *packer.reset()*
-`reset` empties the set of managed plugins. Called with no arguments; used to
-ensure plugin specifications are reinitialized if the specification file is
-reloaded. Called by |packer.startup()| or manually before calling
 |packer.use()|.
 
 startup()		                                   *packer.startup()*

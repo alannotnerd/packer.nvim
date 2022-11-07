@@ -153,34 +153,12 @@ end)
 -- supports the `--preview` flag as an optional first argument to preview updates
 :PackerUpdate
 
--- Perform `PackerUpdate` and then `PackerCompile`
+-- Perform `PackerUpdate`
 -- supports the `--preview` flag as an optional first argument to preview updates
 :PackerSync
 
 -- Loads opt plugin immediately
 :PackerLoad completion-nvim ale
-```
-
-You can configure Neovim to automatically run `:PackerCompile` whenever `plugins.lua` is updated with
-[an autocommand](https://neovim.io/doc/user/autocmd.html#:autocmd):
-
-```
-augroup packer_user_config
-  autocmd!
-  autocmd BufWritePost plugins.lua source <afile> | PackerCompile
-augroup end
-```
-
-This autocommand can be placed in your `init.vim`, or any other startup file as per your setup.
-Placing this in `plugins.lua` could look like this:
-
-```lua
-vim.cmd([[
-  augroup packer_user_config
-    autocmd!
-    autocmd BufWritePost plugins.lua source <afile> | PackerCompile
-  augroup end
-]])
 ```
 
 ## Bootstrapping
@@ -223,7 +201,6 @@ The above snippets give some examples of `packer` features and use. Examples inc
 - My dotfiles:
   - [Specification file](https://github.com/wbthomason/dotfiles/blob/linux/neovim/.config/nvim/lua/plugins.lua)
   - [Loading file](https://github.com/wbthomason/dotfiles/blob/linux/neovim/.config/nvim/lua/plugins.lua)
-  - [Generated lazy-loader file](https://github.com/wbthomason/dotfiles/blob/linux/neovim/.config/nvim/plugin/packer_compiled.lua)
 - An example using the `startup` method: [tjdevries](https://github.com/tjdevries/config_manager/blob/master/xdg_config/nvim/lua/tj/plugins.lua)
     - Using this method, you do not require a "loading" file. You can simply `lua require('plugins')` from your `init.vim`
 
@@ -253,14 +230,12 @@ default configuration values (and structure of the configuration table) are:
   snapshot = nil, -- Name of the snapshot you would like to load at startup
   snapshot_path = join_paths(stdpath 'cache', 'packer.nvim'), -- Default save directory for snapshots
   package_root   = util.join_paths(vim.fn.stdpath('data'), 'site', 'pack'),
-  compile_path = util.join_paths(vim.fn.stdpath('config'), 'plugin', 'packer_compiled.lua'),
   plugin_package = 'packer', -- The default package for plugins
   max_jobs = nil, -- Limit the number of simultaneous jobs. nil means no limit
   auto_clean = true, -- During sync(), remove unused plugins
   disable_commands = false, -- Disable creating commands
   transitive_opt = true, -- Make dependencies of opt plugins also opt by default
   transitive_disable = true, -- Automatically disable dependencies of disabled plugins
-  auto_reload_compiled = true, -- Automatically reload the compiled file after creating it.
   preview_updates = false, -- If true, always preview updates before choosing which plugins to update, same as `PackerUpdate --preview`.
   git = {
     cmd = 'git', -- The base command for git operations
@@ -360,19 +335,6 @@ print("Vim fugitive is loaded")
 -- other custom logic
 end
 ```
-**NOTE:** this table is only available *after* `packer_compiled.vim` is loaded so cannot be used till *after* plugins
-have been loaded.
-
-#### Custom installers
-
-You may specify a custom installer & updater for a plugin using the `installer` and `updater` keys.
-Note that either both or none of these keys are required. These keys should be functions which take
-as an argument a `display` object (from `lua/packer/display.lua`) and return an async function (per
-`lua/packer/async.lua`) which (respectively) installs/updates the given plugin.
-
-Providing the `installer`/`updater` keys overrides plugin type detection, but you still need to
-provide a location string for the name of the plugin.
-
 #### Update/install hooks
 
 You may specify operations to be run after successful installs/updates of a plugin with the `run`
