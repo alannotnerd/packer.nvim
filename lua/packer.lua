@@ -66,12 +66,24 @@ local function make_commands()
   end
 end
 
+---@class PluginSpec
+---@field name string
+---@field path string
+---@field short_name string
+---@field keys  string|string[]
+---@field event string|string[]
+---@field ft    string|string[]
+---@field cmd   string|string[]
+---@field type  string
+---@field url  string
+
 --- The main logic for adding a plugin (and any dependencies) to the managed set
 -- Can be invoked with (1) a single plugin spec as a string, (2) a single plugin spec table, or (3)
 -- a list of plugin specs
 -- TODO: This should be refactored into its own module and the various keys should be implemented
 -- (as much as possible) as ordinary handlers
 local function process_plugin_spec(plugin_data)
+  ---@type PluginSpec
   local plugin_spec = plugin_data.spec
   local spec_line = plugin_data.line
   local spec_type = type(plugin_spec)
@@ -117,9 +129,7 @@ local function process_plugin_spec(plugin_data)
 
   plugin_spec.install_path = join_paths(plugin_spec.opt and config.opt_dir or config.start_dir, plugin_spec.short_name)
 
-  if not plugin_spec.type then
-    plugin_utils.guess_type(plugin_spec)
-  end
+  plugin_utils.guess_type(plugin_spec)
   plugin_types[plugin_spec.type].setup(plugin_spec)
   plugins[plugin_spec.short_name] = plugin_spec
 
@@ -153,10 +163,6 @@ local function process_plugin_spec(plugin_data)
         if plugin_spec.manual_opt then
           req.opt = true
           req.after = plugin_spec.short_name
-        end
-
-        if plugin_spec.disable then
-          req.disable = true
         end
 
         process_plugin_spec { spec = req, line = spec_line }
@@ -746,18 +752,16 @@ local function load_plugin_configs()
   local uncond_plugins = {}
 
   for name, plugin in pairs(plugins) do
-    if not plugin.disable then
-      local has_cond = false
-      for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
-        if plugin[cond] then
-          has_cond = true
-          cond_plugins[cond][name] = plugin
-          break
-        end
+    local has_cond = false
+    for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
+      if plugin[cond] then
+        has_cond = true
+        cond_plugins[cond][name] = plugin
+        break
       end
-      if not has_cond then
-        uncond_plugins[name] = plugin
-      end
+    end
+    if not has_cond then
+      uncond_plugins[name] = plugin
     end
   end
 

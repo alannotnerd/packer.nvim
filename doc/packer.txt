@@ -472,7 +472,6 @@ invoked as follows:
   use {
     'myusername/example',        -- The plugin location string
     -- The following keys are all optional
-    disable = boolean,           -- Mark a plugin as inactive
     installer = function,        -- Specifies custom installer. See |packer-custom-installers|
     updater = function,          -- Specifies custom updater. See |packer-custom-installers|
     after = string or list,      -- Specifies plugins to load before this plugin.
