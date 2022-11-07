@@ -579,7 +579,9 @@ end)
 
 packer.config = config
 
-local function setup_cmd_plugins(cmd_plugins)
+local setup_plugins = {}
+
+function setup_plugins.cmd(cmd_plugins)
   local commands = {}
   for name, plugin in pairs(cmd_plugins) do
     -- TODO(lewis6991): normalize this higher up
@@ -617,7 +619,7 @@ local function setup_cmd_plugins(cmd_plugins)
   end
 end
 
-local function setup_key_plugins(key_plugins)
+function setup_plugins.key(key_plugins)
   local keymaps = {}
   for name, plugin in pairs(key_plugins) do
     if type(plugin.keys) == 'string' then
@@ -665,7 +667,7 @@ local function detect_ftdetect(plugin_path)
   return source_paths
 end
 
-local function setup_ft_plugins(ft_plugins)
+function setup_plugins.ft(ft_plugins)
   local fts = {}
 
   local ftdetect_paths = {}
@@ -706,7 +708,7 @@ local function setup_ft_plugins(ft_plugins)
 
 end
 
-local function setup_event_plugins(event_plugins)
+function setup_plugins.event(event_plugins)
 
   local events = {}
 
@@ -764,10 +766,10 @@ local function load_plugin_configs()
   for name, plugin in pairs(uncond_plugins) do
     loader_apply_config(plugin, name)
   end
-  setup_cmd_plugins(cond_plugins.cmd)
-  setup_key_plugins(cond_plugins.keys)
-  setup_ft_plugins(cond_plugins.ft)
-  setup_event_plugins(cond_plugins.event)
+
+  for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
+    setup_plugins[cond](cond_plugins[cond])
+  end
 end
 
 -- Convenience function for simple setup
