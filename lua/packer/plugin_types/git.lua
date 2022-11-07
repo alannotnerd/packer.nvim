@@ -90,8 +90,11 @@ end
 ---@param commit string @ commit hash
 local reset = async(function(dest, commit)
   local reset_cmd = fmt(config.exec_cmd .. config.subcommands.revert_to, commit)
-  local opts = { capture_output = true, cwd = dest, options = { env = git.job_env } }
-  return jobs.run(reset_cmd, opts)
+  return jobs.run(reset_cmd, {
+    capture_output = true,
+    cwd = dest,
+    options = { env = git.job_env }
+  })
 end, 2)
 
 local handle_checkouts = void(function(plugin, dest, disp, opts)
@@ -128,54 +131,55 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
     end
   end
 
-  if plugin.branch or (plugin.tag and not opts.preview_updates) then
+  if r.ok and (plugin.branch or (plugin.tag and not opts.preview_updates)) then
     local branch_or_tag = plugin.branch and plugin.branch or plugin.tag
-    if disp ~= nil then
+    if disp then
       disp:task_update(plugin_name, fmt('checking out %s %s...', plugin.branch and 'branch' or 'tag', branch_or_tag))
     end
-    r:and_then(jobs.run, config.exec_cmd .. fmt(config.subcommands.checkout, branch_or_tag), job_opts)
-      :map_err(function(err)
-        return {
-          msg = fmt(
-            'Error checking out %s %s for %s',
-            plugin.branch and 'branch' or 'tag',
-            branch_or_tag,
-            plugin_name
-          ),
-          data = err,
-          output = output,
-        }
-      end)
-  end
-
-  if plugin.commit then
-    if disp ~= nil then
-      disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
-    end
-    r:and_then(jobs.run, config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), job_opts)
-      :map_err(function(err)
-        return {
-          msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
-          data = err,
-          output = output,
-        }
-      end)
-  end
-
-  return r:map_ok(function(ok)
-    return { status = ok, output = output }
-  end):map_err(function(err)
-    if not err.msg then
-      return {
-        msg = fmt('Error updating %s: %s', plugin_name, table.concat(err, '\n')),
-        data = err,
+    r = jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, branch_or_tag), job_opts)
+    if r.err then
+      r.err = {
+        msg = fmt(
+          'Error checking out %s %s for %s',
+          plugin.branch and 'branch' or 'tag',
+          branch_or_tag,
+          plugin_name
+        ),
+        data = r.err,
         output = output,
       }
     end
+  end
 
-    err.output = output
-    return err
-  end)
+  if r.ok and plugin.commit then
+    if disp then
+      disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
+    end
+    r = jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), job_opts)
+    if r.err then
+      r.err = {
+        msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
+        data = r.err,
+        output = output,
+      }
+    end
+  end
+
+  if r.ok then
+    r.ok = { status = r.ok, output = output }
+  else
+    if not r.err.msg then
+      r.err = {
+        msg = fmt('Error updating %s: %s', plugin_name, table.concat(r.err, '\n')),
+        data = r.err,
+        output = output,
+      }
+    else
+      r.err.output = output
+    end
+  end
+
+  return r
 end)
 
 local get_rev = async(function(plugin)
