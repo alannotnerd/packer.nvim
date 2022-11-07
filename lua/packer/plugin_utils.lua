@@ -9,9 +9,9 @@ local log = require 'packer.log'
 local config = nil
 
 local plugin_utils = {
-  custom_plugin_type = 'custom',
-  local_plugin_type = 'local',
-  git_plugin_type = 'git'
+  unknown_plugin_type = 'unknown',
+  local_plugin_type   = 'local',
+  git_plugin_type     = 'git'
 }
 
 function plugin_utils.cfg(_config)
@@ -19,9 +19,7 @@ function plugin_utils.cfg(_config)
 end
 
 plugin_utils.guess_type = function(plugin)
-  if plugin.installer then
-    plugin.type = plugin_utils.custom_plugin_type
-  elseif fn.isdirectory(plugin.path) ~= 0 then
+  if fn.isdirectory(plugin.path) ~= 0 then
     plugin.url = plugin.path
     plugin.type = plugin_utils.local_plugin_type
   elseif

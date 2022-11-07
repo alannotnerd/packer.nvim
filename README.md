@@ -329,7 +329,6 @@ use {
   'myusername/example',        -- The plugin location string
   -- The following keys are all optional
   disable = boolean,           -- Mark a plugin as inactive
-  installer = function,        -- Specifies custom installer. See "custom installers" below.
   updater = function,          -- Specifies custom updater. See "custom installers" below.
   branch = string,             -- Specifies a git branch to use
   tag = string,                -- Specifies a git tag to use. Supports '*' for "latest tag"

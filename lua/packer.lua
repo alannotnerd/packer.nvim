@@ -120,9 +120,7 @@ local function process_plugin_spec(plugin_data)
   if not plugin_spec.type then
     plugin_utils.guess_type(plugin_spec)
   end
-  if plugin_spec.type ~= plugin_utils.custom_plugin_type then
-    plugin_types[plugin_spec.type].setup(plugin_spec)
-  end
+  plugin_types[plugin_spec.type].setup(plugin_spec)
   plugins[plugin_spec.short_name] = plugin_spec
 
   -- Add the git URL for displaying in PackerStatus and PackerSync.

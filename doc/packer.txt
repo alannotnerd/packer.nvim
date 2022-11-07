@@ -279,17 +279,6 @@ installed will be under the key `vim-fugitive`.
   -- other custom logic
   end
 
-CUSTOM INSTALLERS                              *packer-custom-installers*
-You may specify a custom installer & updater for a plugin using the
-`installer` and `updater` keys in a plugin specification. Note that either
-both or none of these keys are required. These keys should be functions which
-take as an argument a `display` object (from `lua/packer/display.lua`) and
-return an async function (per `lua/packer/async.lua`) which (respectively)
-installs/updates the given plugin.
-
-Providing the `installer`/`updater` keys overrides plugin type detection, but
-you still need to provide a location string for the name of the plugin.
-
 POST-UPDATE HOOKS                              *packer-plugin-hooks*
 You may specify operations to be run after successful installs/updates of a
 plugin with the `run` key. This key may either be a Lua function, which will be
