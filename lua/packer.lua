@@ -30,18 +30,52 @@ _G._packer = _G._packer or {}
 ---@field preview_updates boolean
 ---@field auto_clean      boolean
 ---@field display         DisplayConfig
+---@field snapshot        string
 local config
 
+---@class PluginSpec
+---@field name         string
+---@field path         string
+---@field short_name   string
+---@field install_path string
+---@field keys         string|string[]
+---@field event        string|string[]
+---@field ft           string|string[]
+---@field cmd          string|string[]
+---@field type         string
+---@field url          string
+---@field from_requires boolean
+---@field after_files  string[]
+
+---@class PluginData
+---@field line integer
+---@field spec PluginSpec
+
+---@type table<string, PluginSpec>
 local plugins = nil
+
+---@type PluginData[]
 local plugin_specifications = nil
 
 local clean
 local display
+
+---@module 'packer.install'
 local install
+
+---@module 'packer.log'
 local log
+
+---@module 'packer.plugin_types'
 local plugin_types
+
+---@module 'packer.plugin_utils'
 local plugin_utils
+
+---@module 'packer.update'
 local update
+
+---@module 'packer.snapshot'
 local snapshot
 
 local function init_modules()
@@ -77,22 +111,6 @@ local function make_commands()
     end, { nargs = cmd[2], complete = cmd[4] })
   end
 end
-
----@class PluginSpec
----@field name         string
----@field path         string
----@field short_name   string
----@field install_path string
----@field keys         string|string[]
----@field event        string|string[]
----@field ft           string|string[]
----@field cmd          string|string[]
----@field type         string
----@field url          string
-
----@class PluginData
----@field line string
----@field spec PluginSpec
 
 --- The main logic for adding a plugin (and any dependencies) to the managed set
 -- Can be invoked with (1) a single plugin spec as a string, (2) a single plugin spec table, or (3)
@@ -190,6 +208,7 @@ local function process_plugin_spec(plugin_data)
 end
 
 --- Add a plugin to the managed set
+---@param plugin_spec PluginSpec
 local function use(plugin_spec)
   plugin_specifications[#plugin_specifications + 1] = {
     spec = plugin_spec,
@@ -447,7 +466,6 @@ end
 
 local function packer_load(names)
   local some_unloaded = false
-  local needs_bufread = false
   for i, name in ipairs(names) do
     local plugin = _G.packer_plugins[name]
     if not plugin then
@@ -461,7 +479,6 @@ local function packer_load(names)
       -- this same plugin again
       plugin.loaded = true
       some_unloaded = true
-      needs_bufread = needs_bufread or plugin.needs_bufread
       vim.cmd.packadd(names[i])
       if plugin.after_files then
         for _, file in ipairs(plugin.after_files) do
@@ -474,15 +491,6 @@ local function packer_load(names)
 
   if not some_unloaded then
     return
-  end
-
-  if needs_bufread then
-    if _G._packer and _G._packer.inside_compile == true then
-      -- delaying BufRead to end of packer_compiled
-      _G._packer.needs_bufread = true
-    else
-      api.nvim_exec_autocmds('BufRead', {})
-    end
   end
 end
 
@@ -801,22 +809,29 @@ end
 -- Convenience function for simple setup
 -- spec can be a table with a table of plugin specifications as its first
 -- element, config overrides as another element.
+---@param spec table
 function packer.startup(spec)
   assert(type(spec) == 'table')
   assert(type(spec[1]) == 'table')
+
+  ---@type PluginSpec
   local user_plugins = spec[1]
 
   plugins = {}
   plugin_specifications = {}
 
+  ---@type Config
   config = require('packer.config')(spec.config)
+
   init_modules()
 
-  plugin_utils.ensure_dirs()
-
-  if not config.disable_commands then
-    make_commands()
+  for _, dir in ipairs{config.opt_dir, config.start_dir} do
+    if fn.isdirectory(dir) == 0 then
+      fn.mkdir(dir, 'p')
+    end
   end
+
+  make_commands()
 
   if fn.mkdir(config.snapshot_path, 'p') ~= 1 then
     log.warn("Couldn't create " .. config.snapshot_path)
