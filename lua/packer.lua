@@ -47,6 +47,7 @@ local config
 ---@field url          string
 ---@field from_requires boolean
 ---@field after_files  string[]
+---@field breaking_commits string[]
 
 ---@class PluginData
 ---@field line integer

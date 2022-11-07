@@ -34,6 +34,8 @@ local function ensure_git_env()
   end
 end
 
+---@param tag string
+---@return boolean
 local function has_wildcard(tag)
   if not tag then
     return false
@@ -41,11 +43,13 @@ local function has_wildcard(tag)
   return string.match(tag, '*') ~= nil
 end
 
-local BREAK_TAG_PAT          = [=[[bB][rR][eE][aA][kK]!?:]=]
-local BREAKING_CHANGE_PAT    = [=[[bB][rR][eE][aA][kK][iI][nN][gG][ _][cC][hH][aA][nN][gG][eE]]=]
-local TYPE_EXCLAIM_PAT       = [=[[a-zA-Z]+!:]=]
-local TYPE_SCOPE_EXPLAIN_PAT = [=[[a-zA-Z]+%([^)]+%)!:]=]
+local BREAK_TAG_PAT          = '[[bB][rR][eE][aA][kK]!?:]'
+local BREAKING_CHANGE_PAT    = '[[bB][rR][eE][aA][kK][iI][nN][gG][ _][cC][hH][aA][nN][gG][eE]]'
+local TYPE_EXCLAIM_PAT       = '[[a-zA-Z]+!:]'
+local TYPE_SCOPE_EXPLAIN_PAT = '[[a-zA-Z]+%([^)]+%)!:]'
 
+---@param plugin PluginSpec
+---@param commit_bodies string[]
 local function mark_breaking_commits(plugin, commit_bodies)
   local commits = vim.gsplit(table.concat(commit_bodies, '\n'), '===COMMIT_START===', true)
   for commit in commits do
@@ -55,19 +59,19 @@ local function mark_breaking_commits(plugin, commit_bodies)
     local is_breaking = (
       body ~= nil
       and (
-        (string.match(body, BREAKING_CHANGE_PAT) ~= nil)
-        or (string.match(body, BREAK_TAG_PAT) ~= nil)
-        or (string.match(body, TYPE_EXCLAIM_PAT) ~= nil)
-        or (string.match(body, TYPE_SCOPE_EXPLAIN_PAT) ~= nil)
+        (body:match(BREAKING_CHANGE_PAT) ~= nil)
+        or (body:match(BREAK_TAG_PAT) ~= nil)
+        or (body:match(TYPE_EXCLAIM_PAT) ~= nil)
+        or (body:match(TYPE_SCOPE_EXPLAIN_PAT) ~= nil)
       )
     )
       or (
         lines[2] ~= nil
         and (
-          (string.match(lines[2], BREAKING_CHANGE_PAT) ~= nil)
-          or (string.match(lines[2], BREAK_TAG_PAT) ~= nil)
-          or (string.match(lines[2], TYPE_EXCLAIM_PAT) ~= nil)
-          or (string.match(lines[2], TYPE_SCOPE_EXPLAIN_PAT) ~= nil)
+          (lines[2]:match(BREAKING_CHANGE_PAT) ~= nil)
+          or (lines[2]:match(BREAK_TAG_PAT) ~= nil)
+          or (lines[2]:match(TYPE_EXCLAIM_PAT) ~= nil)
+          or (lines[2]:match(TYPE_SCOPE_EXPLAIN_PAT) ~= nil)
         )
       )
     if is_breaking then
@@ -99,9 +103,14 @@ end, 2)
 
 local handle_checkouts = void(function(plugin, dest, disp, opts)
   local plugin_name = util.get_plugin_full_name(plugin)
-  if disp ~= nil then
-    disp:task_update(plugin_name, 'fetching reference...')
+  local function update_disp(msg)
+    if disp then
+      disp:task_update(plugin_name, msg)
+    end
   end
+
+  update_disp('fetching reference...')
+
   local output = jobs.output_table()
 
   local job_opts = {
@@ -116,7 +125,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
   local r = result.ok()
 
   if plugin.tag and has_wildcard(plugin.tag) then
-    disp:task_update(plugin_name, fmt('getting tag for wildcard %s...', plugin.tag))
+    update_disp(fmt('getting tag for wildcard %s...', plugin.tag))
     local fetch_tags = config.exec_cmd .. fmt(config.subcommands.tags_expand_fmt, plugin.tag)
     r = jobs.run(fetch_tags, job_opts)
     local data = output.data.stdout[1]
@@ -133,9 +142,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
 
   if r.ok and (plugin.branch or (plugin.tag and not opts.preview_updates)) then
     local branch_or_tag = plugin.branch and plugin.branch or plugin.tag
-    if disp then
-      disp:task_update(plugin_name, fmt('checking out %s %s...', plugin.branch and 'branch' or 'tag', branch_or_tag))
-    end
+    update_disp(fmt('checking out %s %s...', plugin.branch and 'branch' or 'tag', branch_or_tag))
     r = jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, branch_or_tag), job_opts)
     if r.err then
       r.err = {
@@ -152,9 +159,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
   end
 
   if r.ok and plugin.commit then
-    if disp then
-      disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
-    end
+    update_disp(fmt('checking out %s...', plugin.commit))
     r = jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), job_opts)
     if r.err then
       r.err = {
@@ -218,15 +223,16 @@ git.setup = function(plugin)
   local install_cmd =
     vim.split(config.exec_cmd .. fmt(config.subcommands.install, plugin.commit and 999999 or config.depth), '%s+')
 
-  local rev_cmd = config.exec_cmd .. config.subcommands.get_rev
-  local update_cmd = config.exec_cmd .. config.subcommands.update
+  local rev_cmd         = config.exec_cmd .. config.subcommands.get_rev
+  local update_cmd      = config.exec_cmd .. config.subcommands.update
   local update_head_cmd = config.exec_cmd .. config.subcommands.update_head
-  local fetch_cmd = config.exec_cmd .. config.subcommands.fetch
+  local fetch_cmd       = config.exec_cmd .. config.subcommands.fetch
+  local branch_cmd      = config.exec_cmd .. config.subcommands.current_branch
+
   if plugin.commit or plugin.tag then
     update_cmd = fetch_cmd
   end
 
-  local branch_cmd = config.exec_cmd .. config.subcommands.current_branch
   local current_commit_cmd = vim.split(config.exec_cmd .. config.subcommands.get_header, '%s+')
   for i, arg in ipairs(current_commit_cmd) do
     current_commit_cmd[i] = string.gsub(arg, 'FMT', config.subcommands.diff_fmt)
