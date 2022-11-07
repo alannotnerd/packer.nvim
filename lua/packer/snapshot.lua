@@ -163,7 +163,7 @@ snapshot.rollback = async(function(snapshot_path, plugins)
       if commit ~= nil then
         fetch(plugin)
           :map_err(err_handler)
-          :and_then(plugin.revert_to(commit))
+          :and_then(plugin.revert_to, commit)
           :map_ok(function(ok)
             completed[plugin.short_name] = ok
           end)

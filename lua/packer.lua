@@ -31,6 +31,7 @@ _G._packer = _G._packer or {}
 ---@field auto_clean      boolean
 ---@field display         DisplayConfig
 ---@field snapshot        string
+---@field git             table
 local config
 
 ---@class PluginSpec
@@ -112,6 +113,23 @@ local function make_commands()
   end
 end
 
+---@return string, string
+local function guess_plugin_type(path)
+  if fn.isdirectory(path) ~= 0 then
+    return path, 'local'
+  end
+
+  if vim.startswith(path, 'git://')
+    or vim.startswith(path, 'http')
+    or path:match('@') then
+    return path, 'git'
+  end
+
+  ---@diagnostic disable-next-line
+  path = table.concat(vim.split(path, '\\', true), '/')
+  return config.git.default_url_format:format(path), 'git'
+end
+
 --- The main logic for adding a plugin (and any dependencies) to the managed set
 -- Can be invoked with (1) a single plugin spec as a string, (2) a single plugin spec table, or (3)
 -- a list of plugin specs
@@ -119,71 +137,80 @@ end
 -- (as much as possible) as ordinary handlers
 ---@param plugin_data PluginData
 local function process_plugin_spec(plugin_data)
-  local plugin_spec = plugin_data.spec
+  local spec = plugin_data.spec
   local spec_line = plugin_data.line
-  local spec_type = type(plugin_spec)
-  if spec_type == 'string' then
-    plugin_spec = { plugin_spec }
-  elseif spec_type == 'table' and #plugin_spec > 1 then
-    for _, spec in ipairs(plugin_spec) do
-      process_plugin_spec { spec = spec, line = spec_line }
+
+  if type(spec) == 'table' and #spec > 1 then
+    for _, s in ipairs(spec) do
+      process_plugin_spec { spec = s, line = spec_line }
     end
     return
   end
 
-  if plugin_spec[1] == nil then
-    log.warn('No plugin name provided at line ' .. spec_line .. '!')
+  if type(spec) == 'string' then
+    spec = { spec }
+  end
+
+  if spec[1] == nil then
+    log.warn(fmt('No plugin name provided at line %s!', spec_line))
     return
   end
 
-  local short_name, path = util.get_plugin_short_name(plugin_spec[1])
+  local short_name, path = util.get_plugin_short_name(spec[1])
 
   if short_name == '' then
-    log.warn('"' .. plugin_spec[1] .. '" is an invalid plugin name!')
+    log.warn(fmt('"%s" is an invalid plugin name!', spec[1]))
     return
   end
 
   if plugins[short_name] and not plugins[short_name].from_requires then
-    log.warn('Plugin "' .. short_name .. '" is used twice! (line ' .. spec_line .. ')')
+    log.warn(fmt('Plugin "%s" is used twice! (line %s)', short_name, spec_line))
     return
   end
 
   -- Handle aliases
-  plugin_spec.short_name = short_name
-  plugin_spec.name = path
-  plugin_spec.path = path
+  spec.short_name = short_name
+  spec.name = path
+  spec.path = path
 
   -- Some config keys modify a plugin type
-  if plugin_spec.opt then
-    plugin_spec.manual_opt = true
+  if spec.opt then
+    spec.manual_opt = true
   end
 
-  if plugin_spec.keys or plugin_spec.ft or plugin_spec.cmd or plugin_spec.event then
-    plugin_spec.opt = true
+  if spec.keys or spec.ft or spec.cmd or spec.event then
+    spec.opt = true
   end
 
-  plugin_spec.install_path = join_paths(plugin_spec.opt and config.opt_dir or config.start_dir, plugin_spec.short_name)
+  -- Normalize
+  for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
+    if type(spec[cond]) == 'string' then
+      spec[cond] = { spec[cond] }
+    end
+  end
 
-  plugin_utils.guess_type(plugin_spec)
-  plugin_types[plugin_spec.type].setup(plugin_spec)
-  plugins[plugin_spec.short_name] = plugin_spec
+  spec.install_path = join_paths(spec.opt and config.opt_dir or config.start_dir, short_name)
+
+  spec.url, spec.type = guess_plugin_type(spec.path)
 
   -- Add the git URL for displaying in PackerStatus and PackerSync.
-  plugins[plugin_spec.short_name].url = util.remove_ending_git_url(plugin_spec.url)
+  spec.url = util.remove_ending_git_url(spec.url)
 
-  if plugin_spec.requires then
+  plugin_types[spec.type].setup(spec)
+
+  plugins[short_name] = spec
+
+  if spec.requires then
     -- Handle single plugins given as strings or single plugin specs given as tables
-    if
-      type(plugin_spec.requires) == 'string'
-      or (
-        type(plugin_spec.requires) == 'table'
-        and not vim.tbl_islist(plugin_spec.requires)
-        and #plugin_spec.requires == 1
-      )
-    then
-      plugin_spec.requires = { plugin_spec.requires }
+    if type(spec.requires) == 'string' or (
+        type(spec.requires) == 'table'
+        and not vim.tbl_islist(spec.requires)
+        and #spec.requires == 1
+      ) then
+      spec.requires = { spec.requires }
     end
-    for _, req in ipairs(plugin_spec.requires) do
+
+    for _, req in ipairs(spec.requires) do
       if type(req) == 'string' then
         req = { req }
       end
@@ -196,9 +223,9 @@ local function process_plugin_spec(plugin_data)
       -- @see: https://github.com/wbthomason/packer.nvim/issues/258#issuecomment-876568439
       req.from_requires = true
       if not plugins[req_name] then
-        if plugin_spec.manual_opt then
+        if spec.manual_opt then
           req.opt = true
-          req.after = plugin_spec.short_name
+          req.after = spec.short_name
         end
 
         process_plugin_spec { spec = req, line = spec_line }
@@ -656,10 +683,6 @@ end
 function setup_plugins.keys(key_plugins)
   local keymaps = {}
   for name, plugin in pairs(key_plugins) do
-    if type(plugin.keys) == 'string' then
-      plugin.keys = { plugin.keys }
-    end
-
     for _, keymap in ipairs(plugin.keys) do
       if type(keymap) == 'string' then
         keymap = { '', keymap }
@@ -709,9 +732,6 @@ function setup_plugins.ft(ft_plugins)
   local ftdetect_paths = {}
 
   for name, plugin in pairs(ft_plugins) do
-    if type(plugin.ft) == 'string' then
-      plugin.ft = { plugin.ft }
-    end
     for _, ft in ipairs(plugin.ft) do
       fts[ft] = fts[ft] or {}
       table.insert(fts[ft], name)
@@ -749,11 +769,6 @@ function setup_plugins.event(event_plugins)
   local events = {}
 
   for name, plugin in pairs(event_plugins) do
-    -- TODO(lewis6991): support patterns
-    if type(plugin.event) == 'string' then
-      plugin.event = { plugin.event }
-    end
-
     for _, event in ipairs(plugin.event) do
       events[event] = events[event] or {}
       table.insert(events[event], name)

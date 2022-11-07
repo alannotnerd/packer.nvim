@@ -18,24 +18,6 @@ function plugin_utils.cfg(_config)
   config = _config
 end
 
-plugin_utils.guess_type = function(plugin)
-  if fn.isdirectory(plugin.path) ~= 0 then
-    plugin.url = plugin.path
-    plugin.type = plugin_utils.local_plugin_type
-  elseif
-    string.sub(plugin.path, 1, 6) == 'git://'
-    or plugin.path:sub(1, 4) == 'http'
-    or plugin.path:match('@')
-  then
-    plugin.url = plugin.path
-    plugin.type = plugin_utils.git_plugin_type
-  else
-    local path = table.concat(vim.split(plugin.path, '\\', true), '/')
-    plugin.url = config.git.default_url_format:format(path)
-    plugin.type = plugin_utils.git_plugin_type
-  end
-end
-
 function plugin_utils.guess_dir_type(dir)
   local globdir = fn.glob(dir)
   local dir_type = (vim.loop.fs_lstat(globdir) or { type = 'noexist' }).type

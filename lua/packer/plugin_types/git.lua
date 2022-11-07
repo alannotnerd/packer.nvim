@@ -115,14 +115,15 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
   if plugin.tag and has_wildcard(plugin.tag) then
     disp:task_update(plugin_name, fmt('getting tag for wildcard %s...', plugin.tag))
     local fetch_tags = config.exec_cmd .. fmt(config.subcommands.tags_expand_fmt, plugin.tag)
-    r:and_then(jobs.run, fetch_tags, job_opts)
+    r = jobs.run(fetch_tags, job_opts)
     local data = output.data.stdout[1]
     if data then
       plugin.tag = vim.split(data, '\n')[1]
     else
-      log.warn(
-        fmt('Wildcard expansion did not found any tag for plugin %s: defaulting to latest commit...', plugin.name)
-      )
+      log.warn(fmt(
+        'Wildcard expansion did not found any tag for plugin %s: defaulting to latest commit...',
+        plugin.name
+      ))
       plugin.tag = nil -- Wildcard is not found, then we bypass the tag
     end
   end
@@ -181,17 +182,21 @@ local get_rev = async(function(plugin)
   local plugin_name = util.get_plugin_full_name(plugin)
 
   local rev_cmd = config.exec_cmd .. config.subcommands.get_rev
-  local rev = jobs.run(rev_cmd, { cwd = plugin.install_path, options = { env = git.job_env }, capture_output = true })
-    :map_ok(function(ok)
-      local _, r = next(ok.output.data.stdout)
-      return r
-    end)
-    :map_err(function(err)
-      local _, msg = fmt('%s: %s', plugin_name, next(err.output.data.stderr))
-      return msg
-    end)
+  local r = jobs.run(rev_cmd, {
+    cwd = plugin.install_path,
+    options = { env = git.job_env },
+    capture_output = true
+  })
 
-  return rev
+  if r.ok then
+    local _, r0 = next(r.ok.output.data.stdout)
+    r.ok = r0
+  else
+    local _, msg = fmt('%s: %s', plugin_name, next(r.err.output.data.stderr))
+    r.err = msg
+  end
+
+  return r
 end, 1)
 
 local split_messages = function(messages)
@@ -235,13 +240,12 @@ git.setup = function(plugin)
 
   plugin.installer = function(disp)
     local output = jobs.output_table()
-    local callbacks = {
-      stdout = jobs.logging_callback(output.err.stdout, output.data.stdout),
-      stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, nil, disp, plugin_name),
-    }
 
     local installer_opts = {
-      capture_output = callbacks,
+      capture_output = {
+        stdout = jobs.logging_callback(output.err.stdout, output.data.stdout),
+        stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, nil, disp, plugin_name),
+      },
       timeout = config.clone_timeout,
       options = { env = git.job_env },
     }
@@ -282,12 +286,17 @@ git.setup = function(plugin)
   end
 
   plugin.remote_url = async(function()
-    return jobs.run(
-      fmt('%s remote get-url origin', config.exec_cmd),
-      { capture_output = true, cwd = plugin.install_path, options = { env = git.job_env } }
-    ):map_ok(function(data)
-      return { remote = data.output.data.stdout[1] }
-    end)
+    local r = jobs.run(fmt('%s remote get-url origin', config.exec_cmd), {
+      capture_output = true,
+      cwd = plugin.install_path,
+      options = { env = git.job_env }
+    })
+
+    if r.ok then
+      r.ok = { remote = r.ok.output.data.stdout[1] }
+    end
+
+    return r
   end)
 
   plugin.updater = async(function(disp, opts)
@@ -412,7 +421,7 @@ git.setup = function(plugin)
     local post_rev_cmd
     if plugin.tag ~= nil then
       -- NOTE that any tag wildcard should already been expanded to a specific commit at this point
-      post_rev_cmd = string.gsub(rev_cmd, 'HEAD', string.format('%s^{}', plugin.tag))
+      post_rev_cmd = string.gsub(rev_cmd, 'HEAD', fmt('%s^{}', plugin.tag))
     elseif opts.preview_updates then
       post_rev_cmd = string.gsub(rev_cmd, 'HEAD', 'FETCH_HEAD')
     else
@@ -439,7 +448,7 @@ git.setup = function(plugin)
         local commit_headers_onread = jobs.logging_callback(update_info.err, update_info.messages)
         local commit_headers_callbacks = { stdout = commit_headers_onread, stderr = commit_headers_onread }
 
-        local diff_cmd = string.format(config.subcommands.diff, update_info.revs[1], update_info.revs[2])
+        local diff_cmd = config.subcommands.diff:format(update_info.revs[1], update_info.revs[2])
         local commit_headers_cmd = vim.split(config.exec_cmd .. diff_cmd, '%s+')
         for i, arg in ipairs(commit_headers_cmd) do
           commit_headers_cmd[i] = string.gsub(arg, 'FMT', config.subcommands.diff_fmt)
@@ -499,42 +508,48 @@ git.setup = function(plugin)
     local diff_cmd = config.exec_cmd .. fmt(config.subcommands.git_diff_fmt, commit)
     local diff_info = { err = {}, output = {}, messages = {} }
     local diff_onread = jobs.logging_callback(diff_info.err, diff_info.messages)
-    local diff_callbacks = { stdout = diff_onread, stderr = diff_onread }
-    return jobs.run(diff_cmd, { capture_output = diff_callbacks, cwd = install_to, options = { env = git.job_env } })
-      :map_ok(function(_)
-        return callback(split_messages(diff_info.messages))
-      end)
-      :map_err(function(err)
-        return callback(nil, err)
-      end)
+    local r = jobs.run(diff_cmd, {
+      capture_output = {
+        stdout = diff_onread,
+        stderr = diff_onread
+      },
+      cwd = install_to,
+      options = { env = git.job_env }
+    })
+
+    if r.ok then
+      r = callback(split_messages(diff_info.messages))
+    else
+      r = callback(nil, r.err)
+    end
+
+    return r
   end)
 
   plugin.revert_last = void(function()
-    local r = result.ok()
     local revert_cmd = config.exec_cmd .. config.subcommands.revert
-    r:and_then(
-      jobs.run, revert_cmd, { capture_output = true, cwd = install_to, options = { env = git.job_env } }
-    )
-    if needs_checkout then
-      r:and_then(handle_checkouts, plugin, install_to, nil, {})
-        :map_ok(function(_)
-          log.info('Reverted update for ' .. plugin_name)
-        end)
-        :map_err(function(_)
-          log.error('Reverting update for ' .. plugin_name .. ' failed!')
-        end)
+    local r = jobs.run(revert_cmd, {
+      capture_output = true,
+      cwd = install_to,
+      options = { env = git.job_env }
+    })
+    if needs_checkout and r.ok then
+      r = handle_checkouts(plugin, install_to, nil, {})
+      if r.ok then
+        log.info('Reverted update for ' .. plugin_name)
+      else
+        log.error(fmt('Reverting update for %s failed!', plugin_name))
+      end
     end
   end)
 
   ---Reset the plugin to `commit`
   ---@param commit string
-  plugin.revert_to = function(commit)
+  plugin.revert_to = async(function(commit)
     assert(type(commit) == 'string', fmt("commit: string expected but '%s' provided", type(commit)))
-    return async(function()
-      require('packer.log').debug(fmt("Reverting '%s' to commit '%s'", plugin.name, commit))
-      return reset(install_to, commit)
-    end)
-  end
+    require('packer.log').debug(fmt("Reverting '%s' to commit '%s'", plugin.name, commit))
+    return reset(install_to, commit)
+  end, 1)
 
   ---Returns HEAD's short hash
   ---@return string
