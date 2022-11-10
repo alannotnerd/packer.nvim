@@ -115,7 +115,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
 
   local job_opts = {
     capture_output = {
-      stdout = jobs.logging_callback(output.err.stdout, output.data.stdout, nil, disp, plugin_name),
+      stdout = jobs.logging_callback(output.err.stdout, output.data.stdout, disp, plugin_name),
       stderr = jobs.logging_callback(output.err.stderr, output.data.stderr),
     },
     cwd = dest,
@@ -235,7 +235,7 @@ git.setup = function(plugin)
     local installer_opts = {
       capture_output = {
         stdout = jobs.logging_callback(output.err.stdout, output.data.stdout),
-        stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, nil, disp, plugin_name),
+        stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, disp, plugin_name),
       },
       timeout = config.clone_timeout,
       env = git.job_env,
@@ -362,7 +362,7 @@ git.setup = function(plugin)
       success_test = exit_ok,
       capture_output = {
         stdout = jobs.logging_callback(update_info.err, update_info.output),
-        stderr = jobs.logging_callback(update_info.err, update_info.output, nil, disp, plugin_name),
+        stderr = jobs.logging_callback(update_info.err, update_info.output, disp, plugin_name),
       },
       cwd = install_to,
       env = git.job_env,

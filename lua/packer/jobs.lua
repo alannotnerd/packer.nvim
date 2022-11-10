@@ -13,7 +13,11 @@ local result = require 'packer.result'
 --      output flushes before finishing reading
 -- - disp: optional packer.display object for updating task status. Requires `name`
 -- - name: optional string name for a current task. Used to update task status
-local function make_logging_callback(err_tbl, data_tbl, pipe, disp, name)
+---@param err_tbl string[]
+---@param data_tbl string[]
+---@param disp any
+---@param name? string
+local function make_logging_callback(err_tbl, data_tbl, disp, name)
   return function(err, data)
     if err then
       table.insert(err_tbl, vim.trim(err))
@@ -24,9 +28,6 @@ local function make_logging_callback(err_tbl, data_tbl, pipe, disp, name)
       if disp then
         disp:task_update(name, split(trimmed, '\n')[1])
       end
-    else
-      pipe:read_stop()
-      pipe:close()
     end
   end
 end
@@ -90,14 +91,6 @@ local function spawn(cmd, options, callback)
     end)
   end)
 
-  if options.stdio then
-    for i, pipe in pairs(options.stdio) do
-      if options.stdio_callbacks[i] then
-        pipe:read_start(options.stdio_callbacks[i])
-      end
-    end
-  end
-
   if options.timeout then
     timer = uv.new_timer()
     timer:start(options.timeout, 0, function()
@@ -139,16 +132,9 @@ local function setup_pipe(kind, callbacks, capture_output, output)
   end
 
   if type(capture_output) == 'boolean' then
-    callbacks[kind] = make_logging_callback(output.err[kind], output.data[kind], handle)
+    callbacks[kind] = make_logging_callback(output.err[kind], output.data[kind])
   elseif type(capture_output) == 'table' then
-    callbacks[kind] = function(err, data)
-      if data then
-        capture_output[kind](err, data)
-      else
-        handle:read_stop()
-        handle:close()
-      end
-    end
+    callbacks[kind] = capture_output[kind]
   end
 
   return handle
@@ -196,7 +182,6 @@ local run_job = a.wrap(function(task, opts, callback)
     stdio   = { nil, stdout, stderr },
     cwd     = opts.cwd,
     timeout = opts.timeout and 1000 * opts.timeout or nil,
-    stdio_callbacks = { nil, callbacks.stdout, callbacks.stderr },
     env     = opts.env,
     hide    = true
   }, function(exit_code, signal)
@@ -206,6 +191,20 @@ local run_job = a.wrap(function(task, opts, callback)
     end
     callback(success_test(job_result))
   end)
+
+  for kind, pipe in pairs{ stdout = stdout, stderr = stderr } do
+    if pipe and callbacks[kind] then
+      pipe:read_start(function(err, data)
+        if data then
+          callbacks[kind](err, data)
+        else
+          pipe:read_stop()
+          pipe:close()
+        end
+      end)
+    end
+  end
+
 end, 3)
 
 return {

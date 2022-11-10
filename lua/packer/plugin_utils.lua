@@ -228,8 +228,8 @@ plugin_utils.post_update_hook = a.sync(function(plugin, disp)
 
       local hook_result = jobs.run(run_task, {
         capture_output = {
-          stderr = jobs.logging_callback(res.err, res.output, nil, disp, plugin_name),
-          stdout = jobs.logging_callback(res.err, res.output, nil, disp, plugin_name),
+          stderr = jobs.logging_callback(res.err, res.output, disp, plugin_name),
+          stdout = jobs.logging_callback(res.err, res.output, disp, plugin_name),
         },
         cwd = plugin.install_path
       })
