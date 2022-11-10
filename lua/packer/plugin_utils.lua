@@ -1,4 +1,5 @@
 local fn = vim.fn
+local uv = vim.loop
 
 local a = require 'packer.async'
 local jobs = require 'packer.jobs'
@@ -20,7 +21,7 @@ end
 
 function plugin_utils.guess_dir_type(dir)
   local globdir = fn.glob(dir)
-  local dir_type = (vim.loop.fs_lstat(globdir) or { type = 'noexist' }).type
+  local dir_type = (uv.fs_lstat(globdir) or { type = 'noexist' }).type
 
   --[[ NOTE: We're assuming here that:
              1. users only create custom plugins for non-git repos;
@@ -28,45 +29,41 @@ function plugin_utils.guess_dir_type(dir)
              otherwise, there's no consistent way to tell from a dir alone… ]]
   if dir_type == 'link' then
     return plugin_utils.local_plugin_type
-  elseif vim.loop.fs_stat(globdir .. '/.git') then
+  elseif uv.fs_stat(globdir .. '/.git') then
     return plugin_utils.git_plugin_type
   elseif dir_type ~= 'noexist' then
     return plugin_utils.custom_plugin_type
   end
 end
 
-function plugin_utils.helptags_stale(dir)
+local function helptags_stale(dir)
   -- Adapted directly from minpac.vim
   local txts = fn.glob(util.join_paths(dir, '*.txt'), true, true)
   vim.list_extend(txts, fn.glob(util.join_paths(dir, '*.[a-z][a-z]x'), true, true))
-  local tags = fn.glob(util.join_paths(dir, 'tags'), true, true)
-  vim.list_extend(tags, fn.glob(util.join_paths(dir, 'tags-[a-z][a-z]'), true, true))
-  local txt_ftimes = util.map(fn.getftime, txts)
-  local tag_ftimes = util.map(fn.getftime, tags)
-  if #txt_ftimes == 0 then
+
+  if #txts == 0 then
     return false
   end
-  if #tag_ftimes == 0 then
+
+  local tags = fn.glob(util.join_paths(dir, 'tags'), true, true)
+  vim.list_extend(tags, fn.glob(util.join_paths(dir, 'tags-[a-z][a-z]'), true, true))
+
+  if #tags == 0 then
     return true
   end
-  local txt_newest = math.max(unpack(txt_ftimes))
-  local tag_oldest = math.min(unpack(tag_ftimes))
+
+  local txt_newest = math.max(unpack(util.map(fn.getftime, txts)))
+  local tag_oldest = math.min(unpack(util.map(fn.getftime, tags)))
   return txt_newest > tag_oldest
 end
 
 plugin_utils.update_helptags = vim.schedule_wrap(function(...)
   for _, dir in ipairs(...) do
     local doc_dir = util.join_paths(dir, 'doc')
-    if plugin_utils.helptags_stale(doc_dir) then
+    if helptags_stale(doc_dir) then
       log.info('Updating helptags for ' .. doc_dir)
       vim.cmd('silent! helptags ' .. fn.fnameescape(doc_dir))
     end
-  end
-end)
-
-plugin_utils.update_rplugins = vim.schedule_wrap(function()
-  if fn.exists ':UpdateRemotePlugins' == 2 then
-    vim.cmd [[silent UpdateRemotePlugins]]
   end
 end)
 
@@ -83,27 +80,27 @@ end
 function plugin_utils.list_installed_plugins()
   local opt_plugins = {}
   local start_plugins = {}
-  local opt_dir_handle = vim.loop.fs_opendir(config.opt_dir, nil, 50)
+  local opt_dir_handle = uv.fs_opendir(config.opt_dir, nil, 50)
   if opt_dir_handle then
-    local opt_dir_items = vim.loop.fs_readdir(opt_dir_handle)
+    local opt_dir_items = uv.fs_readdir(opt_dir_handle)
     while opt_dir_items do
       for _, item in ipairs(opt_dir_items) do
         opt_plugins[util.join_paths(config.opt_dir, item.name)] = true
       end
 
-      opt_dir_items = vim.loop.fs_readdir(opt_dir_handle)
+      opt_dir_items = uv.fs_readdir(opt_dir_handle)
     end
   end
 
-  local start_dir_handle = vim.loop.fs_opendir(config.start_dir, nil, 50)
+  local start_dir_handle = uv.fs_opendir(config.start_dir, nil, 50)
   if start_dir_handle then
-    local start_dir_items = vim.loop.fs_readdir(start_dir_handle)
+    local start_dir_items = uv.fs_readdir(start_dir_handle)
     while start_dir_items do
       for _, item in ipairs(start_dir_items) do
         start_plugins[util.join_paths(config.start_dir, item.name)] = true
       end
 
-      start_dir_items = vim.loop.fs_readdir(start_dir_handle)
+      start_dir_items = uv.fs_readdir(start_dir_handle)
     end
   end
 
@@ -226,17 +223,13 @@ plugin_utils.post_update_hook = a.sync(function(plugin, disp)
           stdout = jobs.logging_callback(res.err, res.output, nil, disp, plugin_name),
         },
         cwd = plugin.install_path
-      }):map_err(
-        function(err)
-          return {
-            msg = string.format('Error running post update hook: %s', table.concat(res.output, '\n')),
-            data = err,
-          }
-        end
-      )
+      })
 
       if hook_result.err then
-        return hook_result
+          return result.err {
+            msg = string.format('Error running post update hook: %s', table.concat(res.output, '\n')),
+            data = hook_result.err,
+          }
       end
     end
   end
