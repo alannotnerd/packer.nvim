@@ -2,14 +2,12 @@ local a = require 'packer.async'
 local display = require 'packer.display'
 local log = require 'packer.log'
 
-local config
-
 local function is_dirty(plugin, isopt)
   return (plugin.opt and isopt == false) or (not plugin.opt and isopt == true)
 end
 
 -- Find and remove any plugins not currently configured for use
-local clean_plugins = a.sync(function(_, plugins, fs_state, results)
+local clean_plugins = a.sync(function(plugins, fs_state, results, autoremove)
   log.debug 'Starting clean'
   local dirty_plugins = {}
   results = results or {}
@@ -17,6 +15,7 @@ local clean_plugins = a.sync(function(_, plugins, fs_state, results)
   local opt_plugins = vim.deepcopy(fs_state.opt)
   local start_plugins = vim.deepcopy(fs_state.start)
   local missing_plugins = fs_state.missing
+
   -- test for dirty / 'missing' plugins
   for _, plugin_config in pairs(plugins) do
     local path = plugin_config.install_path
@@ -58,7 +57,7 @@ local clean_plugins = a.sync(function(_, plugins, fs_state, results)
       table.insert(lines, '  - ' .. path)
     end
     a.main()
-    if config.autoremove or display.ask_user('Removing the following directories. OK? (y/N)', lines)() then
+    if autoremove or display.ask_user('Removing the following directories. OK? (y/N)', lines)() then
       results.removals = dirty_plugins
       log.debug('Removed ' .. vim.inspect(dirty_plugins))
       for _, path in ipairs(dirty_plugins) do
@@ -75,9 +74,4 @@ local clean_plugins = a.sync(function(_, plugins, fs_state, results)
   end
 end, 4)
 
-local function cfg(_config)
-  config = _config
-end
-
-local clean = setmetatable({ cfg = cfg }, { __call = clean_plugins })
-return clean
+return clean_plugins

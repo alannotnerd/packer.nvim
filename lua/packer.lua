@@ -29,6 +29,7 @@ _G._packer = _G._packer or {}
 ---@field snapshot_path   string
 ---@field preview_updates boolean
 ---@field auto_clean      boolean
+---@field autoremove      boolean
 ---@field display         DisplayConfig
 ---@field snapshot        string
 ---@field git             table
@@ -59,7 +60,6 @@ local plugins = nil
 ---@type PluginData[]
 local plugin_specifications = nil
 
-local clean
 local display
 
 ---@module 'packer.install'
@@ -86,7 +86,6 @@ local function init_modules()
     module.cfg(config)
     return module
   end
-  clean        = require_and_configure 'clean'
   display      = require_and_configure 'display'
   install      = require_and_configure 'install'
   log          = require_and_configure 'log'
@@ -263,7 +262,7 @@ packer.__manage_all = process_plugin_specs
 packer.clean = void(function(results)
   process_plugin_specs()
   local fs_state = plugin_utils.get_fs_state(plugins)
-  clean(plugins, fs_state, results)
+  require('packer.clean')(plugins, fs_state, results, config.autoremove)
 end)
 
 local function reltime(start)
@@ -291,7 +290,7 @@ packer.install = void(function()
   scheduler()
   local start_time = reltime()
   local results = {}
-  clean(plugins, fs_state, results)
+  require('packer.clean')(plugins, fs_state, results, config.autoremove)
   scheduler()
   log.debug 'Gathering install tasks'
   local tasks, display_win = install(plugins, install_plugins, results)
@@ -358,7 +357,7 @@ packer.update = void(function(...)
   local fs_state = plugin_utils.get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
   update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
-  clean(plugins, fs_state, results)
+  require('packer.clean')(plugins, fs_state, results, config.autoremove)
   local _
   _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
   log.debug 'Gathering install tasks'
@@ -426,7 +425,7 @@ packer.sync = void(function(...)
   local _
   _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
   if config.auto_clean then
-    clean(plugins, fs_state, results)
+    require('packer.clean')(plugins, fs_state, results, config.autoremove)
     _, installed_plugins = util.partition(vim.tbl_keys(results.removals), installed_plugins)
   end
 
