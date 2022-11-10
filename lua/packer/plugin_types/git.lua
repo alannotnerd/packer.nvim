@@ -187,27 +187,6 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
   return r
 end)
 
-local get_rev = async(function(plugin)
-  local plugin_name = util.get_plugin_full_name(plugin)
-
-  local rev_cmd = config.exec_cmd .. config.subcommands.get_rev
-  local r = jobs.run(rev_cmd, {
-    cwd = plugin.install_path,
-    options = { env = git.job_env },
-    capture_output = true
-  })
-
-  if r.ok then
-    local _, r0 = next(r.ok.output.data.stdout)
-    r.ok = r0
-  else
-    local _, msg = fmt('%s: %s', plugin_name, next(r.err.output.data.stderr))
-    r.err = msg
-  end
-
-  return r
-end, 1)
-
 local split_messages = function(messages)
   local lines = {}
   for _, message in ipairs(messages) do
@@ -248,7 +227,9 @@ git.setup = function(plugin)
 
   local needs_checkout = plugin.tag ~= nil or plugin.commit ~= nil or plugin.branch ~= nil
 
-  plugin.installer = function(disp)
+  ---@async
+  ---@return Result
+  plugin.installer = async(function(disp)
     local output = jobs.output_table()
 
     local installer_opts = {
@@ -260,41 +241,41 @@ git.setup = function(plugin)
       options = { env = git.job_env },
     }
 
-    return async(function()
-      disp:task_update(plugin_name, 'cloning...')
-      local r = jobs.run(install_cmd, installer_opts)
+    disp:task_update(plugin_name, 'cloning...')
+    local r = jobs.run(install_cmd, installer_opts)
 
-      installer_opts.cwd = install_to
+    installer_opts.cwd = install_to
 
-      if plugin.commit then
-        disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
-        r:and_then(jobs.run, config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), installer_opts)
-          :map_err(function(err)
-            return {
-              msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
-              data = { err, output },
-            }
-          end)
-      end
-
-      r:and_then(jobs.run, current_commit_cmd, installer_opts)
-        :map_ok(function(_)
-          plugin.messages = output.data.stdout
-        end)
+    if plugin.commit then
+      disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
+      r:and_then(jobs.run, config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), installer_opts)
         :map_err(function(err)
-          plugin.output = { err = output.data.stderr }
-          if not err.msg then
-            return {
-              msg = fmt('Error installing %s: %s', plugin_name, table.concat(output.data.stderr, '\n')),
-              data = { err, output },
-            }
-          end
+          return {
+            msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
+            data = { err, output },
+          }
         end)
+    end
 
-      return r
-    end)
-  end
+    r:and_then(jobs.run, current_commit_cmd, installer_opts)
+      :map_ok(function(_)
+        plugin.messages = output.data.stdout
+      end)
+      :map_err(function(err)
+        plugin.output = { err = output.data.stderr }
+        if not err.msg then
+          return {
+            msg = fmt('Error installing %s: %s', plugin_name, table.concat(output.data.stderr, '\n')),
+            data = { err, output },
+          }
+        end
+      end)
 
+    return r
+  end, 1)
+
+  ---@async
+  ---@return Result
   plugin.remote_url = async(function()
     local r = jobs.run(fmt('%s remote get-url origin', config.exec_cmd), {
       capture_output = true,
@@ -309,6 +290,8 @@ git.setup = function(plugin)
     return r
   end)
 
+  ---@async
+  ---@return Result
   plugin.updater = async(function(disp, opts)
     local update_info = { err = {}, revs = {}, output = {}, messages = {} }
     local function exit_ok(r)
@@ -514,7 +497,9 @@ git.setup = function(plugin)
     return r
   end, 2)
 
-  plugin.diff = void(function(commit, callback)
+  ---@async
+  ---@return Result
+  plugin.diff = async(function(commit, callback)
     local diff_cmd = config.exec_cmd .. fmt(config.subcommands.git_diff_fmt, commit)
     local diff_info = { err = {}, output = {}, messages = {} }
     local diff_onread = jobs.logging_callback(diff_info.err, diff_info.messages)
@@ -534,9 +519,11 @@ git.setup = function(plugin)
     end
 
     return r
-  end)
+  end, 2)
 
-  plugin.revert_last = void(function()
+  ---@async
+  ---@return Result
+  plugin.revert_last = async(function()
     local revert_cmd = config.exec_cmd .. config.subcommands.revert
     local r = jobs.run(revert_cmd, {
       capture_output = true,
@@ -551,10 +538,13 @@ git.setup = function(plugin)
         log.error(fmt('Reverting update for %s failed!', plugin_name))
       end
     end
+    return r
   end)
 
   ---Reset the plugin to `commit`
+  ---@async
   ---@param commit string
+  ---@return Result
   plugin.revert_to = async(function(commit)
     assert(type(commit) == 'string', fmt("commit: string expected but '%s' provided", type(commit)))
     require('packer.log').debug(fmt("Reverting '%s' to commit '%s'", plugin.name, commit))
@@ -562,10 +552,26 @@ git.setup = function(plugin)
   end, 1)
 
   ---Returns HEAD's short hash
-  ---@return string
-  plugin.get_rev = function()
-    return get_rev(plugin)
-  end
+  ---@async
+  ---@return Result
+  plugin.get_rev = async(function()
+    local r = jobs.run(rev_cmd, {
+      cwd = plugin.install_path,
+      options = { env = git.job_env },
+      capture_output = true
+    })
+
+    if r.ok then
+      local _, r0 = next(r.ok.output.data.stdout)
+      r.ok = r0
+    else
+      local _, msg = fmt('%s: %s', plugin_name, next(r.err.output.data.stderr))
+      r.err = msg
+    end
+
+    return r
+  end, 1)
+
 end
 
 return git

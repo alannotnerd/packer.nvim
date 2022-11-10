@@ -31,9 +31,21 @@ local function make_logging_callback(err_tbl, data_tbl, pipe, disp, name)
   end
 end
 
+---@class JobOutput0
+---@field stdout string
+---@field stderr string
+
+---@class JobOutput
+---@field err JobOutput0
+---@field data JobOutput0
+
 --- Utility function to make a table for capturing output with "standard" structure
+---@return JobOutput
 local function make_output_table()
-  return { err = { stdout = {}, stderr = {} }, data = { stdout = {}, stderr = {} } }
+  return {
+    err  = { stdout = {}, stderr = {} },
+    data = { stdout = {}, stderr = {} }
+  }
 end
 
 --- Utility function to merge stdout and stderr from two tables with "standard" structure (either

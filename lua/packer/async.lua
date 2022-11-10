@@ -32,8 +32,11 @@ end
 local M = {}
 
 ---Creates an async function with a callback style function.
----@param func function: A callback style function to be converted. The last argument must be the callback.
----@param argc number: The number of arguments of func. Must be included.
+---
+---@generic F : function
+---@param func F A callback style function to be converted. The last argument must be the callback.
+---@param argc integer The number of arguments of func. Must be included.
+---@return function
 function M.wrap(func, argc)
   return function(...)
     if not co.running() or select('#', ...) == argc then
@@ -46,20 +49,28 @@ end
 ---Use this to create a function which executes in an async context but
 ---called from a non-async context. Inherently this cannot return anything
 ---since it is non-blocking
----@param func function first argument must be a callback which is called when
+---
+---@generic F : function
+---@param func F argument nargs+1 must be a callback which is called when
 --                      fn finishes
+---@param nargs integer? Number of arguments
+---@return F
 function M.sync(func, nargs)
+  nargs = nargs or 0
   return function(...)
     if co.running() then
       return func(...)
     end
-    nargs = nargs or 0
     local callback = select(nargs+1, ...)
     execute(func, callback, unpack({...}, 1, nargs))
   end
 end
 
 ---For functions that don't provide a callback as there last argument
+---
+---@generic F : function
+---@param func F
+---@return F
 function M.void(func)
   return function(...)
     if co.running() then
@@ -112,6 +123,7 @@ end
 
 ---An async function that when called will yield to the Neovim scheduler to be
 ---able to call the API.
+---@async
 M.main = M.wrap(vim.schedule, 1)
 
 return M

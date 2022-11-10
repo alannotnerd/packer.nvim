@@ -7,6 +7,11 @@ local function is_dirty(plugin, isopt)
 end
 
 -- Find and remove any plugins not currently configured for use
+---@async
+---@param plugins PluginSpec[]
+---@param fs_state FSState
+---@param results Results
+---@param autoremove boolean
 local clean_plugins = a.sync(function(plugins, fs_state, results, autoremove)
   log.debug 'Starting clean'
   local dirty_plugins = {}
@@ -30,13 +35,12 @@ local clean_plugins = a.sync(function(plugins, fs_state, results, autoremove)
 
     -- We don't want to report paths which don't exist for removal; that will confuse people
     local path_exists = false
-    if missing_plugins[plugin_config.short_name] or plugin_config.disable then
+    if missing_plugins[plugin_config.short_name] then
       path_exists = vim.loop.fs_stat(path) ~= nil
     end
 
     local plugin_missing = path_exists and missing_plugins[plugin_config.short_name]
-    local disabled_but_installed = path_exists and plugin_config.disable
-    if plugin_missing or is_dirty(plugin_config, plugin_isopt) or disabled_but_installed then
+    if plugin_missing or is_dirty(plugin_config, plugin_isopt) then
       dirty_plugins[#dirty_plugins + 1] = path
     end
   end

@@ -19,7 +19,7 @@ function plugin_utils.cfg(_config)
   config = _config
 end
 
-function plugin_utils.guess_dir_type(dir)
+local function guess_dir_type(dir)
   local globdir = fn.glob(dir)
   local dir_type = (uv.fs_lstat(globdir) or { type = 'noexist' }).type
 
@@ -107,40 +107,38 @@ function plugin_utils.list_installed_plugins()
   return opt_plugins, start_plugins
 end
 
-plugin_utils.find_missing_plugins = a.sync(function(plugins, opt_plugins, start_plugins)
-  if opt_plugins == nil or start_plugins == nil then
-    opt_plugins, start_plugins = plugin_utils.list_installed_plugins()
-  end
-
+---@async
+---@param plugins       PluginSpec[]
+---@param opt_plugins   {[string]: boolean}
+---@param start_plugins {[string]: boolean}
+---@return {[string]: boolean}
+local find_missing_plugins = a.sync(function(plugins, opt_plugins, start_plugins)
   -- NOTE/TODO: In the case of a plugin gaining/losing an alias, this will force a clean and
   -- reinstall
   local missing_plugins = {}
-  for _, plugin_name in ipairs(vim.tbl_keys(plugins)) do
-    local plugin = plugins[plugin_name]
-    if not plugin.disable then
-      local plugin_path = util.join_paths(config[plugin.opt and 'opt_dir' or 'start_dir'], plugin.short_name)
-      local plugin_installed = (plugin.opt and opt_plugins or start_plugins)[plugin_path]
+  for plugin_name, plugin in pairs(plugins) do
+    local plugin_path = util.join_paths(config[plugin.opt and 'opt_dir' or 'start_dir'], plugin.short_name)
+    local plugin_installed = (plugin.opt and opt_plugins or start_plugins)[plugin_path]
 
-      a.main()
-      local guessed_type = plugin_utils.guess_dir_type(plugin_path)
-      if not plugin_installed or plugin.type ~= guessed_type then
-        missing_plugins[plugin_name] = true
-      elseif guessed_type == plugin_utils.git_plugin_type then
-        local r = plugin.remote_url()
-        local remote = r.ok and r.ok.remote or nil
-        if remote then
-          -- Form a Github-style user/repo string
-          local parts = vim.split(remote, '[:/]')
-          local repo_name = parts[#parts - 1] .. '/' .. parts[#parts]
-          repo_name = repo_name:gsub('%.git', '')
+    a.main()
+    local guessed_type = guess_dir_type(plugin_path)
+    if not plugin_installed or plugin.type ~= guessed_type then
+      missing_plugins[plugin_name] = true
+    elseif guessed_type == plugin_utils.git_plugin_type then
+      local r = plugin.remote_url()
+      local remote = r.ok and r.ok.remote or nil
+      if remote then
+        -- Form a Github-style user/repo string
+        local parts = vim.split(remote, '[:/]')
+        local repo_name = parts[#parts - 1] .. '/' .. parts[#parts]
+        repo_name = repo_name:gsub('%.git', '')
 
-          -- Also need to test for "full URL" plugin names, but normalized to get rid of the
-          -- protocol
-          local normalized_remote = remote:gsub('https://', ''):gsub('ssh://git@', '')
-          local normalized_plugin_name = plugin.name:gsub('https://', ''):gsub('ssh://git@', ''):gsub('\\', '/')
-          if (normalized_remote ~= normalized_plugin_name) and (repo_name ~= normalized_plugin_name) then
-            missing_plugins[plugin_name] = true
-          end
+        -- Also need to test for "full URL" plugin names, but normalized to get rid of the
+        -- protocol
+        local normalized_remote = remote:gsub('https://', ''):gsub('ssh://git@', '')
+        local normalized_plugin_name = plugin.name:gsub('https://', ''):gsub('ssh://git@', ''):gsub('\\', '/')
+        if (normalized_remote ~= normalized_plugin_name) and (repo_name ~= normalized_plugin_name) then
+          missing_plugins[plugin_name] = true
         end
       end
     end
@@ -149,11 +147,22 @@ plugin_utils.find_missing_plugins = a.sync(function(plugins, opt_plugins, start_
   return missing_plugins
 end, 3)
 
+---@class FSState
+---@field start   {[string]: boolean}
+---@field opt     {[string]: boolean}
+---@field missing {[string]: boolean}
+
+---@async
+---@param plugins PluginSpec[]
+---@return FSState
 plugin_utils.get_fs_state = a.sync(function(plugins)
   log.debug 'Updating FS state'
   local opt_plugins, start_plugins = plugin_utils.list_installed_plugins()
-  local missing_plugins = plugin_utils.find_missing_plugins(plugins, opt_plugins, start_plugins)
-  return { opt = opt_plugins, start = start_plugins, missing = missing_plugins }
+  return {
+    opt = opt_plugins,
+    start = start_plugins,
+    missing = find_missing_plugins(plugins, opt_plugins, start_plugins)
+  }
 end, 1)
 
 function plugin_utils.load_plugin(plugin)

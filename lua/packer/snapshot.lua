@@ -69,9 +69,10 @@ snapshot.completion.rollback = function(lead, cmdline, pos)
   end
 end
 
---- Creates a with with `completed` and `failed` keys, each containing a map with plugin name as key and commit hash/error as value
---- @param plugins list
---- @return { ok: { failed : table<string, string>, completed : table<string, string>}}
+---Creates a with with `completed` and `failed` keys, each containing a map with plugin name as key and commit hash/error as value
+---@async
+---@param plugins PluginSpec[]
+---@return Result
 local generate_snapshot = async(function(plugins)
   local completed = {}
   local failed = {}
@@ -80,8 +81,9 @@ local generate_snapshot = async(function(plugins)
 
   plugins = vim.tbl_filter(function(plugin)
     if installed[plugin.install_path] and plugin.type == plugin_utils.git_plugin_type then -- this plugin is installed
-      return plugin
+      return true
     end
+    return false
   end, plugins)
 
   for _, plugin in pairs(plugins) do
@@ -103,8 +105,10 @@ end, 1)
 ---provided, if there is already a snapshot it will be overwritten
 ---Snapshotting work only with `plugin_utils.git_plugin_type` type of plugins,
 ---other will be ignored.
+---@async
 ---@param snapshot_path string realpath for snapshot file
----@param plugins table<string, any>[]
+---@param plugins PluginSpec[]
+---@return Result
 snapshot.create = async(function(snapshot_path, plugins)
   assert(type(snapshot_path) == 'string', fmt("filename needs to be a string but '%s' provided", type(snapshot_path)))
   assert(type(plugins) == 'table', fmt("plugins needs to be an array but '%s' provided", type(plugins)))
@@ -124,7 +128,9 @@ snapshot.create = async(function(snapshot_path, plugins)
       failed = commits.ok.failed,
     }
   else
-    return result.err { message = fmt("Error on creation of snapshot '%s': '%s'", snapshot_path, res) }
+    return result.err {
+      message = fmt("Error on creation of snapshot '%s': '%s'", snapshot_path, res)
+    }
   end
 end, 2)
 
@@ -137,15 +143,19 @@ end, 1)
 ---Rollbacks `plugins` to the hash specified in `snapshot_path` if exists.
 ---It automatically runs `git fetch --depth 999999 --progress` to retrieve the history
 ---@param snapshot_path string @ realpath to the snapshot file
----@param plugins list @ of `plugin_utils.git_plugin_type` type of plugins
+---@param plugins table<string, PluginSpec> @ of `plugin_utils.git_plugin_type` type of plugins
+---@return Result
 snapshot.rollback = async(function(snapshot_path, plugins)
   assert(type(snapshot_path) == 'string', 'snapshot_path: expected string but got ' .. type(snapshot_path))
   assert(type(plugins) == 'table', 'plugins: expected table but got ' .. type(snapshot_path))
   log.debug('Rolling back to ' .. snapshot_path)
+
+  ---@type string[]
   local content = vim.fn.readfile(snapshot_path)
+
   ---@type string
   local plugins_snapshot = vim.fn.json_decode(content)
-  if plugins_snapshot == nil then -- not valid snapshot file
+  if not plugins_snapshot then -- not valid snapshot file
     return result.err(fmt("Couldn't load '%s' file", snapshot_path))
   end
 

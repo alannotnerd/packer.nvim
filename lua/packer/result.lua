@@ -1,4 +1,20 @@
 -- A simple Result<V, E> type to simplify control flow with installers and updaters
+
+---@class JobResOk
+---@field message string
+---@field completed table<string, string>
+---@field failed table<string, string>
+
+---@class JobResFail
+---@field message string
+---@field msg string
+---@field data any
+---@field output JobOutput
+
+---@class Result
+---@field ok JobResOk
+---@field err JobResFail
+
 local result = {}
 
 local ok_result_mt = {
@@ -53,6 +69,7 @@ local err_result_mt = {
 
 err_result_mt.__index = err_result_mt
 
+---@return Result
 result.ok = function(val)
   if val == nil then
     val = true
@@ -62,6 +79,7 @@ result.ok = function(val)
   return r
 end
 
+---@return Result
 result.err = function(err)
   if err == nil then
     err = true

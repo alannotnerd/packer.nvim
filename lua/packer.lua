@@ -41,10 +41,20 @@ local config
 ---@field from_requires boolean
 ---@field after_files  string[]
 ---@field breaking_commits string[]
+---@field opt          boolean
+---@field remote_url   function
+---@field installer    function
 
 ---@class PluginData
 ---@field line integer
 ---@field spec PluginSpec
+
+---@class Results
+---@field removals {[string]: Result}
+---@field installs {[string]: Result}
+---@field moves    {[string]: Result}
+---@field updates  {[string]: Result}
+---@field plugins  {[string]: PluginSpec}
 
 ---@type table<string, PluginSpec>
 local plugins = nil
@@ -251,6 +261,8 @@ packer.__manage_all = process_plugin_specs
 
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
+---@async
+---@param results Results
 packer.clean = a.sync(function(results)
   process_plugin_specs()
   local fs_state = plugin_utils.get_fs_state(plugins)
@@ -268,6 +280,7 @@ end
 
 --- Install operation:
 -- Installs missing plugins, then updates helptags and rplugins
+---@async
 packer.install = a.sync(function()
   log.debug 'packer.install: requiring modules'
 
@@ -281,7 +294,10 @@ packer.install = a.sync(function()
 
   a.main()
   local start_time = reltime()
+
+  ---@type Results
   local results = {}
+
   require('packer.clean')(plugins, fs_state, results, config.autoremove)
   a.main()
   log.debug 'Gathering install tasks'
@@ -329,7 +345,7 @@ local function filter_opts_from_plugins(...)
   if config.preview_updates then
     opts.preview_updates = true
   end
-  return opts, util.nonempty_or(args, vim.tbl_keys(plugins))
+  return opts, #args > 0 and args or vim.tbl_keys(plugins)
 end
 
 --- Update operation:
@@ -389,7 +405,6 @@ packer.update = a.void(function(...)
 
   a.main()
   plugin_utils.update_helptags(install_paths)
-  plugin_utils.update_rplugins()
   local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
   display_win:final_results(results, delta, opts)
 end)
@@ -457,11 +472,11 @@ packer.sync = a.void(function(...)
 
   a.main()
   plugin_utils.update_helptags(install_paths)
-  plugin_utils.update_rplugins()
   local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
   display_win:final_results(results, delta, opts)
 end)
 
+---@async
 packer.status = a.sync(function()
   process_plugin_specs()
   local display_win = display.open(config.display.open_fn or config.display.open_cmd)
