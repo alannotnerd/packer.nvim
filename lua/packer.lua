@@ -1,22 +1,14 @@
 local api = vim.api
 local fn = vim.fn
-
 local fmt = string.format
 
 local util = require 'packer.util'
-
-local void      = require 'packer.async'.void
-local scheduler = require 'packer.async'.main
-local join      = require 'packer.async'.join
-
 local join_paths = util.join_paths
+
+local a = require 'packer.async'
 
 -- Config
 local packer = {}
-
---- Initialize global namespace for use for callbacks and other data generated whilst packer is
---- running
-_G._packer = _G._packer or {}
 
 ---@class DisplayConfig
 ---@field open_fn string
@@ -259,11 +251,11 @@ packer.__manage_all = process_plugin_specs
 
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
-packer.clean = void(function(results)
+packer.clean = a.sync(function(results)
   process_plugin_specs()
   local fs_state = plugin_utils.get_fs_state(plugins)
   require('packer.clean')(plugins, fs_state, results, config.autoremove)
-end)
+end, 1)
 
 local function reltime(start)
   if start == nil then
@@ -276,7 +268,7 @@ end
 
 --- Install operation:
 -- Installs missing plugins, then updates helptags and rplugins
-packer.install = void(function()
+packer.install = a.sync(function()
   log.debug 'packer.install: requiring modules'
 
   process_plugin_specs()
@@ -287,11 +279,11 @@ packer.install = void(function()
     return
   end
 
-  scheduler()
+  a.main()
   local start_time = reltime()
   local results = {}
   require('packer.clean')(plugins, fs_state, results, config.autoremove)
-  scheduler()
+  a.main()
   log.debug 'Gathering install tasks'
   local tasks, display_win = install(plugins, install_plugins, results)
   if next(tasks) then
@@ -301,7 +293,7 @@ packer.install = void(function()
     local limit = config.max_jobs and config.max_jobs or #tasks
     log.debug 'Running tasks'
     display_win:update_headline_message(fmt('installing %d / %d plugins', #tasks, #tasks))
-    join(limit, check, unpack(tasks))
+    a.join(limit, check, unpack(tasks))
     local install_paths = {}
     for plugin_name, r in pairs(results.installs) do
       if r.ok then
@@ -309,7 +301,7 @@ packer.install = void(function()
       end
     end
 
-    scheduler()
+    a.main()
     plugin_utils.update_helptags(install_paths)
     plugin_utils.update_rplugins()
     local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
@@ -346,7 +338,7 @@ end
 -- Fixes plugin types, installs missing plugins, then updates installed plugins and updates helptags
 -- and rplugins
 -- Options can be specified in the first argument as either a table or explicit `'--preview'`.
-packer.update = void(function(...)
+packer.update = a.void(function(...)
   log.debug 'packer.update: requiring modules'
 
   process_plugin_specs()
@@ -357,15 +349,16 @@ packer.update = void(function(...)
   local fs_state = plugin_utils.get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
   update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
+
   require('packer.clean')(plugins, fs_state, results, config.autoremove)
-  local _
-  _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
+
+  missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
   log.debug 'Gathering install tasks'
-  scheduler()
+  a.main()
   local tasks, display_win = install(plugins, missing_plugins, results)
   local update_tasks
   log.debug 'Gathering update tasks'
-  scheduler()
+  a.main()
   update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
   vim.list_extend(tasks, update_tasks)
 
@@ -380,7 +373,7 @@ packer.update = void(function(...)
 
   display_win:update_headline_message('updating ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
   log.debug 'Running tasks'
-  join(limit, check, unpack(tasks))
+  a.join(limit, check, unpack(tasks))
   local install_paths = {}
   for plugin_name, r in pairs(results.installs) do
     if r.ok then
@@ -394,7 +387,7 @@ packer.update = void(function(...)
     end
   end
 
-  scheduler()
+  a.main()
   plugin_utils.update_helptags(install_paths)
   plugin_utils.update_rplugins()
   local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
@@ -409,7 +402,7 @@ end)
 --  - Clean stale plugins
 --  - Install missing plugins and update installed plugins
 --  - Update helptags and rplugins
-packer.sync = void(function(...)
+packer.sync = a.void(function(...)
   log.debug 'packer.sync: requiring modules'
 
   process_plugin_specs()
@@ -420,21 +413,20 @@ packer.sync = void(function(...)
   local fs_state = plugin_utils.get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), sync_plugins)
 
-  scheduler()
+  a.main()
   update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
-  local _
-  _, missing_plugins = util.partition(vim.tbl_keys(results.moves), missing_plugins)
+  missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
   if config.auto_clean then
     require('packer.clean')(plugins, fs_state, results, config.autoremove)
     _, installed_plugins = util.partition(vim.tbl_keys(results.removals), installed_plugins)
   end
 
-  scheduler()
+  a.main()
   log.debug 'Gathering install tasks'
   local tasks, display_win = install(plugins, missing_plugins, results)
   local update_tasks
   log.debug 'Gathering update tasks'
-  scheduler()
+  a.main()
   update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
   vim.list_extend(tasks, update_tasks)
   if #tasks == 0 then
@@ -449,7 +441,7 @@ packer.sync = void(function(...)
 
   log.debug 'Running tasks'
   display_win:update_headline_message('syncing ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
-  join(limit, check, unpack(tasks))
+  a.join(limit, check, unpack(tasks))
   local install_paths = {}
   for plugin_name, r in pairs(results.installs) do
     if r.ok then
@@ -463,14 +455,14 @@ packer.sync = void(function(...)
     end
   end
 
-  scheduler()
+  a.main()
   plugin_utils.update_helptags(install_paths)
   plugin_utils.update_rplugins()
   local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
   display_win:final_results(results, delta, opts)
 end)
 
-packer.status = void(function()
+packer.status = a.sync(function()
   process_plugin_specs()
   local display_win = display.open(config.display.open_fn or config.display.open_cmd)
   if _G.packer_plugins ~= nil then
@@ -533,7 +525,7 @@ end
 
 ---Snapshots installed plugins
 ---@param snapshot_name string absolute path or just a snapshot name
-packer.snapshot = void(function(snapshot_name, ...)
+packer.snapshot = a.void(function(snapshot_name, ...)
   local args = { ... }
   snapshot_name = snapshot_name or require('os').date '%Y-%m-%d'
   local snapshot_path = fn.expand(snapshot_name)
@@ -579,16 +571,15 @@ packer.snapshot = void(function(snapshot_name, ...)
   end
 
   if write_snapshot then
-    snapshot.create(snapshot_path, target_plugins)
-      :map_ok(function(ok)
-        log.info(ok.message)
-        if next(ok.failed) then
-          log.warn("Couldn't snapshot " .. vim.inspect(ok.failed))
-        end
-      end)
-      :map_err(function(err)
-        log.warn(err.message)
-      end)
+    local r = snapshot.create(snapshot_path, target_plugins)
+    if r.ok then
+      log.info(r.ok.message)
+      if next(r.ok.failed) then
+        log.warn("Couldn't snapshot " .. vim.inspect(r.ok.failed))
+      end
+    else
+      log.warn(r.err.message)
+    end
   end
 end)
 
@@ -597,7 +588,7 @@ end)
 ---@param snapshot_name string @name of the snapshot or the absolute path to the snapshot
 ---@vararg string @ if provided, the only plugins to be rolled back,
 ---otherwise all the plugins will be rolled back
-packer.rollback = void(function(snapshot_name, ...)
+packer.rollback = a.void(function(snapshot_name, ...)
   local args = { ... }
 
   process_plugin_specs()
@@ -624,18 +615,18 @@ packer.rollback = void(function(snapshot_name, ...)
     end, plugins)
   end
 
-  snapshot.rollback(snapshot_path, target_plugins)
-    :map_ok(function(ok)
-      scheduler()
-      log.info(fmt('Rollback to "%s" completed', snapshot_path))
-      if next(ok.failed) then
-        log.warn("Couldn't rollback " .. vim.inspect(ok.failed))
-      end
-    end)
-    :map_err(function(err)
-      scheduler()
-      log.error(err)
-    end)
+  local r = snapshot.rollback(snapshot_path, target_plugins)
+
+  if r.ok then
+    a.main()
+    log.info(fmt('Rollback to "%s" completed', snapshot_path))
+    if next(r.ok.failed) then
+      log.warn("Couldn't rollback " .. vim.inspect(r.ok.failed))
+    end
+  else
+    a.main()
+    log.error(r.err)
+  end
 end)
 
 packer.config = config
