@@ -97,7 +97,7 @@ local reset = async(function(dest, commit)
   return jobs.run(reset_cmd, {
     capture_output = true,
     cwd = dest,
-    options = { env = git.job_env }
+    env = git.job_env
   })
 end, 2)
 
@@ -119,7 +119,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
       stderr = jobs.logging_callback(output.err.stderr, output.data.stderr),
     },
     cwd = dest,
-    options = { env = git.job_env }
+    env = git.job_env
   }
 
   local r = result.ok()
@@ -238,7 +238,7 @@ git.setup = function(plugin)
         stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, nil, disp, plugin_name),
       },
       timeout = config.clone_timeout,
-      options = { env = git.job_env },
+      env = git.job_env,
     }
 
     disp:task_update(plugin_name, 'cloning...')
@@ -280,7 +280,7 @@ git.setup = function(plugin)
     local r = jobs.run(fmt('%s remote get-url origin', config.exec_cmd), {
       capture_output = true,
       cwd = plugin.install_path,
-      options = { env = git.job_env }
+      env = git.job_env
     })
 
     if r.ok then
@@ -308,7 +308,7 @@ git.setup = function(plugin)
       success_test = exit_ok,
       capture_output = rev_callbacks,
       cwd = install_to,
-      options = { env = git.job_env }
+      env = git.job_env
     }):map_err(function(err)
       plugin.output = { err = vim.list_extend(update_info.err, update_info.revs), data = {} }
 
@@ -324,7 +324,7 @@ git.setup = function(plugin)
       success_test = exit_ok,
       capture_output = true,
       cwd = install_to,
-      options = { env = git.job_env }
+      env = git.job_env
     }):map_ok(function(ok)
         current_branch = ok.output.data.stdout[1]
       end)
@@ -365,7 +365,7 @@ git.setup = function(plugin)
         stderr = jobs.logging_callback(update_info.err, update_info.output, nil, disp, plugin_name),
       },
       cwd = install_to,
-      options = { env = git.job_env },
+      env = git.job_env,
     }
 
     if needs_checkout then
@@ -426,7 +426,7 @@ git.setup = function(plugin)
         success_test = exit_ok,
         capture_output = rev_callbacks,
         cwd = install_to,
-        options = { env = git.job_env },
+        env = git.job_env,
       }
     ):map_err(function(err)
       plugin.output = { err = vim.list_extend(update_info.err, update_info.revs), data = {} }
@@ -453,7 +453,7 @@ git.setup = function(plugin)
             success_test = exit_ok,
             capture_output = commit_headers_callbacks,
             cwd = install_to,
-            options = { env = git.job_env },
+            env = git.job_env,
           }
         )
 
@@ -477,7 +477,7 @@ git.setup = function(plugin)
               success_test = exit_ok,
               capture_output = commit_bodies_callbacks,
               cwd = install_to,
-              options = { env = git.job_env },
+              env = git.job_env,
             }
           ):map_ok(function(ok)
             plugin.breaking_commits = {}
@@ -509,7 +509,7 @@ git.setup = function(plugin)
         stderr = diff_onread
       },
       cwd = install_to,
-      options = { env = git.job_env }
+      env = git.job_env
     })
 
     if r.ok then
@@ -528,7 +528,7 @@ git.setup = function(plugin)
     local r = jobs.run(revert_cmd, {
       capture_output = true,
       cwd = install_to,
-      options = { env = git.job_env }
+      env = git.job_env
     })
     if needs_checkout and r.ok then
       r = handle_checkouts(plugin, install_to, nil, {})
@@ -557,7 +557,7 @@ git.setup = function(plugin)
   plugin.get_rev = async(function()
     local r = jobs.run(rev_cmd, {
       cwd = plugin.install_path,
-      options = { env = git.job_env },
+      env = git.job_env,
       capture_output = true
     })
 

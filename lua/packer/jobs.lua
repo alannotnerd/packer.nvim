@@ -32,12 +32,17 @@ local function make_logging_callback(err_tbl, data_tbl, pipe, disp, name)
 end
 
 ---@class JobOutput0
----@field stdout string
----@field stderr string
+---@field stdout string[]
+---@field stderr string[]
 
 ---@class JobOutput
 ---@field err JobOutput0
 ---@field data JobOutput0
+--
+---@class JobResult
+---@field output JobOutput
+---@field exit_code integer
+---@field signal string|integer
 
 --- Utility function to make a table for capturing output with "standard" structure
 ---@return JobOutput
@@ -56,9 +61,13 @@ local function extend_output(to, from)
   return to
 end
 
---- Wrapper for vim.loop.spawn. Takes a command, options, and callback just like vim.loop.spawn, but
---  (1) makes an async function and (2) ensures that all output from the command has been flushed
---  before calling the callback
+--- Wrapper for vim.loop.spawn. Takes a command, options, and callback just like
+--- vim.loop.spawn, but ensures that all output from the command has been
+--- flushed before calling the callback.
+---
+--- @param cmd string
+--- @param options table
+--- @param callback function(integer, string)
 local function spawn(cmd, options, callback)
   local handle = nil
   local timer = nil
@@ -69,7 +78,7 @@ local function spawn(cmd, options, callback)
       timer:close()
     end
 
-    local check = uv.new_check()
+    local check, uv_err = uv.new_check()
     check:start(function()
       for _, pipe in pairs(options.stdio) do
         if not pipe:is_closing() then
@@ -108,11 +117,41 @@ local function spawn(cmd, options, callback)
 end
 
 --- Utility function to perform a common check for process success and return a result object
+---@param r JobResult
 local function was_successful(r)
   if r.exit_code == 0 and (not r.output or not r.output.err or #r.output.err == 0) then
     return result.ok(r)
   end
   return result.err(r)
+end
+
+local function setup_pipe(kind, callbacks, capture_output, output)
+  if not capture_output then
+    return
+  elseif not capture_output[kind] then
+    return
+  end
+
+  local handle, uv_err = uv.new_pipe(false)
+  if uv_err then
+    log.error(string.format('Failed to open %s pipe: %s', kind, uv_err))
+    return false
+  end
+
+  if type(capture_output) == 'boolean' then
+    callbacks[kind] = make_logging_callback(output.err[kind], output.data[kind], handle)
+  elseif type(capture_output) == 'table' then
+    callbacks[kind] = function(err, data)
+      if data then
+        capture_output[kind](err, data)
+      else
+        handle:read_stop()
+        handle:close()
+      end
+    end
+  end
+
+  return handle
 end
 
 --- Main exposed function for the jobs module. Takes a task and options and returns an async
@@ -126,69 +165,24 @@ end
 --    "capture_output" (either a boolean, in which case default output capture is set up and the
 --    resulting tables are included in the result, or a set of tables, in which case output is logged
 --    to the given tables)
+---@async
 local run_job = a.wrap(function(task, opts, callback)
-  local options = opts.options or { hide = true }
-  local stdout = nil
-  local stderr = nil
+  ---@type JobResult
   local job_result = { exit_code = -1, signal = -1 }
   local success_test = opts.success_test or was_successful
-  local uv_err
   local output = make_output_table()
   local callbacks = {}
-  local output_valid = false
-  if opts.capture_output then
-    if type(opts.capture_output) == 'boolean' then
-      stdout, uv_err = uv.new_pipe(false)
-      if uv_err then
-        log.error('Failed to open stdout pipe: ' .. uv_err)
-        return result.err()
-      end
 
-      stderr, uv_err = uv.new_pipe(false)
-      if uv_err then
-        log.error('Failed to open stderr pipe: ' .. uv_err)
-        return job_result
-      end
+  local stdout = setup_pipe('stdout', opts.capture_output, callbacks, output)
 
-      callbacks = {
-        stdout = make_logging_callback(output.err.stdout, output.data.stdout, stdout),
-        stderr = make_logging_callback(output.err.stderr, output.data.stderr, stderr)
-      }
-      output_valid = true
-    elseif type(opts.capture_output) == 'table' then
-      if opts.capture_output.stdout then
-        stdout, uv_err = uv.new_pipe(false)
-        if uv_err then
-          log.error('Failed to open stdout pipe: ' .. uv_err)
-          return job_result
-        end
+  if stdout == false then
+    return job_result
+  end
 
-        callbacks.stdout = function(err, data)
-          if data ~= nil then
-            opts.capture_output.stdout(err, data)
-          else
-            stdout:read_stop()
-            stdout:close()
-          end
-        end
-      end
-      if opts.capture_output.stderr then
-        stderr, uv_err = uv.new_pipe(false)
-        if uv_err then
-          log.error('Failed to open stderr pipe: ' .. uv_err)
-          return job_result
-        end
+  local stderr = setup_pipe('stderr', opts.capture_output, callbacks, output)
 
-        callbacks.stderr = function(err, data)
-          if data ~= nil then
-            opts.capture_output.stderr(err, data)
-          else
-            stderr:read_stop()
-            stderr:close()
-          end
-        end
-      end
-    end
+  if stderr == false then
+    return job_result
   end
 
   if type(task) == 'string' then
@@ -197,20 +191,17 @@ local run_job = a.wrap(function(task, opts, callback)
     task = { shell, minus_c, task }
   end
 
-  local cmd = task[1]
-  if opts.timeout then
-    options.timeout = 1000 * opts.timeout
-  end
-
-  options.cwd = opts.cwd
-
-  options.args = { unpack(task, 2) }
-  options.stdio = { nil, stdout, stderr }
-  options.stdio_callbacks = { nil, callbacks.stdout, callbacks.stderr }
-
-  spawn(cmd, options, function(exit_code, signal)
+  spawn(task[1], {
+    args    = { unpack(task, 2) },
+    stdio   = { nil, stdout, stderr },
+    cwd     = opts.cwd,
+    timeout = opts.timeout and 1000 * opts.timeout or nil,
+    stdio_callbacks = { nil, callbacks.stdout, callbacks.stderr },
+    env     = opts.env,
+    hide    = true
+  }, function(exit_code, signal)
     job_result = { exit_code = exit_code, signal = signal }
-    if output_valid then
+    if opts.capture_output == true then
       job_result.output = output
     end
     callback(success_test(job_result))

@@ -354,6 +354,7 @@ end
 -- Fixes plugin types, installs missing plugins, then updates installed plugins and updates helptags
 -- and rplugins
 -- Options can be specified in the first argument as either a table or explicit `'--preview'`.
+---@async
 packer.update = a.void(function(...)
   log.debug 'packer.update: requiring modules'
 
@@ -369,12 +370,15 @@ packer.update = a.void(function(...)
   require('packer.clean')(plugins, fs_state, results, config.autoremove)
 
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
+
   log.debug 'Gathering install tasks'
   a.main()
   local tasks, display_win = install(plugins, missing_plugins, results)
-  local update_tasks
+
   log.debug 'Gathering update tasks'
   a.main()
+
+  local update_tasks
   update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
   vim.list_extend(tasks, update_tasks)
 
@@ -417,6 +421,7 @@ end)
 --  - Clean stale plugins
 --  - Install missing plugins and update installed plugins
 --  - Update helptags and rplugins
+---@async
 packer.sync = a.void(function(...)
   log.debug 'packer.sync: requiring modules'
 
@@ -539,6 +544,7 @@ function packer.plugin_complete(lead, _, _)
 end
 
 ---Snapshots installed plugins
+---@async
 ---@param snapshot_name string absolute path or just a snapshot name
 packer.snapshot = a.void(function(snapshot_name, ...)
   local args = { ... }
@@ -603,6 +609,7 @@ end)
 ---@param snapshot_name string @name of the snapshot or the absolute path to the snapshot
 ---@vararg string @ if provided, the only plugins to be rolled back,
 ---otherwise all the plugins will be rolled back
+---@async
 packer.rollback = a.void(function(snapshot_name, ...)
   local args = { ... }
 

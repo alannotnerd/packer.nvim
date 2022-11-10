@@ -136,8 +136,11 @@ end, 2)
 
 local fetch = async(function(plugin)
   local git = require 'packer.plugin_types.git'
-  local opts = { capture_output = true, cwd = plugin.install_path, options = { env = git.job_env } }
-  return require('packer.jobs').run('git ' .. config.git.subcommands.fetch, opts)
+  return require('packer.jobs').run('git ' .. config.git.subcommands.fetch, {
+    capture_output = true,
+    cwd = plugin.install_path,
+    env = git.job_env
+  })
 end, 1)
 
 ---Rollbacks `plugins` to the hash specified in `snapshot_path` if exists.
