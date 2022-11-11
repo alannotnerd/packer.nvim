@@ -44,6 +44,7 @@ local config
 ---@field cmd          string|string[]
 ---@field type         string
 ---@field url          string
+---@field lock         boolean
 ---@field from_requires boolean
 ---@field after_files  string[]
 ---@field breaking_commits string[]
@@ -135,6 +136,40 @@ local function guess_plugin_type(path)
   return config.git.default_url_format:format(path), 'git'
 end
 
+---@param text string
+---@return string, string
+local function get_plugin_short_name(text)
+  local path = vim.fn.expand(text)
+  local name_segments = vim.split(path, util.get_separator())
+  local segment_idx = #name_segments
+  local name = name_segments[segment_idx]
+  while name == '' and segment_idx > 0 do
+    name = name_segments[segment_idx]
+    segment_idx = segment_idx - 1
+  end
+  return name, path
+end
+
+local function get_plugin_full_name(plugin)
+  local plugin_name = plugin.name or plugin.short_name
+  if plugin.branch then
+    -- NOTE: maybe have to change the seperator here too
+    plugin_name = plugin_name .. '/' .. plugin.branch
+  end
+
+  if plugin.rev then
+    plugin_name = plugin_name .. '@' .. plugin.rev
+  end
+
+  return plugin_name
+end
+
+
+---@param url string
+local function remove_ending_git_url(url)
+  return vim.endswith(url, '.git') and url:sub(1, -5) or url
+end
+
 --- The main logic for adding a plugin (and any dependencies) to the managed set
 -- Can be invoked with (1) a single plugin spec as a string, (2) a single plugin spec table, or (3)
 -- a list of plugin specs
@@ -161,7 +196,7 @@ local function process_plugin_spec(plugin_data)
     return
   end
 
-  local short_name, path = util.get_plugin_short_name(spec[1])
+  local short_name, path = get_plugin_short_name(spec[1])
 
   if short_name == '' then
     log.warn(fmt('"%s" is an invalid plugin name!', spec[1]))
@@ -176,7 +211,7 @@ local function process_plugin_spec(plugin_data)
   -- Handle aliases
   spec.short_name = short_name
   spec.path = path
-  spec.full_name = util.get_plugin_full_name(spec)
+  spec.full_name = get_plugin_full_name(spec)
 
   -- Some config keys modify a plugin type
   if spec.opt then
@@ -199,7 +234,7 @@ local function process_plugin_spec(plugin_data)
   spec.url, spec.type = guess_plugin_type(spec.path)
 
   -- Add the git URL for displaying in PackerStatus and PackerSync.
-  spec.url = util.remove_ending_git_url(spec.url)
+  spec.url = remove_ending_git_url(spec.url)
 
   plugin_types[spec.type].setup(spec)
 

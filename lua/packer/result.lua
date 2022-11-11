@@ -4,6 +4,7 @@
 ---@field message string
 ---@field completed table<string, string>
 ---@field failed table<string, string>
+---@field output JobOutput
 
 ---@class JobResFail
 ---@field message string

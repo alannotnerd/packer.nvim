@@ -43,42 +43,12 @@ util.get_separator = function()
 end
 
 function util.strip_trailing_sep(path)
-  local res = string.gsub(path, util.get_separator() .. '$', '', 1)
+  local res = path:gsub( util.get_separator() .. '$', '', 1)
   return res
 end
 
 function util.join_paths(...)
   return table.concat({ ... }, util.get_separator())
-end
-
-function util.get_plugin_short_name(text)
-  local path = vim.fn.expand(text)
-  local name_segments = vim.split(path, util.get_separator())
-  local segment_idx = #name_segments
-  local name = name_segments[segment_idx]
-  while name == '' and segment_idx > 0 do
-    name = name_segments[segment_idx]
-    segment_idx = segment_idx - 1
-  end
-  return name, path
-end
-
-function util.get_plugin_full_name(plugin)
-  local plugin_name = plugin.name or plugin.short_name
-  if plugin.branch then
-    -- NOTE: maybe have to change the seperator here too
-    plugin_name = plugin_name .. '/' .. plugin.branch
-  end
-
-  if plugin.rev then
-    plugin_name = plugin_name .. '@' .. plugin.rev
-  end
-
-  return plugin_name
-end
-
-function util.remove_ending_git_url(url)
-  return vim.endswith(url, '.git') and url:sub(1, -5) or url
 end
 
 function util.deep_extend(policy, ...)

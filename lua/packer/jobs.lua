@@ -5,6 +5,8 @@ local a = require 'packer.async'
 local log = require 'packer.log'
 local result = require 'packer.result'
 
+local M = {}
+
 --- Utility function to make a "standard" logging callback for a given set of tables
 -- Arguments:
 -- - err_tbl: table to which err messages will be logged
@@ -17,7 +19,7 @@ local result = require 'packer.result'
 ---@param data_tbl string[]
 ---@param disp any
 ---@param name? string
-local function make_logging_callback(err_tbl, data_tbl, disp, name)
+function M.logging_callback(err_tbl, data_tbl, disp, name)
   return function(err, data)
     if err then
       table.insert(err_tbl, vim.trim(err))
@@ -47,7 +49,7 @@ end
 
 --- Utility function to make a table for capturing output with "standard" structure
 ---@return JobOutput
-local function make_output_table()
+function M.output_table()
   return {
     err  = { stdout = {}, stderr = {} },
     data = { stdout = {}, stderr = {} }
@@ -56,7 +58,7 @@ end
 
 --- Utility function to merge stdout and stderr from two tables with "standard" structure (either
 --  the err or data subtables, specifically)
-local function extend_output(to, from)
+function M.extend_output(to, from)
   vim.list_extend(to.stdout, from.stdout)
   vim.list_extend(to.stderr, from.stderr)
   return to
@@ -79,7 +81,8 @@ local function spawn(cmd, options, callback)
       timer:close()
     end
 
-    local check, uv_err = uv.new_check()
+    local check = uv.new_check()
+    assert(check)
     check:start(function()
       for _, pipe in pairs(options.stdio) do
         if not pipe:is_closing() then
@@ -95,8 +98,9 @@ local function spawn(cmd, options, callback)
     timer = uv.new_timer()
     timer:start(options.timeout, 0, function()
       timer:stop()
+      ---@diagnostic disable-next-line
       timer:close()
-      if handle:is_active() then
+      if handle and handle:is_active() then
         log.warn('Killing ' .. cmd .. ' due to timeout!')
         handle:kill('sigint')
         handle:close()
@@ -132,7 +136,7 @@ local function setup_pipe(kind, callbacks, capture_output, output)
   end
 
   if type(capture_output) == 'boolean' then
-    callbacks[kind] = make_logging_callback(output.err[kind], output.data[kind])
+    callbacks[kind] = M.logging_callback(output.err[kind], output.data[kind])
   elseif type(capture_output) == 'table' then
     callbacks[kind] = capture_output[kind]
   end
@@ -151,24 +155,24 @@ end
 --    "capture_output" (either a boolean, in which case default output capture is set up and the
 --    resulting tables are included in the result, or a set of tables, in which case output is logged
 --    to the given tables)
----@async
-local run_job = a.wrap(function(task, opts, callback)
+--- @type fun(table, table): Result
+M.run = a.wrap(function(task, opts, callback)
   ---@type JobResult
   local job_result = { exit_code = -1, signal = -1 }
   local success_test = opts.success_test or was_successful
-  local output = make_output_table()
+  local output = M.output_table()
   local callbacks = {}
 
   local stdout = setup_pipe('stdout', opts.capture_output, callbacks, output)
 
   if stdout == false then
-    return job_result
+    return callback(success_test(job_result))
   end
 
   local stderr = setup_pipe('stderr', opts.capture_output, callbacks, output)
 
   if stderr == false then
-    return job_result
+    return callback(success_test(job_result))
   end
 
   if type(task) == 'string' then
@@ -207,9 +211,4 @@ local run_job = a.wrap(function(task, opts, callback)
 
 end, 3)
 
-return {
-  run = run_job,
-  logging_callback = make_logging_callback,
-  output_table = make_output_table,
-  extend_output = extend_output,
-}
+return M

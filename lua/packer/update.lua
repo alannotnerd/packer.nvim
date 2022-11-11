@@ -66,12 +66,17 @@ local function fix_plugin_types(plugins, plugin_names, results, fs_state)
   log.debug 'Done fixing plugin types'
 end
 
+---@async
+---@param plugin PluginSpec
+---@param display_win Display
+---@param results Results
+---@param opts table
 local update_plugin = async(function(plugin, display_win, results, opts)
-  local plugin_name = util.get_plugin_full_name(plugin)
+  local plugin_name = plugin.full_name
   -- TODO: This will have to change when separate packages are implemented
   local install_path = util.join_paths(config.pack_dir, plugin.opt and 'opt' or 'start', plugin.short_name)
   plugin.install_path = install_path
-  if plugin.lock or plugin.disable then
+  if plugin.lock then
     return
   end
   display_win:task_start(plugin_name, 'updating...')

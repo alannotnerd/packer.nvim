@@ -91,9 +91,9 @@ local generate_snapshot = async(function(plugins)
 
     if rev.err then
       failed[plugin.short_name] =
-        fmt("Snapshotting %s failed because of error '%s'", plugin.short_name, vim.inspect(rev.err))
+        fmt("Snapshotting %s failed because of error '%s'", plugin.short_name, vim.inspect(rev.err.msg))
     else
-      completed[plugin.short_name] = { commit = rev.ok }
+      completed[plugin.short_name] = { commit = rev.ok.data }
     end
   end
 

@@ -11,7 +11,7 @@ local fmt = string.format
 ---@param display_win Display
 ---@param results Results
 local install_plugin = a.sync(function(plugin, display_win, results)
-  local plugin_name = util.get_plugin_full_name(plugin)
+  local plugin_name = plugin.full_name
   display_win:task_start(plugin_name, 'installing...')
   -- TODO: If the user provided a custom function as an installer, we would like to use pcall
   -- here. Need to figure out how that integrates with async code
