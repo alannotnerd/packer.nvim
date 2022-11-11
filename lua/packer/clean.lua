@@ -8,7 +8,7 @@ end
 ---@async
 ---@param plugins PluginSpec[]
 ---@param fs_state FSState
----@param results Results
+---@param results? Results
 local clean_plugins = a.sync(function(plugins, fs_state, results)
   local log = require 'packer.log'
 

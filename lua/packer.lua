@@ -9,7 +9,7 @@ local config = require('packer.config')
 
 local a = require 'packer.async'
 
-local packer = {}
+local M = {}
 
 ---@class Results
 ---@field removals {[string]: Result}
@@ -31,10 +31,10 @@ local function make_commands()
     { 'PackerSnapshot'         , '+', snapshot.snapshot, snapshot.completion.create   },
     { 'PackerSnapshotRollback' , '+', snapshot.rollback, snapshot.completion.rollback },
     { 'PackerSnapshotDelete'   , '+', snapshot.delete  , snapshot.completion.snapshot },
-    { 'PackerInstall'          , '*', packer.install   , packer.plugin_complete },
-    { 'PackerUpdate'           , '*', packer.update    , packer.plugin_complete },
-    { 'PackerClean'            , '*', packer.clean },
-    { 'PackerStatus'           , '*', packer.status },
+    { 'PackerInstall'          , '*', M.install   , M.plugin_complete },
+    { 'PackerUpdate'           , '*', M.update    , M.plugin_complete },
+    { 'PackerClean'            , '*', M.clean },
+    { 'PackerStatus'           , '*', M.status },
   } do
     api.nvim_create_user_command(cmd[1], function(args)
       cmd[3](unpack(args.fargs))
@@ -45,11 +45,10 @@ end
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
 ---@async
----@param results Results
-packer.clean = a.sync(function(results)
+M.clean = a.void(function()
   local fs_state = plugin_utils.get_fs_state(plugins)
-  require('packer.clean')(plugins, fs_state, results)
-end, 1)
+  require('packer.clean')(plugins, fs_state)
+end)
 
 local function reltime(start)
   if start == nil then
@@ -74,7 +73,7 @@ local function install_common(tasks, results, display_win, start_time)
   local limit = config.max_jobs and config.max_jobs or #tasks
 
   log.debug 'Running tasks'
-  display_win:update_headline_message(fmt('installing %d / %d plugins', #tasks, #tasks))
+  display_win:update_headline_message(fmt('updating %d / %d plugins', #tasks, #tasks))
   a.join(limit, check, unpack(tasks))
 
   local install_paths = {}
@@ -99,7 +98,7 @@ end
 --- Install operation:
 -- Installs missing plugins, then updates helptags and rplugins
 ---@async
-packer.install = a.sync(function()
+M.install = a.sync(function()
   log.debug 'packer.install: requiring modules'
 
   local fs_state = plugin_utils.get_fs_state(plugins)
@@ -155,7 +154,7 @@ end
 --- Options can be specified in the first argument as either a table
 --- or explicit `'--preview'`.
 --- @async
-packer.update = a.void(function(...)
+M.update = a.void(function(...)
   local opts, update_plugins = filter_opts_from_plugins(...)
   local start_time = reltime()
   local results = {}
@@ -188,7 +187,7 @@ packer.update = a.void(function(...)
 end)
 
 ---@async
-packer.status = a.sync(function()
+M.status = a.sync(function()
   if _G.packer_plugins == nil then
     log.warn 'packer_plugins table is nil! Cannot run packer.status()!'
     return
@@ -240,7 +239,7 @@ end
 
 -- Completion user plugins
 -- Intended to provide completion for PackerUpdate/Sync/Install command
-function packer.plugin_complete(lead, _, _)
+function M.plugin_complete(lead, _, _)
   local completion_list = vim.tbl_filter(function(name)
     return vim.startswith(name, lead)
   end, vim.tbl_keys(_G.packer_plugins))
@@ -251,7 +250,7 @@ end
 ---Snapshots installed plugins
 ---@async
 ---@param snapshot_name string absolute path or just a snapshot name
-packer.snapshot = a.void(function(snapshot_name, ...)
+M.snapshot = a.void(function(snapshot_name, ...)
   local args = { ... }
   snapshot_name = snapshot_name or require('os').date '%Y-%m-%d'
   local snapshot_path = fn.expand(snapshot_name)
@@ -313,7 +312,7 @@ end)
 ---@vararg string @ if provided, the only plugins to be rolled back,
 ---otherwise all the plugins will be rolled back
 ---@async
-packer.rollback = a.void(function(snapshot_name, ...)
+M.rollback = a.void(function(snapshot_name, ...)
   local args = { ... }
 
   local snapshot_path = vim.loop.fs_realpath(join_paths(config.snapshot_path, snapshot_name))
@@ -352,7 +351,7 @@ packer.rollback = a.void(function(snapshot_name, ...)
   end
 end)
 
-packer.config = config
+M.config = config
 
 local setup_plugins = {}
 
@@ -539,7 +538,7 @@ end
 -- spec can be a table with a table of plugin specifications as its first
 -- element, config overrides as another element.
 ---@param spec { [1]: PluginSpec, config: Config }
-function packer.startup(spec)
+function M.startup(spec)
   assert(type(spec) == 'table')
   assert(type(spec[1]) == 'table')
 
@@ -568,8 +567,8 @@ function packer.startup(spec)
   load_plugin_configs()
 
   if config.snapshot then
-    packer.rollback(config.snapshot)
+    M.rollback(config.snapshot)
   end
 end
 
-return packer
+return M
