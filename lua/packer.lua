@@ -26,22 +26,6 @@ local snapshot     = require 'packer.snapshot'
 local log          = require 'packer.log'
 local plugin_utils = require 'packer.plugin_utils'
 
-local function make_commands()
-  for _, cmd in ipairs {
-    { 'PackerSnapshot'         , '+', snapshot.snapshot, snapshot.completion.create   },
-    { 'PackerSnapshotRollback' , '+', snapshot.rollback, snapshot.completion.rollback },
-    { 'PackerSnapshotDelete'   , '+', snapshot.delete  , snapshot.completion.snapshot },
-    { 'PackerInstall'          , '*', M.install   , M.plugin_complete },
-    { 'PackerUpdate'           , '*', M.update    , M.plugin_complete },
-    { 'PackerClean'            , '*', M.clean },
-    { 'PackerStatus'           , '*', M.status },
-  } do
-    api.nvim_create_user_command(cmd[1], function(args)
-      cmd[3](unpack(args.fargs))
-    end, { nargs = cmd[2], complete = cmd[4] })
-  end
-end
-
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
 ---@async
@@ -531,6 +515,22 @@ local function load_plugin_configs()
 
   for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
     setup_plugins[cond](cond_plugins[cond])
+  end
+end
+
+local function make_commands()
+  for _, cmd in ipairs {
+    { 'PackerSnapshot'         , '+', snapshot.snapshot, snapshot.completion.create   },
+    { 'PackerSnapshotRollback' , '+', snapshot.rollback, snapshot.completion.rollback },
+    { 'PackerSnapshotDelete'   , '+', snapshot.delete  , snapshot.completion.snapshot },
+    { 'PackerInstall'          , '*', M.install   , M.plugin_complete },
+    { 'PackerUpdate'           , '*', M.update    , M.plugin_complete },
+    { 'PackerClean'            , '*', M.clean },
+    { 'PackerStatus'           , '*', M.status },
+  } do
+    api.nvim_create_user_command(cmd[1], function(args)
+      cmd[3](unpack(args.fargs))
+    end, { nargs = cmd[2], complete = cmd[4] })
   end
 end
 
