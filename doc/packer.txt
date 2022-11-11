@@ -340,11 +340,6 @@ startup()                                                      *packer.startup()
     `startup` is a convenience function for simple setup. See |packer-startup|
     for details.
 
-sync()                                                            *packer.sync()*
-    `sync` runs |packer.clean()| followed by |packer.update()|.
-
-    Supports options as the first argument, see |packer.update()|.
-
 update()                                                        *packer.update()*
     `update` installs any missing plugins, updates all installed plugins, runs
     post-update hooks, and updates rplugins (|remote-plugin|) and helptags.

@@ -63,7 +63,6 @@ local function make_commands()
     { 'PackerSnapshotDelete'   , '+', snapshot.delete  , snapshot.completion.snapshot },
     { 'PackerInstall'          , '*', packer.install   , packer.plugin_complete },
     { 'PackerUpdate'           , '*', packer.update    , packer.plugin_complete },
-    { 'PackerSync'             , '*', packer.sync      , packer.plugin_complete },
     { 'PackerClean'            , '*', packer.clean },
     { 'PackerStatus'           , '*', packer.status },
   } do
@@ -168,15 +167,14 @@ end
 -- Options can be specified in the first argument as either a table or explicit `'--preview'`.
 ---@async
 packer.update = a.void(function(...)
-  log.debug 'packer.update: requiring modules'
-
   local opts, update_plugins = filter_opts_from_plugins(...)
   local start_time = reltime()
   local results = {}
   local fs_state = plugin_utils.get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
 
-  require('packer.update').fix_plugin_types(plugins, missing_plugins, results, fs_state)
+  local update = require('packer.update')
+  update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
   require('packer.clean')(plugins, fs_state, results)
 
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
@@ -189,7 +187,7 @@ packer.update = a.void(function(...)
   a.main()
 
   local update_tasks
-  update_tasks, display_win = require('packer.update').update(plugins, installed_plugins, display_win, results, opts)
+  update_tasks, display_win = update.update(plugins, installed_plugins, display_win, results, opts)
   vim.list_extend(tasks, update_tasks)
 
   if #tasks == 0 then
@@ -199,78 +197,11 @@ packer.update = a.void(function(...)
   local function check()
     return not display.status.running
   end
+
   local limit = config.max_jobs and config.max_jobs or #tasks
 
   display_win:update_headline_message('updating ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
   log.debug 'Running tasks'
-  a.join(limit, check, unpack(tasks))
-  local install_paths = {}
-  for plugin_name, r in pairs(results.installs) do
-    if r.ok then
-      table.insert(install_paths, results.plugins[plugin_name].install_path)
-    end
-  end
-
-  for plugin_name, r in pairs(results.updates) do
-    if r.ok then
-      table.insert(install_paths, results.plugins[plugin_name].install_path)
-    end
-  end
-
-  a.main()
-  plugin_utils.update_helptags(install_paths)
-  local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
-  display_win:final_results(results, delta, opts)
-end)
-
---- Sync operation:
--- Takes an optional list of plugin names as an argument. If no list is given, operates on all
--- managed plugins.
--- Runs (in sequence):
---  - Update plugin types
---  - Clean stale plugins
---  - Install missing plugins and update installed plugins
---  - Update helptags and rplugins
----@async
-packer.sync = a.void(function(...)
-  log.debug 'packer.sync: requiring modules'
-
-  local opts, sync_plugins = filter_opts_from_plugins(...)
-  local start_time = reltime()
-  local results = {}
-  local fs_state = plugin_utils.get_fs_state(plugins)
-  local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), sync_plugins)
-
-  a.main()
-  local update = require('packer.update')
-
-  update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
-  missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
-  if config.auto_clean then
-    require('packer.clean')(plugins, fs_state, results)
-    _, installed_plugins = util.partition(vim.tbl_keys(results.removals), installed_plugins)
-  end
-
-  a.main()
-  log.debug 'Gathering install tasks'
-  local tasks, display_win = require('packer.install')(config.display, plugins, missing_plugins, results)
-  local update_tasks
-  log.debug 'Gathering update tasks'
-  a.main()
-  update_tasks, display_win = update.update(plugins, installed_plugins, display_win, results, opts)
-  vim.list_extend(tasks, update_tasks)
-  if #tasks == 0 then
-    return
-  end
-
-  local function check()
-    return not display.status.running
-  end
-
-  local limit = config.max_jobs and config.max_jobs or #tasks
-
-  log.debug 'Running tasks'
-  display_win:update_headline_message('syncing ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
   a.join(limit, check, unpack(tasks))
   local install_paths = {}
   for plugin_name, r in pairs(results.installs) do
@@ -312,7 +243,7 @@ local function loader_apply_config(plugin, name)
   end
 end
 
-local function packer_load(names)
+local function load_plugin(names)
   local some_unloaded = false
   for i, name in ipairs(names) do
     local plugin = _G.packer_plugins[name]
@@ -481,7 +412,7 @@ function setup_plugins.cmd(cmd_plugins)
       function(args)
         api.nvim_del_user_command(cmd)
 
-        packer_load(names)
+        load_plugin(names)
 
         local lines = args.line1 == args.line2 and '' or (args.line1 .. ',' .. args.line2)
         vim.cmd(fmt(
@@ -513,7 +444,7 @@ function setup_plugins.keys(key_plugins)
   for keymap, names in pairs(keymaps) do
     vim.keymap.set(keymap[1], keymap[2], function()
       vim.keymap.del(keymap[1], keymap[2])
-      packer_load(names)
+      load_plugin(names)
       api.nvim_feedkeys(keymap[2], keymap[1], false)
     end, {
         desc = 'Packer lazy load: '..table.concat(names, ', '),
@@ -563,7 +494,7 @@ function setup_plugins.ft(ft_plugins)
       pattern = ft,
       once = true,
       callback = function()
-        packer_load(names)
+        load_plugin(names)
         for _, group in ipairs{'filetypeplugin', 'filetypeindent', 'syntaxset'} do
           api.nvim_exec_autocmds('FileType', { group = group, pattern = ft, modeline = false })
         end
@@ -597,7 +528,7 @@ function setup_plugins.event(event_plugins)
     api.nvim_create_autocmd(event, {
       once = true,
       callback = function()
-        packer_load(names)
+        load_plugin(names)
         api.nvim_exec_autocmds(event, { modeline = false })
       end
     })
