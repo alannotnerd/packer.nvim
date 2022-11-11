@@ -70,6 +70,7 @@ local default_config = {
 
 local config = vim.tbl_extend('force', {}, default_config)
 
+---@return Config
 return function(user_config)
   config = util.deep_extend('force', config, user_config or {})
   config.package_root = vim.fn.fnamemodify(config.package_root, ':p')

@@ -51,6 +51,8 @@ local config
 ---@field opt          boolean
 ---@field remote_url   function
 ---@field installer    function
+---@field updater      fun(Display, table)
+---@field revert_to    function
 
 ---@class PluginData
 ---@field line integer
@@ -876,7 +878,7 @@ end
 -- Convenience function for simple setup
 -- spec can be a table with a table of plugin specifications as its first
 -- element, config overrides as another element.
----@param spec table
+---@param spec { [1]: PluginSpec, config: Config }
 function packer.startup(spec)
   assert(type(spec) == 'table')
   assert(type(spec[1]) == 'table')
@@ -887,7 +889,6 @@ function packer.startup(spec)
   plugins = {}
   plugin_specifications = {}
 
-  ---@type Config
   config = require('packer.config')(spec.config)
 
   init_modules()

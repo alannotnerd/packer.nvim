@@ -6,29 +6,30 @@ local plugin_complete = require('packer').plugin_complete
 local result = require 'packer.result'
 local async = a.sync
 local fmt = string.format
+local uv = vim.loop
 
 local config = {}
 
-local snapshot = {
+local M = {
   completion = {},
 }
 
-snapshot.cfg = function(_config)
+M.cfg = function(_config)
   config = _config
 end
 
 --- Completion for listing snapshots in `config.snapshot_path`
 --- Intended to provide completion for PackerSnapshotDelete command
-snapshot.completion.snapshot = function(lead, cmdline, pos)
+M.completion.snapshot = function(lead, _, _)
   local completion_list = {}
   if config.snapshot_path == nil then
     return completion_list
   end
 
-  local dir = vim.loop.fs_opendir(config.snapshot_path)
+  local dir = uv.fs_opendir(config.snapshot_path)
 
   if dir ~= nil then
-    local res = vim.loop.fs_readdir(dir)
+    local res = uv.fs_readdir(dir)
     while res ~= nil do
       for _, entry in ipairs(res) do
         if entry.type == 'file' and vim.startswith(entry.name, lead) then
@@ -36,17 +37,17 @@ snapshot.completion.snapshot = function(lead, cmdline, pos)
         end
       end
 
-      res = vim.loop.fs_readdir(dir)
+      res = uv.fs_readdir(dir)
     end
   end
 
-  vim.loop.fs_closedir(dir)
+  uv.fs_closedir(dir)
   return completion_list
 end
 
 --- Completion for listing single plugins before taking snapshot
 --- Intended to provide completion for PackerSnapshot command
-snapshot.completion.create = function(lead, cmdline, pos)
+M.completion.create = function(lead, cmdline, pos)
   local cmd_args = (vim.fn.split(cmdline, ' '))
 
   if #cmd_args > 1 then
@@ -59,13 +60,13 @@ end
 --- Completion for listing snapshots in `config.snapshot_path` and single plugins after
 --- the first argument is provided
 --- Intended to provide completion for PackerSnapshotRollback command
-snapshot.completion.rollback = function(lead, cmdline, pos)
+M.completion.rollback = function(lead, cmdline, pos)
   local cmd_args = vim.split(cmdline, ' ')
 
   if #cmd_args > 2 then
     return plugin_complete(lead)
   else
-    return snapshot.completion.snapshot(lead, cmdline, pos)
+    return M.completion.snapshot(lead, cmdline, pos)
   end
 end
 
@@ -109,7 +110,7 @@ end, 1)
 ---@param snapshot_path string realpath for snapshot file
 ---@param plugins PluginSpec[]
 ---@return Result
-snapshot.create = async(function(snapshot_path, plugins)
+M.create = async(function(snapshot_path, plugins)
   assert(type(snapshot_path) == 'string', fmt("filename needs to be a string but '%s' provided", type(snapshot_path)))
   assert(type(plugins) == 'table', fmt("plugins needs to be an array but '%s' provided", type(plugins)))
   local commits = generate_snapshot(plugins)
@@ -134,11 +135,11 @@ snapshot.create = async(function(snapshot_path, plugins)
   end
 end, 2)
 
-local fetch = async(function(plugin)
+local fetch = async(function(cwd)
   local git = require 'packer.plugin_types.git'
   return require('packer.jobs').run('git ' .. config.git.subcommands.fetch, {
     capture_output = true,
-    cwd = plugin.install_path,
+    cwd = cwd,
     env = git.job_env
   })
 end, 1)
@@ -148,7 +149,7 @@ end, 1)
 ---@param snapshot_path string @ realpath to the snapshot file
 ---@param plugins table<string, PluginSpec> @ of `plugin_utils.git_plugin_type` type of plugins
 ---@return Result
-snapshot.rollback = async(function(snapshot_path, plugins)
+M.rollback = async(function(snapshot_path, plugins)
   assert(type(snapshot_path) == 'string', 'snapshot_path: expected string but got ' .. type(snapshot_path))
   assert(type(plugins) == 'table', 'plugins: expected table but got ' .. type(snapshot_path))
   log.debug('Rolling back to ' .. snapshot_path)
@@ -156,8 +157,7 @@ snapshot.rollback = async(function(snapshot_path, plugins)
   ---@type string[]
   local content = vim.fn.readfile(snapshot_path)
 
-  ---@type string
-  local plugins_snapshot = vim.fn.json_decode(content)
+  local plugins_snapshot = vim.fn.json_decode(content) --[[@as {[string]: PluginSpec}?]]
   if not plugins_snapshot then -- not valid snapshot file
     return result.err(fmt("Couldn't load '%s' file", snapshot_path))
   end
@@ -166,50 +166,48 @@ snapshot.rollback = async(function(snapshot_path, plugins)
   local failed = {}
 
   for _, plugin in pairs(plugins) do
-    local function err_handler(err)
-      failed[plugin.short_name] = failed[plugin.short_name] or {}
-      failed[plugin.short_name][#failed[plugin.short_name] + 1] = err
-    end
-
     if plugins_snapshot[plugin.short_name] then
       local commit = plugins_snapshot[plugin.short_name].commit
-      if commit ~= nil then
-        fetch(plugin)
-          :map_err(err_handler)
-          :and_then(plugin.revert_to, commit)
-          :map_ok(function(ok)
-            completed[plugin.short_name] = ok
-          end)
-          :map_err(err_handler)
+      if commit then
+        local r = fetch(plugin.install_path)
+        if r.ok then
+          r = plugin.revert_to(commit)
+        end
+
+        if r.ok then
+          completed[plugin.short_name] = r.ok
+        else
+          failed[plugin.short_name] = failed[plugin.short_name] or {}
+          table.insert(failed[plugin.short_name], r.err)
+        end
       end
     end
   end
 
-  return result.ok { completed = completed, failed = failed }
+  return result.ok {
+    completed = completed,
+    failed    = failed
+  }
 end, 2)
 
 ---Deletes the snapshot provided
 ---@param snapshot_name string absolute path or just a snapshot name
-snapshot.delete = function(snapshot_name)
+function M.delete(snapshot_name)
   assert(type(snapshot_name) == 'string', fmt('Expected string, got %s', type(snapshot_name)))
-  ---@type string
-  local snapshot_path = vim.loop.fs_realpath(snapshot_name)
-    or vim.loop.fs_realpath(util.join_paths(config.snapshot_path, snapshot_name))
+  local snapshot_path = uv.fs_realpath(snapshot_name)
+    or uv.fs_realpath(util.join_paths(config.snapshot_path, snapshot_name))
 
   if snapshot_path == nil then
-    local warn = fmt("Snapshot '%s' is wrong or doesn't exist", snapshot_name)
-    log.warn(warn)
+    log.warn(fmt("Snapshot '%s' is wrong or doesn't exist", snapshot_name))
     return
   end
 
   log.debug('Deleting ' .. snapshot_path)
-  if vim.loop.fs_unlink(snapshot_path) then
-    local info = 'Deleted ' .. snapshot_path
-    log.info(info)
+  if uv.fs_unlink(snapshot_path) then
+    log.info('Deleted ' .. snapshot_path)
   else
-    local warn = "Couldn't delete " .. snapshot_path
-    log.warn(warn)
+    log.warn("Couldn't delete " .. snapshot_path)
   end
 end
 
-return snapshot
+return M
