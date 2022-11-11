@@ -31,6 +31,10 @@ local fmt = string.format
 ---@field updater      fun(Display, table)
 ---@field revert_to    function
 
+---@class PluginData
+---@field line integer
+---@field spec PluginSpec
+
 ---@return string, string
 local function guess_plugin_type(path)
   if vim.fn.isdirectory(path) ~= 0 then

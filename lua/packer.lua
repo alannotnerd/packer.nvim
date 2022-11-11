@@ -11,36 +11,6 @@ local a = require 'packer.async'
 
 local packer = {}
 
----@class PluginSpec
----@field name         string
----@field full_name    string Include rev and branch
----@field path         string
----@field short_name   string
----@field branch       string
----@field rev          string
----@field tag          string
----@field commit       string
----@field install_path string
----@field keys         string|string[]
----@field event        string|string[]
----@field ft           string|string[]
----@field cmd          string|string[]
----@field type         string
----@field url          string
----@field lock         boolean
----@field from_requires boolean
----@field after_files  string[]
----@field breaking_commits string[]
----@field opt          boolean
----@field remote_url   function
----@field installer    function
----@field updater      fun(Display, table)
----@field revert_to    function
-
----@class PluginData
----@field line integer
----@field spec PluginSpec
-
 ---@class Results
 ---@field removals {[string]: Result}
 ---@field installs {[string]: Result}
