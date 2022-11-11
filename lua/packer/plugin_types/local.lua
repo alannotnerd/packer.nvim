@@ -24,9 +24,6 @@ local unlink = a.wrap(uv.fs_unlink, 2)
 
 local M = {}
 
-function M.cfg(_)
-end
-
 ---@param plugin PluginSpec
 function M.setup(plugin)
   local from = uv.fs_realpath(util.strip_trailing_sep(plugin.path))

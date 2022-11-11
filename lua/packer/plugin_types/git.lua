@@ -82,15 +82,13 @@ local function mark_breaking_commits(plugin, commit_bodies)
   end
 end
 
-local config = nil
+local config = require('packer.config')
 
-function M.cfg(_config)
-  config = _config.git
-  config.base_dir = _config.package_root
-  config.default_base_dir = util.join_paths(config.base_dir, _config.plugin_package)
-  config.exec_cmd = config.cmd .. ' '
-  ensure_git_env()
+local function exec_cmd()
+  return config.git.cmd .. ' '
 end
+
+ensure_git_env()
 
 --- Resets a git repo `dest` to `commit`
 --- @async
@@ -98,7 +96,7 @@ end
 --- @param commit string @ commit hash
 --- @return Result
 local reset = async(function(dest, commit)
-  local reset_cmd = fmt(config.exec_cmd .. config.subcommands.revert_to, commit)
+  local reset_cmd = fmt(exec_cmd() .. config.git.subcommands.revert_to, commit)
   return jobs.run(reset_cmd, {
     capture_output = true,
     cwd = dest,
@@ -135,7 +133,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
 
   if plugin.tag and has_wildcard(plugin.tag) then
     update_disp(fmt('getting tag for wildcard %s...', plugin.tag))
-    local fetch_tags = config.exec_cmd .. fmt(config.subcommands.tags_expand_fmt, plugin.tag)
+    local fetch_tags = exec_cmd() .. fmt(config.git.subcommands.tags_expand_fmt, plugin.tag)
     r = jobs.run(fetch_tags, job_opts)
     local data = output.data.stdout[1]
     if data then
@@ -152,7 +150,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
   if r.ok and (plugin.branch or (plugin.tag and not opts.preview_updates)) then
     local branch_or_tag = plugin.branch and plugin.branch or plugin.tag
     update_disp(fmt('checking out %s %s...', plugin.branch and 'branch' or 'tag', branch_or_tag))
-    r = jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, branch_or_tag), job_opts)
+    r = jobs.run(exec_cmd() .. fmt(config.git.subcommands.checkout, branch_or_tag), job_opts)
     if r.err then
       r.err = {
         msg = fmt(
@@ -169,7 +167,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
 
   if r.ok and plugin.commit then
     update_disp(fmt('checking out %s...', plugin.commit))
-    r = jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), job_opts)
+    r = jobs.run(exec_cmd() .. fmt(config.git.subcommands.checkout, plugin.commit), job_opts)
     if r.err then
       r.err = {
         msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
@@ -209,21 +207,21 @@ function M.setup(plugin)
   local plugin_name = plugin.full_name
   local install_to = plugin.install_path
   local install_cmd =
-    vim.split(config.exec_cmd .. fmt(config.subcommands.install, plugin.commit and 999999 or config.depth), '%s+')
+    vim.split(exec_cmd() .. fmt(config.git.subcommands.install, plugin.commit and 999999 or config.git.depth), '%s+')
 
-  local rev_cmd         = config.exec_cmd .. config.subcommands.get_rev
-  local update_cmd      = config.exec_cmd .. config.subcommands.update
-  local update_head_cmd = config.exec_cmd .. config.subcommands.update_head
-  local fetch_cmd       = config.exec_cmd .. config.subcommands.fetch
-  local branch_cmd      = config.exec_cmd .. config.subcommands.current_branch
+  local rev_cmd         = exec_cmd() .. config.git.subcommands.get_rev
+  local update_cmd      = exec_cmd() .. config.git.subcommands.update
+  local update_head_cmd = exec_cmd() .. config.git.subcommands.update_head
+  local fetch_cmd       = exec_cmd() .. config.git.subcommands.fetch
+  local branch_cmd      = exec_cmd() .. config.git.subcommands.current_branch
 
   if plugin.commit or plugin.tag then
     update_cmd = fetch_cmd
   end
 
-  local current_commit_cmd = vim.split(config.exec_cmd .. config.subcommands.get_header, '%s+')
+  local current_commit_cmd = vim.split(exec_cmd() .. config.git.subcommands.get_header, '%s+')
   for i, arg in ipairs(current_commit_cmd) do
-    current_commit_cmd[i] = string.gsub(arg, 'FMT', config.subcommands.diff_fmt)
+    current_commit_cmd[i] = string.gsub(arg, 'FMT', config.git.subcommands.diff_fmt)
   end
 
   if plugin.branch or (plugin.tag and not has_wildcard(plugin.tag)) then
@@ -247,7 +245,7 @@ function M.setup(plugin)
         stdout = jobs.logging_callback(output.err.stdout, output.data.stdout),
         stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, disp, plugin_name),
       },
-      timeout = config.clone_timeout,
+      timeout = config.git.clone_timeout,
       env = M.job_env,
     }
 
@@ -266,7 +264,7 @@ function M.setup(plugin)
     if plugin.commit then
       disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
       if r.ok then
-        r = jobs.run(config.exec_cmd .. fmt(config.subcommands.checkout, plugin.commit), installer_opts)
+        r = jobs.run(exec_cmd() .. fmt(config.git.subcommands.checkout, plugin.commit), installer_opts)
         if r.err then
           r.err = {
             msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
@@ -298,7 +296,7 @@ function M.setup(plugin)
   ---@async
   ---@return Result
   plugin.remote_url = async(function()
-    local r = jobs.run(fmt('%s remote get-url origin', config.exec_cmd), {
+    local r = jobs.run(fmt('%s remote get-url origin', exec_cmd()), {
       capture_output = true,
       cwd = plugin.install_path,
       env = M.job_env
@@ -400,7 +398,7 @@ function M.setup(plugin)
 
     if needs_checkout then
       if r.ok then
-        r = jobs.run(config.exec_cmd .. config.subcommands.fetch, update_opts)
+        r = jobs.run(exec_cmd() .. config.git.subcommands.fetch, update_opts)
         if r.ok then
           r = handle_checkouts(plugin, install_to, disp, opts)
         end
@@ -482,10 +480,10 @@ function M.setup(plugin)
         local commit_headers_onread = jobs.logging_callback(update_info.err, update_info.messages)
         local commit_headers_callbacks = { stdout = commit_headers_onread, stderr = commit_headers_onread }
 
-        local diff_cmd = config.subcommands.diff:format(update_info.revs[1], update_info.revs[2])
-        local commit_headers_cmd = vim.split(config.exec_cmd .. diff_cmd, '%s+')
+        local diff_cmd = config.git.subcommands.diff:format(update_info.revs[1], update_info.revs[2])
+        local commit_headers_cmd = vim.split(exec_cmd() .. diff_cmd, '%s+')
         for i, arg in ipairs(commit_headers_cmd) do
-          commit_headers_cmd[i] = string.gsub(arg, 'FMT', config.subcommands.diff_fmt)
+          commit_headers_cmd[i] = string.gsub(arg, 'FMT', config.git.subcommands.diff_fmt)
         end
 
         if r.ok then
@@ -504,13 +502,13 @@ function M.setup(plugin)
           plugin.revs = update_info.revs
         end
 
-        if config.mark_breaking_changes then
+        if config.git.mark_breaking_changes then
           local commit_bodies = { err = {}, output = {} }
           local commit_bodies_onread = jobs.logging_callback(commit_bodies.err, commit_bodies.output)
           local commit_bodies_callbacks = { stdout = commit_bodies_onread, stderr = commit_bodies_onread }
-          local commit_bodies_cmd = config.exec_cmd .. config.subcommands.get_bodies
+          local commit_bodies_cmd = exec_cmd() .. config.git.subcommands.get_bodies
           if opts.preview_updates then
-            commit_bodies_cmd = config.exec_cmd .. config.subcommands.get_fetch_bodies
+            commit_bodies_cmd = exec_cmd() .. config.git.subcommands.get_fetch_bodies
           end
           if r.ok then
             disp:task_update(plugin_name, 'checking for breaking changes...')
@@ -541,7 +539,7 @@ function M.setup(plugin)
   ---@async
   ---@return Result
   plugin.diff = async(function(commit, callback)
-    local diff_cmd = config.exec_cmd .. fmt(config.subcommands.git_diff_fmt, commit)
+    local diff_cmd = exec_cmd() .. fmt(config.git.subcommands.git_diff_fmt, commit)
     local diff_info = { err = {}, output = {}, messages = {} }
     local diff_onread = jobs.logging_callback(diff_info.err, diff_info.messages)
     local r = jobs.run(diff_cmd, {
@@ -565,7 +563,7 @@ function M.setup(plugin)
   ---@async
   ---@return Result
   plugin.revert_last = async(function()
-    local revert_cmd = config.exec_cmd .. config.subcommands.revert
+    local revert_cmd = exec_cmd() .. config.git.subcommands.revert
     local r = jobs.run(revert_cmd, {
       capture_output = true,
       cwd = install_to,

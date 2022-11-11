@@ -47,19 +47,18 @@ local log = {}
 
 local level_ids = { trace = 1, debug = 2, info = 3, warn = 4, error = 5, fatal = 6 }
 
-function log.cfg(_config)
-  local min_active_level = level_ids[_config.log.level]
+
+function log.new(standalone)
+  local min_active_level = level_ids[require'packer.config'.log.level]
   local config = { active_levels = {} }
   if min_active_level then
     for i = min_active_level, 6 do
       config.active_levels[i] = true
     end
   end
-  log.new(config, true)
-end
 
-function log.new(config, standalone)
   config = vim.tbl_deep_extend('force', default_config, config)
+
   local outfile = string.format('%s/packer.nvim.log', vim.fn.stdpath 'cache')
   vim.fn.mkdir(vim.fn.stdpath 'cache', 'p')
   local obj
@@ -157,6 +156,6 @@ function log.new(config, standalone)
   end
 end
 
-log.new(default_config, true)
+log.new(true)
 
 return log

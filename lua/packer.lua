@@ -5,28 +5,11 @@ local fmt = string.format
 local util = require 'packer.util'
 local join_paths = util.join_paths
 
+local config = require('packer.config')
+
 local a = require 'packer.async'
 
--- Config
 local packer = {}
-
----@class DisplayConfig
----@field open_fn string
----@field open_cmd string
----@field preview_updates boolean
-
----@class Config
----@field max_jobs        integer
----@field start_dir       string
----@field opt_dir         string
----@field snapshot_path   string
----@field preview_updates boolean
----@field auto_clean      boolean
----@field autoremove      boolean
----@field display         DisplayConfig
----@field snapshot        string
----@field git             table
-local config
 
 ---@class PluginSpec
 ---@field name         string
@@ -71,38 +54,11 @@ local plugins = nil
 ---@type PluginData[]
 local plugin_specifications = nil
 
----@type Display
-local display
-
----@module 'packer.log'
-local log
-
----@module 'packer.plugin_types'
-local plugin_types
-
----@module 'packer.plugin_utils'
-local plugin_utils
-
----@module 'packer.update'
-local update
-
----@module 'packer.snapshot'
-local snapshot
-
-local function init_modules()
-  local function require_and_configure(module_name)
-    local module = require('packer.' .. module_name)
-    module.cfg(config)
-    return module
-  end
-  display      = require_and_configure 'display'
-  log          = require_and_configure 'log'
-  plugin_types = require_and_configure 'plugin_types'
-  plugin_utils = require_and_configure 'plugin_utils'
-  snapshot     = require_and_configure 'snapshot'
-  update       = require_and_configure 'update'
-  init_modules = function() end
-end
+local display      = require 'packer.display'
+local plugin_types = require 'packer.plugin_types'
+local snapshot     = require 'packer.snapshot'
+local log          = require 'packer.log'
+local plugin_utils = require 'packer.plugin_utils'
 
 local function make_commands()
   for _, cmd in ipairs {
@@ -406,8 +362,8 @@ packer.update = a.void(function(...)
   local results = {}
   local fs_state = plugin_utils.get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
-  update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
 
+  require('packer.update').fix_plugin_types(plugins, missing_plugins, results, fs_state)
   require('packer.clean')(plugins, fs_state, results, config.autoremove)
 
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
@@ -420,7 +376,7 @@ packer.update = a.void(function(...)
   a.main()
 
   local update_tasks
-  update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
+  update_tasks, display_win = require('packer.update')(plugins, installed_plugins, display_win, results, opts)
   vim.list_extend(tasks, update_tasks)
 
   if #tasks == 0 then
@@ -475,7 +431,7 @@ packer.sync = a.void(function(...)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), sync_plugins)
 
   a.main()
-  update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
+  require('packer.update').fix_plugin_types(plugins, missing_plugins, results, fs_state)
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
   if config.auto_clean then
     require('packer.clean')(plugins, fs_state, results, config.autoremove)
@@ -488,7 +444,7 @@ packer.sync = a.void(function(...)
   local update_tasks
   log.debug 'Gathering update tasks'
   a.main()
-  update_tasks, display_win = update(plugins, installed_plugins, display_win, results, opts)
+  update_tasks, display_win = require('packer.update')(plugins, installed_plugins, display_win, results, opts)
   vim.list_extend(tasks, update_tasks)
   if #tasks == 0 then
     return
@@ -889,9 +845,7 @@ function packer.startup(spec)
   plugins = {}
   plugin_specifications = {}
 
-  config = require('packer.config')(spec.config)
-
-  init_modules()
+  config(spec.config)
 
   for _, dir in ipairs{config.opt_dir, config.start_dir} do
     if fn.isdirectory(dir) == 0 then

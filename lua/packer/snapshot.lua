@@ -2,21 +2,16 @@ local a = require 'packer.async'
 local util = require 'packer.util'
 local log = require 'packer.log'
 local plugin_utils = require 'packer.plugin_utils'
-local plugin_complete = require('packer').plugin_complete
 local result = require 'packer.result'
 local async = a.sync
 local fmt = string.format
 local uv = vim.loop
 
-local config = {}
+local config = require'packer.config'
 
 local M = {
   completion = {},
 }
-
-M.cfg = function(_config)
-  config = _config
-end
 
 --- Completion for listing snapshots in `config.snapshot_path`
 --- Intended to provide completion for PackerSnapshotDelete command
@@ -42,6 +37,16 @@ M.completion.snapshot = function(lead, _, _)
   end
 
   uv.fs_closedir(dir)
+  return completion_list
+end
+
+-- Completion user plugins
+-- Intended to provide completion for PackerUpdate/Sync/Install command
+local function plugin_complete(lead, _, _)
+  local completion_list = vim.tbl_filter(function(name)
+    return vim.startswith(name, lead)
+  end, vim.tbl_keys(_G.packer_plugins))
+  table.sort(completion_list)
   return completion_list
 end
 
@@ -81,7 +86,7 @@ local generate_snapshot = async(function(plugins)
   local installed = vim.tbl_extend('error', start, opt)
 
   plugins = vim.tbl_filter(function(plugin)
-    if installed[plugin.install_path] and plugin.type == plugin_utils.git_plugin_type then -- this plugin is installed
+    if installed[plugin.install_path] and plugin.type == 'git' then
       return true
     end
     return false
@@ -104,7 +109,7 @@ end, 1)
 ---Serializes a table of git-plugins with `short_name` as table key and another
 ---table with `commit`; the serialized tables will be written in the path `snapshot_path`
 ---provided, if there is already a snapshot it will be overwritten
----Snapshotting work only with `plugin_utils.git_plugin_type` type of plugins,
+---Snapshotting work only with git plugins,
 ---other will be ignored.
 ---@async
 ---@param snapshot_path string realpath for snapshot file
@@ -147,7 +152,7 @@ end, 1)
 ---Rollbacks `plugins` to the hash specified in `snapshot_path` if exists.
 ---It automatically runs `git fetch --depth 999999 --progress` to retrieve the history
 ---@param snapshot_path string @ realpath to the snapshot file
----@param plugins table<string, PluginSpec> @ of `plugin_utils.git_plugin_type` type of plugins
+---@param plugins table<string, PluginSpec> @ of git plugins
 ---@return Result
 M.rollback = async(function(snapshot_path, plugins)
   assert(type(snapshot_path) == 'string', 'snapshot_path: expected string but got ' .. type(snapshot_path))

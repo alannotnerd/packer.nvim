@@ -70,8 +70,9 @@ local default_config = {
 
 local config = vim.tbl_extend('force', {}, default_config)
 
+---@param user_config Config
 ---@return Config
-return function(user_config)
+local function set(_, user_config)
   config = util.deep_extend('force', config, user_config or {})
   config.package_root = vim.fn.fnamemodify(config.package_root, ':p')
   config.package_root = config.package_root:gsub(util.get_separator() .. '$', '', 1)
@@ -85,3 +86,75 @@ return function(user_config)
 
   return config
 end
+
+---@class DisplayConfig
+---@field open_fn string
+---@field open_cmd string
+---@field preview_updates boolean
+---@field non_interactive boolean
+---@field prompt_border string
+---@field compact boolean
+---@field working_sym string
+---@field error_sym   string
+---@field done_sym    string
+---@field removed_sym string
+---@field moved_sym   string
+---@field item_sym    string
+---@field header_sym  string
+---@field header_lines integer
+---@field title       string
+---@field show_all_info boolean
+---@field keybindings {[string]: string}
+
+---@class GitSubCommandsConfig
+---@field update           string
+---@field update_head      string
+---@field install          string
+---@field fetch            string
+---@field checkout         string
+---@field update_branch    string
+---@field current_branch   string
+---@field diff             string
+---@field diff_fmt         string
+---@field git_diff_fmt     string
+---@field get_rev          string
+---@field get_header       string
+---@field get_bodies       string
+---@field get_fetch_bodies string
+---@field revert           string
+---@field revert_to        string
+---@field tags_expand_fmt  string
+
+---@class GitConfig
+---@field mark_breaking_changes boolean
+---@field cmd                   string
+---@field depth                 integer
+---@field clone_timeout         integer
+---@field default_url_format    string
+---@field subcommands GitSubCommandsConfig
+
+---@class Config
+---@field package_root    string
+---@field pack_dir        string
+---@field max_jobs        integer
+---@field start_dir       string
+---@field opt_dir         string
+---@field snapshot_path   string
+---@field preview_updates boolean
+---@field auto_clean      boolean
+---@field autoremove      boolean
+---@field display         DisplayConfig
+---@field snapshot        string
+---@field git             GitConfig
+---@field log             { level: string }
+---@operator call:Config
+local M = {}
+
+setmetatable(M, {
+  __index = function(_, k)
+    return config[k]
+  end,
+  __call = set
+})
+
+return M

@@ -6,18 +6,9 @@ local jobs = require 'packer.jobs'
 local util = require 'packer.util'
 local result = require 'packer.result'
 local log = require 'packer.log'
+local config = require 'packer.config'
 
-local config = nil
-
-local plugin_utils = {
-  unknown_plugin_type = 'unknown',
-  local_plugin_type   = 'local',
-  git_plugin_type     = 'git'
-}
-
-function plugin_utils.cfg(_config)
-  config = _config
-end
+local M = {}
 
 local function guess_dir_type(dir)
   local globdir = fn.glob(dir)
@@ -28,11 +19,11 @@ local function guess_dir_type(dir)
              2. custom plugins don't use symlinks to install;
              otherwise, there's no consistent way to tell from a dir alone… ]]
   if dir_type == 'link' then
-    return plugin_utils.local_plugin_type
+    return 'local'
   elseif uv.fs_stat(globdir .. '/.git') then
-    return plugin_utils.git_plugin_type
+    return 'git'
   elseif dir_type ~= 'noexist' then
-    return plugin_utils.custom_plugin_type
+    return 'unknown'
   end
 end
 
@@ -57,7 +48,7 @@ local function helptags_stale(dir)
   return txt_newest > tag_oldest
 end
 
-plugin_utils.update_helptags = vim.schedule_wrap(function(...)
+M.update_helptags = vim.schedule_wrap(function(...)
   for _, dir in ipairs(...) do
     local doc_dir = util.join_paths(dir, 'doc')
     if helptags_stale(doc_dir) then
@@ -67,7 +58,7 @@ plugin_utils.update_helptags = vim.schedule_wrap(function(...)
   end
 end)
 
-function plugin_utils.ensure_dirs()
+function M.ensure_dirs()
   if fn.isdirectory(config.opt_dir) == 0 then
     fn.mkdir(config.opt_dir, 'p')
   end
@@ -77,7 +68,7 @@ function plugin_utils.ensure_dirs()
   end
 end
 
-function plugin_utils.list_installed_plugins()
+function M.list_installed_plugins()
   local opt_plugins = {}
   local start_plugins = {}
   local opt_dir_handle = uv.fs_opendir(config.opt_dir, nil, 50)
@@ -124,7 +115,7 @@ local find_missing_plugins = a.sync(function(plugins, opt_plugins, start_plugins
     local guessed_type = guess_dir_type(plugin_path)
     if not plugin_installed or plugin.type ~= guessed_type then
       missing_plugins[plugin_name] = true
-    elseif guessed_type == plugin_utils.git_plugin_type then
+    elseif guessed_type == 'git' then
       local r = plugin.remote_url()
       local remote = r.ok and r.ok.remote or nil
       if remote then
@@ -155,9 +146,9 @@ end, 3)
 ---@async
 ---@param plugins PluginSpec[]
 ---@return FSState
-plugin_utils.get_fs_state = a.sync(function(plugins)
+M.get_fs_state = a.sync(function(plugins)
   log.debug 'Updating FS state'
-  local opt_plugins, start_plugins = plugin_utils.list_installed_plugins()
+  local opt_plugins, start_plugins = M.list_installed_plugins()
   return {
     opt = opt_plugins,
     start = start_plugins,
@@ -195,7 +186,7 @@ end
 ---@param plugin PluginSpec
 ---@param disp Display
 ---@return Result
-plugin_utils.post_update_hook = a.sync(function(plugin, disp)
+M.post_update_hook = a.sync(function(plugin, disp)
   local plugin_name = plugin.full_name
   if plugin.run or not plugin.opt then
     a.main()
@@ -249,4 +240,4 @@ plugin_utils.post_update_hook = a.sync(function(plugin, disp)
   return result.ok()
 end, 2)
 
-return plugin_utils
+return M
