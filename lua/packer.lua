@@ -232,17 +232,6 @@ local function process_plugin_spec(plugin_data)
   end
 end
 
---- Add a plugin to the managed set
----@param plugin_spec PluginSpec
-local function use(plugin_spec)
-  plugin_specifications[#plugin_specifications + 1] = {
-    spec = plugin_spec,
-    line = debug.getinfo(2, 'l').currentline,
-  }
-end
-
-packer.__use = use
-
 local function process_plugin_specs()
   log.debug 'Processing plugin specs'
   if plugins == nil or next(plugins) == nil then
@@ -252,9 +241,6 @@ local function process_plugin_specs()
   end
 end
 
--- Use by tests
-packer.__manage_all = process_plugin_specs
-
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
 ---@async
@@ -262,7 +248,7 @@ packer.__manage_all = process_plugin_specs
 packer.clean = a.sync(function(results)
   process_plugin_specs()
   local fs_state = plugin_utils.get_fs_state(plugins)
-  require('packer.clean')(plugins, fs_state, results, config.autoremove)
+  require('packer.clean')(plugins, fs_state, results)
 end, 1)
 
 local function reltime(start)
@@ -294,7 +280,7 @@ packer.install = a.sync(function()
   ---@type Results
   local results = {}
 
-  require('packer.clean')(plugins, fs_state, results, config.autoremove)
+  require('packer.clean')(plugins, fs_state, results)
   a.main()
   log.debug 'Gathering install tasks'
   local tasks, display_win = require('packer.install')(config.display, plugins, install_plugins, results)
@@ -315,7 +301,6 @@ packer.install = a.sync(function()
 
     a.main()
     plugin_utils.update_helptags(install_paths)
-    plugin_utils.update_rplugins()
     local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
     display_win:final_results(results, delta)
   else
@@ -364,7 +349,7 @@ packer.update = a.void(function(...)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
 
   require('packer.update').fix_plugin_types(plugins, missing_plugins, results, fs_state)
-  require('packer.clean')(plugins, fs_state, results, config.autoremove)
+  require('packer.clean')(plugins, fs_state, results)
 
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
 
@@ -436,7 +421,7 @@ packer.sync = a.void(function(...)
   update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
   if config.auto_clean then
-    require('packer.clean')(plugins, fs_state, results, config.autoremove)
+    require('packer.clean')(plugins, fs_state, results)
     _, installed_plugins = util.partition(vim.tbl_keys(results.removals), installed_plugins)
   end
 
@@ -841,9 +826,6 @@ function packer.startup(spec)
   assert(type(spec) == 'table')
   assert(type(spec[1]) == 'table')
 
-  ---@type PluginSpec
-  local user_plugins = spec[1]
-
   plugins = {}
   plugin_specifications = {}
 
@@ -861,7 +843,11 @@ function packer.startup(spec)
     log.warn("Couldn't create " .. config.snapshot_path)
   end
 
-  use(user_plugins)
+  plugin_specifications[#plugin_specifications + 1] = {
+    spec = spec[1],
+    line = debug.getinfo(2, 'l').currentline,
+  }
+
   process_plugin_specs()
   load_plugin_configs()
 

@@ -86,7 +86,7 @@ local M = {}
 
 ---@param plugins { [string]: PluginSpec }
 ---@param update_plugins string[]
----@param display_win Display
+---@param display_win? Display
 ---@param results Results
 ---@param opts { pull_head: boolean, preview_updates: boolean}
 function M.update(plugins, update_plugins, display_win, results, opts)
@@ -100,7 +100,7 @@ function M.update(plugins, update_plugins, display_win, results, opts)
       log.error(fmt('Unknown plugin: %s', v))
     end
     if plugin and not plugin.lock then
-      if display_win == nil then
+      if not display_win then
         display_win = display.open(config.display.open_fn or config.display.open_cmd)
       end
 

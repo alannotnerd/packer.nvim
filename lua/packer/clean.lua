@@ -1,6 +1,4 @@
 local a = require 'packer.async'
-local display = require 'packer.display'
-local log = require 'packer.log'
 
 local function is_dirty(plugin, isopt)
   return (plugin.opt and isopt == false) or (not plugin.opt and isopt == true)
@@ -11,8 +9,9 @@ end
 ---@param plugins PluginSpec[]
 ---@param fs_state FSState
 ---@param results Results
----@param autoremove boolean
-local clean_plugins = a.sync(function(plugins, fs_state, results, autoremove)
+local clean_plugins = a.sync(function(plugins, fs_state, results)
+  local log = require 'packer.log'
+
   log.debug 'Starting clean'
   local dirty_plugins = {}
   results = results or {}
@@ -24,7 +23,7 @@ local clean_plugins = a.sync(function(plugins, fs_state, results, autoremove)
   -- test for dirty / 'missing' plugins
   for _, plugin_config in pairs(plugins) do
     local path = plugin_config.install_path
-    local plugin_isopt = nil
+    local plugin_isopt
     if opt_plugins[path] then
       plugin_isopt = true
       opt_plugins[path] = nil
@@ -46,22 +45,23 @@ local clean_plugins = a.sync(function(plugins, fs_state, results, autoremove)
   end
 
   -- Any path which was not set to `nil` above will be set to dirty here
-  local function mark_remaining_as_dirty(plugin_list)
-    for path, _ in pairs(plugin_list) do
-      dirty_plugins[#dirty_plugins + 1] = path
-    end
-  end
+  vim.list_extend(dirty_plugins, vim.tbl_keys(opt_plugins))
+  vim.list_extend(dirty_plugins, vim.tbl_keys(start_plugins))
 
-  mark_remaining_as_dirty(opt_plugins)
-  mark_remaining_as_dirty(start_plugins)
+  if #dirty_plugins == 0 then
+    log.info 'Already clean!'
+  else
+    a.main()
 
-  if next(dirty_plugins) then
     local lines = {}
     for _, path in ipairs(dirty_plugins) do
       table.insert(lines, '  - ' .. path)
     end
-    a.main()
-    if autoremove or display.ask_user('Removing the following directories. OK? (y/N)', lines)() then
+
+    local config = require 'packer.config'
+    local display = require 'packer.display'
+
+    if config.autoremove or display.ask_user('Removing the following directories. OK? (y/N)', lines) then
       results.removals = dirty_plugins
       log.debug('Removed ' .. vim.inspect(dirty_plugins))
       for _, path in ipairs(dirty_plugins) do
@@ -73,8 +73,6 @@ local clean_plugins = a.sync(function(plugins, fs_state, results, autoremove)
     else
       log.warn 'Cleaning cancelled!'
     end
-  else
-    log.info 'Already clean!'
   end
 end, 4)
 
