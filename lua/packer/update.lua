@@ -31,10 +31,10 @@ local function fix_plugin_type(plugin, results, fs_state)
   -- right directories, this could be lighter-weight
   local success, msg = os.rename(from, to)
   if not success then
-    log.error('Failed to move ' .. from .. ' to ' .. to .. ': ' .. msg)
+    log.error(fmt('Failed to move %s to %s: %s', from, to, msg))
     results.moves[plugin.short_name] = { from = from, to = to, result = result.err(success) }
   else
-    log.debug('Moved ' .. plugin.short_name .. ' from ' .. from .. ' to ' .. to)
+    log.debug(fmt('Moved %s from %s to %s', plugin.short_name, from, to))
     results.moves[plugin.short_name] = { from = from, to = to, result = result.ok(success) }
   end
 end
@@ -84,8 +84,12 @@ end, 4)
 
 local M = {}
 
-  ---@param opts { pull_head: boolean, preview_updates: boolean}
-function M.update(_, plugins, update_plugins, display_win, results, opts)
+---@param plugins { [string]: PluginSpec }
+---@param update_plugins string[]
+---@param display_win Display
+---@param results Results
+---@param opts { pull_head: boolean, preview_updates: boolean}
+function M.update(plugins, update_plugins, display_win, results, opts)
   results = results or {}
   results.updates = results.updates or {}
   results.plugins = results.plugins or {}
@@ -95,7 +99,7 @@ function M.update(_, plugins, update_plugins, display_win, results, opts)
     if plugin == nil then
       log.error(fmt('Unknown plugin: %s', v))
     end
-    if plugin and not plugin.frozen then
+    if plugin and not plugin.lock then
       if display_win == nil then
         display_win = display.open(config.display.open_fn or config.display.open_cmd)
       end
@@ -109,14 +113,6 @@ function M.update(_, plugins, update_plugins, display_win, results, opts)
   end
 
   return tasks, display_win
-end
-
-function M.get_plugin_status(plugins, plugin_name, start_plugins, opt_plugins)
-  local status = {}
-  local plugin = plugins[plugin_name]
-  status.wrong_type = (plugin.opt and vim.tbl_contains(start_plugins, util.join_paths(config.start_dir, plugin_name)))
-    or vim.tbl_contains(opt_plugins, util.join_paths(config.opt_dir, plugin_name))
-  return status
 end
 
 function M.fix_plugin_types(plugins, plugin_names, results, fs_state)

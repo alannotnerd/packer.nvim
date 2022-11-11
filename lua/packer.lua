@@ -376,7 +376,7 @@ packer.update = a.void(function(...)
   a.main()
 
   local update_tasks
-  update_tasks, display_win = require('packer.update')(plugins, installed_plugins, display_win, results, opts)
+  update_tasks, display_win = require('packer.update').update(plugins, installed_plugins, display_win, results, opts)
   vim.list_extend(tasks, update_tasks)
 
   if #tasks == 0 then
@@ -431,7 +431,9 @@ packer.sync = a.void(function(...)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), sync_plugins)
 
   a.main()
-  require('packer.update').fix_plugin_types(plugins, missing_plugins, results, fs_state)
+  local update = require('packer.update')
+
+  update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
   if config.auto_clean then
     require('packer.clean')(plugins, fs_state, results, config.autoremove)
@@ -444,7 +446,7 @@ packer.sync = a.void(function(...)
   local update_tasks
   log.debug 'Gathering update tasks'
   a.main()
-  update_tasks, display_win = require('packer.update')(plugins, installed_plugins, display_win, results, opts)
+  update_tasks, display_win = update.update(plugins, installed_plugins, display_win, results, opts)
   vim.list_extend(tasks, update_tasks)
   if #tasks == 0 then
     return
