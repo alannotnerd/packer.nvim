@@ -13,6 +13,7 @@ local packer = {}
 ---@class DisplayConfig
 ---@field open_fn string
 ---@field open_cmd string
+---@field preview_updates boolean
 
 ---@class Config
 ---@field max_jobs        integer
@@ -29,8 +30,13 @@ local config
 
 ---@class PluginSpec
 ---@field name         string
+---@field full_name    string Include rev and branch
 ---@field path         string
 ---@field short_name   string
+---@field branch       string
+---@field rev          string
+---@field tag          string
+---@field commit       string
 ---@field install_path string
 ---@field keys         string|string[]
 ---@field event        string|string[]
@@ -62,10 +68,8 @@ local plugins = nil
 ---@type PluginData[]
 local plugin_specifications = nil
 
+---@type Display
 local display
-
----@module 'packer.install'
-local install
 
 ---@module 'packer.log'
 local log
@@ -89,7 +93,6 @@ local function init_modules()
     return module
   end
   display      = require_and_configure 'display'
-  install      = require_and_configure 'install'
   log          = require_and_configure 'log'
   plugin_types = require_and_configure 'plugin_types'
   plugin_utils = require_and_configure 'plugin_utils'
@@ -172,8 +175,8 @@ local function process_plugin_spec(plugin_data)
 
   -- Handle aliases
   spec.short_name = short_name
-  spec.name = path
   spec.path = path
+  spec.full_name = util.get_plugin_full_name(spec)
 
   -- Some config keys modify a plugin type
   if spec.opt then
@@ -301,8 +304,8 @@ packer.install = a.sync(function()
   require('packer.clean')(plugins, fs_state, results, config.autoremove)
   a.main()
   log.debug 'Gathering install tasks'
-  local tasks, display_win = install(plugins, install_plugins, results)
-  if next(tasks) then
+  local tasks, display_win = require('packer.install')(config.display, plugins, install_plugins, results)
+  if #tasks > 0 and display_win then
     local function check()
       return not display.status.running
     end
@@ -323,6 +326,7 @@ packer.install = a.sync(function()
     local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
     display_win:final_results(results, delta)
   else
+    print('Nothing to install')
     log.info 'Nothing to install!'
   end
 end)
@@ -373,7 +377,7 @@ packer.update = a.void(function(...)
 
   log.debug 'Gathering install tasks'
   a.main()
-  local tasks, display_win = install(plugins, missing_plugins, results)
+  local tasks, display_win = require('packer.install')(config.display, plugins, missing_plugins, results)
 
   log.debug 'Gathering update tasks'
   a.main()
@@ -443,7 +447,7 @@ packer.sync = a.void(function(...)
 
   a.main()
   log.debug 'Gathering install tasks'
-  local tasks, display_win = install(plugins, missing_plugins, results)
+  local tasks, display_win = require('packer.install')(config.display, plugins, missing_plugins, results)
   local update_tasks
   log.debug 'Gathering update tasks'
   a.main()

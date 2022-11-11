@@ -104,6 +104,7 @@ local update_plugin = async(function(plugin, display_win, results, opts)
   results.plugins[plugin_name] = plugin
 end, 4)
 
+  ---@param opts { pull_head: boolean, preview_updates: boolean}
 local function do_update(_, plugins, update_plugins, display_win, results, opts)
   results = results or {}
   results.updates = results.updates or {}

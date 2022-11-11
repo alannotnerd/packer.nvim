@@ -165,18 +165,18 @@ plugin_utils.get_fs_state = a.sync(function(plugins)
   }
 end, 1)
 
-function plugin_utils.load_plugin(plugin)
+local function load_plugin(plugin)
   if plugin.opt then
     vim.cmd.packadd(plugin.short_name)
     return
   end
 
   vim.o.runtimepath = vim.o.runtimepath .. ',' .. plugin.install_path
-  for _, pat in ipairs {
-    table.concat({ 'plugin', '**/*.vim' }, util.get_separator()),
-    table.concat({ 'after', 'plugin', '**/*.vim' }, util.get_separator()),
+
+  for _, path in ipairs {
+    util.join_paths(plugin.install_path, 'plugin', '**', '*.vim'),
+    util.join_paths(plugin.install_path, 'after', 'plugin', '**', '*.vim'),
   } do
-    local path = util.join_paths(plugin.install_path, pat)
     local ok, files = pcall(fn.glob, path, false, true)
     if not ok then
       if files:find('E77') then
@@ -185,18 +185,21 @@ function plugin_utils.load_plugin(plugin)
         error(files)
       end
     else
-      for _, file in ipairs(files) do
+      for _, file in ipairs(files --[[@as string[] ]]) do
         vim.cmd.source{file, mods = {silent=true}}
       end
     end
   end
 end
 
+---@param plugin PluginSpec
+---@param disp Display
+---@return Result
 plugin_utils.post_update_hook = a.sync(function(plugin, disp)
-  local plugin_name = util.get_plugin_full_name(plugin)
+  local plugin_name = plugin.full_name
   if plugin.run or not plugin.opt then
     a.main()
-    plugin_utils.load_plugin(plugin)
+    load_plugin(plugin)
   end
 
   if not plugin.run then

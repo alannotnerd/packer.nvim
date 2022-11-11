@@ -64,8 +64,8 @@ function util.get_plugin_short_name(text)
 end
 
 function util.get_plugin_full_name(plugin)
-  local plugin_name = plugin.name
-  if plugin.branch and plugin.branch ~= 'master' then
+  local plugin_name = plugin.name or plugin.short_name
+  if plugin.branch then
     -- NOTE: maybe have to change the seperator here too
     plugin_name = plugin_name .. '/' .. plugin.branch
   end

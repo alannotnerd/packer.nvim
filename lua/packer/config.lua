@@ -64,7 +64,7 @@ local default_config = {
       retry = 'R',
     },
   },
-  log = { level = 'warn' },
+  log = { level = 'info' },
   autoremove = false,
 }
 

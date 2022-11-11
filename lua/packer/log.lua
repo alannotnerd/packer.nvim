@@ -7,9 +7,6 @@
 -- under the terms of the MIT license. See LICENSE for details.
 -- User configuration section
 local default_config = {
-  -- Name of the plugin. Prepended to log messages
-  plugin = 'packer.nvim',
-
   -- Should print the output to neovim while running
   use_console = true,
 
@@ -26,26 +23,31 @@ local default_config = {
   modes = {
     { name = 'trace', hl = 'Comment' },
     { name = 'debug', hl = 'Comment' },
-    { name = 'info', hl = 'None' },
-    { name = 'warn', hl = 'WarningMsg' },
+    { name = 'info' , hl = 'None' },
+    { name = 'warn' , hl = 'WarningMsg' },
     { name = 'error', hl = 'ErrorMsg' },
     { name = 'fatal', hl = 'ErrorMsg' },
   },
 
   -- Which levels should be logged?
-  active_levels = { [1] = true, [2] = true, [3] = true, [4] = true, [5] = true, [6] = true },
+  active_levels = {
+    [1] = true,
+    [2] = true,
+    [3] = true,
+    [4] = true,
+    [5] = true,
+    [6] = true
+  },
 
   -- Can limit the number of decimals displayed for floats
   float_precision = 0.01,
 }
 
--- {{{ NO NEED TO CHANGE
 local log = {}
 
-local unpack = unpack or table.unpack
-
 local level_ids = { trace = 1, debug = 2, info = 3, warn = 4, error = 5, fatal = 6 }
-log.cfg = function(_config)
+
+function log.cfg(_config)
   local min_active_level = level_ids[_config.log.level]
   local config = { active_levels = {} }
   if min_active_level then
@@ -56,9 +58,9 @@ log.cfg = function(_config)
   log.new(config, true)
 end
 
-log.new = function(config, standalone)
+function log.new(config, standalone)
   config = vim.tbl_deep_extend('force', default_config, config)
-  local outfile = string.format('%s/%s.log', vim.fn.stdpath 'cache', config.plugin)
+  local outfile = string.format('%s/packer.nvim.log', vim.fn.stdpath 'cache')
   vim.fn.mkdir(vim.fn.stdpath 'cache', 'p')
   local obj
   if standalone then
@@ -85,10 +87,8 @@ log.new = function(config, standalone)
 
       if type(x) == 'number' and config.float_precision then
         x = tostring(round(x, config.float_precision))
-      elseif type(x) == 'table' then
-        x = vim.inspect(x)
       else
-        x = tostring(x)
+        x = vim.inspect(x)
       end
 
       t[#t + 1] = x
@@ -102,9 +102,9 @@ log.new = function(config, standalone)
     -- Heuristic to check for nvim-notify
     local is_fancy_notify = type(vim.notify) == 'table'
     vim.notify(
-      string.format([[%s%s]], is_fancy_notify and '' or ('[' .. config.plugin .. '] '), console_string),
+      string.format([[%s%s]], is_fancy_notify and '' or ('[packer.nvim'), console_string),
       vim.log.levels[level_config.name:upper()],
-      { title = config.plugin }
+      { title = 'packer.nvim' }
     )
   end)
 
@@ -158,6 +158,5 @@ log.new = function(config, standalone)
 end
 
 log.new(default_config, true)
--- }}}
 
 return log

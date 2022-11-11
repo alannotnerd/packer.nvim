@@ -83,6 +83,16 @@ local status_keys = {
   'lock',
 }
 
+--- @class Display
+--- @field interactive   boolean
+--- @field buf           integer
+--- @field win           integer
+--- @field ns            integer
+--- @field opts          DisplayConfig
+--- @field results       Results
+--- @field items   table
+--- @field item_order table
+--- @field marks table
 local display = {}
 
 local config = nil
@@ -215,6 +225,7 @@ local function prompt_user(headline, body, callback)
     check:stop()
     if not prompted then
       prompted = true
+      ---@diagnostic disable-next-line
       local ans = string.lower(vim.fn.input 'OK to remove? [y/N] ') == 'y'
       api.nvim_win_close(win, true)
       callback(ans)
@@ -227,15 +238,14 @@ local function make_update_msg(symbol, status, plugin_name, plugin)
     symbol, status, plugin_name, plugin.revs[1], plugin.revs[2])
 end
 
-local display_mt = {}
-display_mt.__index = display_mt
+display.__index = display
 
 --- Check if we have a valid display window
-function display_mt:valid_display()
+function display:valid_display()
   return self and self.interactive and api.nvim_buf_is_valid(self.buf) and api.nvim_win_is_valid(self.win)
 end
   --- Update the text of the display buffer
-function display_mt:set_lines(start_idx, end_idx, lines)
+function display:set_lines(start_idx, end_idx, lines)
   if not self:valid_display() then
     return
   end
@@ -244,14 +254,14 @@ function display_mt:set_lines(start_idx, end_idx, lines)
   vim.bo[self.buf].modifiable = false
 end
 
-function display_mt:get_lines(start_idx, end_idx)
+function display:get_lines(start_idx, end_idx)
   if not self:valid_display() then
     return
   end
   return api.nvim_buf_get_lines(self.buf, start_idx, end_idx, true)
 end
 
-function display_mt:get_current_line()
+function display:get_current_line()
   if not self:valid_display() then
     return
   end
@@ -259,7 +269,7 @@ function display_mt:get_current_line()
 end
 
 --- Start displaying a new task
-display_mt.task_start = vim.schedule_wrap(function(self, plugin, message)
+display.task_start = vim.schedule_wrap(function(self, plugin, message)
   if not self:valid_display() then
     return
   end
@@ -275,7 +285,7 @@ display_mt.task_start = vim.schedule_wrap(function(self, plugin, message)
 end)
 
 --- Decrement the count of active operations in the headline
-display_mt.decrement_headline_count = vim.schedule_wrap(function(self)
+display.decrement_headline_count = vim.schedule_wrap(function(self)
   if not self:valid_display() then
     return
   end
@@ -289,7 +299,7 @@ display_mt.decrement_headline_count = vim.schedule_wrap(function(self)
 end)
 
 --- Update a task as having successfully completed
-display_mt.task_succeeded = vim.schedule_wrap(function(self, plugin, message)
+display.task_succeeded = vim.schedule_wrap(function(self, plugin, message)
   if not self:valid_display() then
     return
   end
@@ -301,7 +311,7 @@ display_mt.task_succeeded = vim.schedule_wrap(function(self, plugin, message)
 end)
 
 --- Update a task as having unsuccessfully failed
-display_mt.task_failed = vim.schedule_wrap(function(self, plugin, message)
+display.task_failed = vim.schedule_wrap(function(self, plugin, message)
   if not self:valid_display() then
     return
   end
@@ -313,7 +323,7 @@ display_mt.task_failed = vim.schedule_wrap(function(self, plugin, message)
 end)
 
 --- Update the status message of a task in progress
-display_mt.task_update = vim.schedule_wrap(function(self, plugin, message)
+display.task_update = vim.schedule_wrap(function(self, plugin, message)
   if not self:valid_display() then
     return
   end
@@ -340,7 +350,7 @@ local function open_preview(commit, lines)
 end
 
 --- Update the text of the headline message
-display_mt.update_headline_message = vim.schedule_wrap(function(self, message)
+display.update_headline_message = vim.schedule_wrap(function(self, message)
   if not self:valid_display() then
     return
   end
@@ -367,7 +377,7 @@ local function setup_status_syntax()
   end
 end
 
-display_mt.status = vim.schedule_wrap(function(self, plugins)
+display.status = vim.schedule_wrap(function(self, plugins)
   if not self:valid_display() then
     return
   end
@@ -407,12 +417,12 @@ display_mt.status = vim.schedule_wrap(function(self, plugins)
   self:set_lines(config.header_lines, -1, lines)
 end)
 
-function display_mt:is_previewing()
+function display:is_previewing()
   local opts = self.opts or {}
   return opts.preview_updates
 end
 
-function display_mt:has_changes(plugin)
+function display:has_changes(plugin)
   if plugin.type ~= plugin_utils.git_plugin_type or plugin.revs[1] == plugin.revs[2] then
     return false
   end
@@ -423,7 +433,7 @@ function display_mt:has_changes(plugin)
 end
 
 --- Display the final results of an operation
-display_mt.final_results = vim.schedule_wrap(function(self, results, time, opts)
+display.final_results = vim.schedule_wrap(function(self, results, time, opts)
   self.opts = opts
   if not self:valid_display() then
     return
@@ -584,7 +594,7 @@ display_mt.final_results = vim.schedule_wrap(function(self, results, time, opts)
 end)
 
   --- Toggle the display of detailed information for all plugins in the final results display
-function display_mt:show_all_info()
+function display:show_all_info()
   if not self:valid_display() then
     return
   end
@@ -619,7 +629,7 @@ function display_mt:show_all_info()
 end
 
   --- Toggle the display of detailed information for a plugin in the final results display
-function display_mt:toggle_info()
+function display:toggle_info()
   if not self:valid_display() then
     return
   end
@@ -652,7 +662,7 @@ local COMMIT_PAT = [[[0-9a-f]\{7,9}]]
 local COMMIT_SINGLE_PAT = fmt([[\<%s\>]], COMMIT_PAT)
 local COMMIT_RANGE_PAT = fmt([[\<%s\.\.%s\>]], COMMIT_PAT, COMMIT_PAT)
 
-function display_mt:diff()
+function display:diff()
   if not self:valid_display() then
     return
   end
@@ -695,7 +705,7 @@ function display_mt:diff()
   end)
 end
 
-function display_mt:toggle_update()
+function display:toggle_update()
   if not self:is_previewing() then
     return
   end
@@ -732,7 +742,7 @@ function display_mt:toggle_update()
   self.marks[plugin_name].start = set_extmark(self.buf, self.ns, nil, start_idx, 0)
 end
 
-function display_mt:continue()
+function display:continue()
   if not self:is_previewing() then
     return
   end
@@ -751,7 +761,7 @@ function display_mt:continue()
 end
 
 --- Prompt a user to revert the latest update for a plugin
-function display_mt:prompt_revert()
+function display:prompt_revert()
   if not self:valid_display() then
     return
   end
@@ -796,7 +806,7 @@ local function is_plugin_line(line)
 end
 
 --- Heuristically find the plugin nearest to the cursor for displaying detailed information
-function display_mt:find_nearest_plugin()
+function display:find_nearest_plugin()
   if not self:valid_display() then
     return
   end
@@ -907,6 +917,8 @@ end
 
 --- Open a new display window
 -- Takes either a string representing a command or a function returning a (window, buffer) pair.
+---@param opener string|function
+---@return Display
 function display.open(opener)
   if display.status.disp then
     if api.nvim_win_is_valid(display.status.disp.win) then
@@ -920,7 +932,7 @@ function display.open(opener)
     marks = {},
     plugins = {},
     interactive = not config.non_interactive and not in_headless
-  }, display_mt)
+  }, display)
 
   if disp.interactive then
     if type(opener) == 'string' then

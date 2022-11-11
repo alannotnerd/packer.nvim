@@ -7,31 +7,33 @@ local log = require 'packer.log'
 local async = a.sync
 local fmt = string.format
 
-local vim = vim
-
-local git = {}
-
-local BLOCKED_ENV_VARS = {
-  GIT_DIR = true,
-  GIT_INDEX_FILE = true,
-  GIT_OBJECT_DIRECTORY = true,
-  GIT_TERMINAL_PROMPT = true,
-  GIT_WORK_TREE = true,
-  GIT_COMMON_DIR = true,
-}
+---@type PluginHandler
+local M = {}
 
 local function ensure_git_env()
-  if git.job_env == nil then
-    local job_env = {}
-    for k, v in pairs(vim.fn.environ()) do
-      if not BLOCKED_ENV_VARS[k] then
-        table.insert(job_env, k .. '=' .. v)
-      end
-    end
-
-    table.insert(job_env, 'GIT_TERMINAL_PROMPT=0')
-    git.job_env = job_env
+  if M.job_env then
+    return
   end
+
+  local blocked_env_vars = {
+    GIT_DIR = true,
+    GIT_INDEX_FILE = true,
+    GIT_OBJECT_DIRECTORY = true,
+    GIT_TERMINAL_PROMPT = true,
+    GIT_WORK_TREE = true,
+    GIT_COMMON_DIR = true,
+  }
+
+  local job_env = {}
+  for k, v in pairs(vim.fn.environ()) do
+    if not blocked_env_vars[k] then
+      job_env[#job_env+1] = k .. '=' .. v
+    end
+  end
+
+  job_env[#job_env+1] = 'GIT_TERMINAL_PROMPT=0'
+
+  M.job_env = job_env
 end
 
 ---@param tag string
@@ -81,7 +83,8 @@ local function mark_breaking_commits(plugin, commit_bodies)
 end
 
 local config = nil
-git.cfg = function(_config)
+
+function M.cfg(_config)
   config = _config.git
   config.base_dir = _config.package_root
   config.default_base_dir = util.join_paths(config.base_dir, _config.plugin_package)
@@ -89,20 +92,25 @@ git.cfg = function(_config)
   ensure_git_env()
 end
 
----Resets a git repo `dest` to `commit`
----@param dest string @ path to the local git repo
----@param commit string @ commit hash
+--- Resets a git repo `dest` to `commit`
+--- @async
+--- @param dest string @ path to the local git repo
+--- @param commit string @ commit hash
+--- @return Result
 local reset = async(function(dest, commit)
   local reset_cmd = fmt(config.exec_cmd .. config.subcommands.revert_to, commit)
   return jobs.run(reset_cmd, {
     capture_output = true,
     cwd = dest,
-    env = git.job_env
+    env = M.job_env
   })
 end, 2)
 
+--- @async
+--- @param plugin PluginSpec
+--- @param dest string
 local handle_checkouts = void(function(plugin, dest, disp, opts)
-  local plugin_name = util.get_plugin_full_name(plugin)
+  local plugin_name = plugin.full_name
   local function update_disp(msg)
     if disp then
       disp:task_update(plugin_name, msg)
@@ -119,7 +127,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
       stderr = jobs.logging_callback(output.err.stderr, output.data.stderr),
     },
     cwd = dest,
-    env = git.job_env
+    env = M.job_env
   }
 
   local r = result.ok()
@@ -196,8 +204,8 @@ local split_messages = function(messages)
   return lines
 end
 
-git.setup = function(plugin)
-  local plugin_name = util.get_plugin_full_name(plugin)
+function M.setup(plugin)
+  local plugin_name = plugin.full_name
   local install_to = plugin.install_path
   local install_cmd =
     vim.split(config.exec_cmd .. fmt(config.subcommands.install, plugin.commit and 999999 or config.depth), '%s+')
@@ -228,6 +236,7 @@ git.setup = function(plugin)
   local needs_checkout = plugin.tag ~= nil or plugin.commit ~= nil or plugin.branch ~= nil
 
   ---@async
+  ---@param disp Display
   ---@return Result
   plugin.installer = async(function(disp)
     local output = jobs.output_table()
@@ -238,7 +247,7 @@ git.setup = function(plugin)
         stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, disp, plugin_name),
       },
       timeout = config.clone_timeout,
-      env = git.job_env,
+      env = M.job_env,
     }
 
     disp:task_update(plugin_name, 'cloning...')
@@ -280,7 +289,7 @@ git.setup = function(plugin)
     local r = jobs.run(fmt('%s remote get-url origin', config.exec_cmd), {
       capture_output = true,
       cwd = plugin.install_path,
-      env = git.job_env
+      env = M.job_env
     })
 
     if r.ok then
@@ -291,6 +300,8 @@ git.setup = function(plugin)
   end)
 
   ---@async
+  ---@param disp Display
+  ---@param opts { pull_head: boolean, preview_updates: boolean}
   ---@return Result
   plugin.updater = async(function(disp, opts)
     local update_info = { err = {}, revs = {}, output = {}, messages = {} }
@@ -308,7 +319,7 @@ git.setup = function(plugin)
       success_test = exit_ok,
       capture_output = rev_callbacks,
       cwd = install_to,
-      env = git.job_env
+      env = M.job_env
     }):map_err(function(err)
       plugin.output = { err = vim.list_extend(update_info.err, update_info.revs), data = {} }
 
@@ -324,7 +335,7 @@ git.setup = function(plugin)
       success_test = exit_ok,
       capture_output = true,
       cwd = install_to,
-      env = git.job_env
+      env = M.job_env
     }):map_ok(function(ok)
         current_branch = ok.output.data.stdout[1]
       end)
@@ -365,7 +376,7 @@ git.setup = function(plugin)
         stderr = jobs.logging_callback(update_info.err, update_info.output, disp, plugin_name),
       },
       cwd = install_to,
-      env = git.job_env,
+      env = M.job_env,
     }
 
     if needs_checkout then
@@ -426,7 +437,7 @@ git.setup = function(plugin)
         success_test = exit_ok,
         capture_output = rev_callbacks,
         cwd = install_to,
-        env = git.job_env,
+        env = M.job_env,
       }
     ):map_err(function(err)
       plugin.output = { err = vim.list_extend(update_info.err, update_info.revs), data = {} }
@@ -453,7 +464,7 @@ git.setup = function(plugin)
             success_test = exit_ok,
             capture_output = commit_headers_callbacks,
             cwd = install_to,
-            env = git.job_env,
+            env = M.job_env,
           }
         )
 
@@ -477,7 +488,7 @@ git.setup = function(plugin)
               success_test = exit_ok,
               capture_output = commit_bodies_callbacks,
               cwd = install_to,
-              env = git.job_env,
+              env = M.job_env,
             }
           ):map_ok(function(ok)
             plugin.breaking_commits = {}
@@ -509,7 +520,7 @@ git.setup = function(plugin)
         stderr = diff_onread
       },
       cwd = install_to,
-      env = git.job_env
+      env = M.job_env
     })
 
     if r.ok then
@@ -528,7 +539,7 @@ git.setup = function(plugin)
     local r = jobs.run(revert_cmd, {
       capture_output = true,
       cwd = install_to,
-      env = git.job_env
+      env = M.job_env
     })
     if needs_checkout and r.ok then
       r = handle_checkouts(plugin, install_to, nil, {})
@@ -557,7 +568,7 @@ git.setup = function(plugin)
   plugin.get_rev = async(function()
     local r = jobs.run(rev_cmd, {
       cwd = plugin.install_path,
-      env = git.job_env,
+      env = M.job_env,
       capture_output = true
     })
 
@@ -574,4 +585,4 @@ git.setup = function(plugin)
 
 end
 
-return git
+return M
