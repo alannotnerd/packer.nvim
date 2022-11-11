@@ -60,6 +60,42 @@ local function reltime(start)
   return fn.reltime(start)
 end
 
+local function install_common(tasks, results, display_win, start_time)
+  if #tasks == 0 or not display_win then
+    print('Nothing to do')
+    log.info 'Nothing to do!'
+    return
+  end
+
+  local function check()
+    return not display.status.running
+  end
+
+  local limit = config.max_jobs and config.max_jobs or #tasks
+
+  log.debug 'Running tasks'
+  display_win:update_headline_message(fmt('installing %d / %d plugins', #tasks, #tasks))
+  a.join(limit, check, unpack(tasks))
+
+  local install_paths = {}
+  for plugin_name, r in pairs(results.installs or {}) do
+    if r.ok then
+      table.insert(install_paths, results.plugins[plugin_name].install_path)
+    end
+  end
+
+  for plugin_name, r in pairs(results.updates or {}) do
+    if r.ok then
+      table.insert(install_paths, results.plugins[plugin_name].install_path)
+    end
+  end
+
+  a.main()
+  plugin_utils.update_helptags(install_paths)
+  local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
+  display_win:final_results(results, delta)
+end
+
 --- Install operation:
 -- Installs missing plugins, then updates helptags and rplugins
 ---@async
@@ -80,32 +116,15 @@ packer.install = a.sync(function()
   local results = {}
 
   require('packer.clean')(plugins, fs_state, results)
+
   a.main()
   log.debug 'Gathering install tasks'
-  local tasks, display_win = require('packer.install')(config.display, plugins, install_plugins, results)
-  if #tasks > 0 and display_win then
-    local function check()
-      return not display.status.running
-    end
-    local limit = config.max_jobs and config.max_jobs or #tasks
-    log.debug 'Running tasks'
-    display_win:update_headline_message(fmt('installing %d / %d plugins', #tasks, #tasks))
-    a.join(limit, check, unpack(tasks))
-    local install_paths = {}
-    for plugin_name, r in pairs(results.installs) do
-      if r.ok then
-        table.insert(install_paths, results.plugins[plugin_name].install_path)
-      end
-    end
 
-    a.main()
-    plugin_utils.update_helptags(install_paths)
-    local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
-    display_win:final_results(results, delta)
-  else
-    print('Nothing to install')
-    log.info 'Nothing to install!'
-  end
+  local display_win = display.open()
+
+  local tasks = require('packer.install')(plugins, install_plugins, display_win, results)
+
+  install_common(tasks, results, display_win, start_time)
 end)
 
 -- Filter out options specified as the first argument to update or sync
@@ -130,12 +149,12 @@ local function filter_opts_from_plugins(...)
 end
 
 --- Update operation:
--- Takes an optional list of plugin names as an argument. If no list is given, operates on all
--- managed plugins.
--- Fixes plugin types, installs missing plugins, then updates installed plugins and updates helptags
--- and rplugins
--- Options can be specified in the first argument as either a table or explicit `'--preview'`.
----@async
+--- Takes an optional list of plugin names as an argument. If no list is given,
+--- operates on all managed plugins. Fixes plugin types, installs missing
+--- plugins, then updates installed plugins and updates helptags and rplugins
+--- Options can be specified in the first argument as either a table
+--- or explicit `'--preview'`.
+--- @async
 packer.update = a.void(function(...)
   local opts, update_plugins = filter_opts_from_plugins(...)
   local start_time = reltime()
@@ -149,57 +168,33 @@ packer.update = a.void(function(...)
 
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
 
-  log.debug 'Gathering install tasks'
   a.main()
-  local tasks, display_win = require('packer.install')(config.display, plugins, missing_plugins, results)
+  log.debug 'Gathering install tasks'
+
+  local display_win = display.open()
+
+  local install_tasks = require('packer.install')(plugins, missing_plugins, display, results)
 
   log.debug 'Gathering update tasks'
   a.main()
 
-  local update_tasks
-  update_tasks, display_win = update.update(plugins, installed_plugins, display_win, results, opts)
+  local update_tasks = update.update(plugins, installed_plugins, display_win, results, opts)
+
+  local tasks = {}
+  vim.list_extend(tasks, install_tasks)
   vim.list_extend(tasks, update_tasks)
 
-  if #tasks == 0 then
-    return
-  end
-
-  local function check()
-    return not display.status.running
-  end
-
-  local limit = config.max_jobs and config.max_jobs or #tasks
-
-  display_win:update_headline_message('updating ' .. #tasks .. ' / ' .. #tasks .. ' plugins')
-  log.debug 'Running tasks'
-  a.join(limit, check, unpack(tasks))
-  local install_paths = {}
-  for plugin_name, r in pairs(results.installs) do
-    if r.ok then
-      table.insert(install_paths, results.plugins[plugin_name].install_path)
-    end
-  end
-
-  for plugin_name, r in pairs(results.updates) do
-    if r.ok then
-      table.insert(install_paths, results.plugins[plugin_name].install_path)
-    end
-  end
-
-  a.main()
-  plugin_utils.update_helptags(install_paths)
-  local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
-  display_win:final_results(results, delta, opts)
+  install_common(tasks, results, display_win, start_time)
 end)
 
 ---@async
 packer.status = a.sync(function()
-  local display_win = display.open(config.display.open_fn or config.display.open_cmd)
-  if _G.packer_plugins ~= nil then
-    display_win:status(_G.packer_plugins)
-  else
+  if _G.packer_plugins == nil then
     log.warn 'packer_plugins table is nil! Cannot run packer.status()!'
+    return
   end
+
+  display.open():status(_G.packer_plugins)
 end)
 
 local function loader_apply_config(plugin, name)

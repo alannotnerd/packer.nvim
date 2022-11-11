@@ -100,10 +100,6 @@ function M.update(plugins, update_plugins, display_win, results, opts)
       log.error(fmt('Unknown plugin: %s', v))
     end
     if plugin and not plugin.lock then
-      if not display_win then
-        display_win = display.open(config.display.open_fn or config.display.open_cmd)
-      end
-
       table.insert(tasks, a.curry(update_plugin, plugin, display_win, results, opts))
     end
   end
@@ -112,7 +108,7 @@ function M.update(plugins, update_plugins, display_win, results, opts)
     log.info 'Nothing to update!'
   end
 
-  return tasks, display_win
+  return tasks
 end
 
 function M.fix_plugin_types(plugins, plugin_names, results, fs_state)

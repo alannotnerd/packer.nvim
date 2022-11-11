@@ -1,7 +1,7 @@
 local api = vim.api
 local log = require 'packer.log'
+local config = require 'packer.config'
 local awrap = require 'packer.async'.wrap
-local plugin_utils = require 'packer.plugin_utils'
 local fmt = string.format
 
 local in_headless = #api.nvim_list_uis() == 0
@@ -918,9 +918,10 @@ end
 
 --- Open a new display window
 -- Takes either a string representing a command or a function returning a (window, buffer) pair.
----@param opener string|function
 ---@return Display
-function display.open(opener)
+function display.open()
+  local opener = config.display.open_fn or config.display.open_cmd
+
   if display.status.disp then
     if api.nvim_win_is_valid(display.status.disp.win) then
       api.nvim_win_close(display.status.disp.win, true)
