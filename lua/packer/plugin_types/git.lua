@@ -87,21 +87,25 @@ local config = require('packer.config')
 
 ensure_git_env()
 
+local function git_run(args, opts)
+  opts.env = opts.env or M.job_env
+  return jobs.run({ config.git.cmd, unpack(args) }, opts)
+end
+
 local function checkout(ref, opts, disp)
   if disp then
-    disp:task_update(fmt('checking out %s %s...', ref))
+    disp:task_update(fmt('checking out %s...', ref))
   end
-  return jobs.run({config.git.cmd, 'checkout',  ref, '--' }, opts)
+  return git_run({'checkout',  ref, '--' }, opts)
 end
 
 --- @async
 --- @param plugin PluginSpec
 --- @return Result
 local handle_checkouts = void(function(plugin, disp, opts)
-  local plugin_name = plugin.full_name
   local function update_disp(msg)
     if disp then
-      disp:task_update(plugin_name, msg)
+      disp:task_update(plugin.full_name, msg)
     end
   end
 
@@ -111,19 +115,17 @@ local handle_checkouts = void(function(plugin, disp, opts)
 
   local job_opts = {
     capture_output = {
-      stdout = jobs.logging_callback(output.err.stdout, output.data.stdout, disp, plugin_name),
+      stdout = jobs.logging_callback(output.err.stdout, output.data.stdout, disp, plugin.full_name),
       stderr = jobs.logging_callback(output.err.stderr, output.data.stderr),
     },
-    cwd = plugin.install_path,
-    env = M.job_env
+    cwd = plugin.install_path
   }
 
   local r = result.ok()
 
   if plugin.tag and has_wildcard(plugin.tag) then
     update_disp(fmt('getting tag for wildcard %s...', plugin.tag))
-    r = jobs.run({
-      config.git.cmd,
+    r = git_run({
       'tag', '-l', plugin.tag,
       '--sort', '-version:refname'
     }, job_opts)
@@ -148,7 +150,7 @@ local handle_checkouts = void(function(plugin, disp, opts)
           'Error checking out %s %s for %s',
           plugin.branch and 'branch' or 'tag',
           branch_or_tag,
-          plugin_name
+          plugin.full_name
         ),
         data = r.err,
         output = output,
@@ -160,7 +162,7 @@ local handle_checkouts = void(function(plugin, disp, opts)
     r = checkout(plugin.commit, job_opts, disp)
     if r.err then
       r.err = {
-        msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
+        msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin.full_name),
         data = r.err,
         output = output,
       }
@@ -173,7 +175,7 @@ local handle_checkouts = void(function(plugin, disp, opts)
     r.err.output = output
   else
     r.err = {
-      msg = fmt('Error updating %s: %s', plugin_name, table.concat(r.err, '\n')),
+      msg = fmt('Error updating %s: %s', plugin.full_name, table.concat(r.err, '\n')),
       data = r.err,
       output = output,
     }
@@ -202,7 +204,6 @@ local function mark_breaking_changes(plugin, disp, exit_ok, preview_updates)
   local commit_bodies_cmd
   if preview_updates then
     commit_bodies_cmd = {
-      config.git.cmd,
       'log',
       '--color=never',
       '--no-show-signature',
@@ -211,7 +212,6 @@ local function mark_breaking_changes(plugin, disp, exit_ok, preview_updates)
     }
   else
     commit_bodies_cmd = {
-      config.git.cmd,
         'log',
       '--color=never',
       '--no-show-signature',
@@ -221,14 +221,13 @@ local function mark_breaking_changes(plugin, disp, exit_ok, preview_updates)
   end
 
   disp:task_update(plugin.name, 'checking for breaking changes...')
-  local r = jobs.run(commit_bodies_cmd, {
+  local r = git_run(commit_bodies_cmd, {
     success_test = exit_ok,
     capture_output = {
       stdout = commit_bodies_onread,
       stderr = commit_bodies_onread
     },
-    cwd = plugin.install_path,
-    env = M.job_env,
+    cwd = plugin.install_path
   })
   if r.ok then
     plugin.breaking_commits = get_breaking_commits(commit_bodies.output)
@@ -237,59 +236,54 @@ local function mark_breaking_changes(plugin, disp, exit_ok, preview_updates)
 end
 
 function M.setup(plugin)
-  local plugin_name = plugin.full_name
-  local install_to = plugin.install_path
-
-  local install_cmd = {
-    config.git.cmd,
-    'clone',
-    '--depth', plugin.commit and 999999 or config.git.depth,
-    '--no-single-branch',
-    '--progress'
-  }
-
-  if plugin.branch or (plugin.tag and not has_wildcard(plugin.tag)) then
-    install_cmd[#install_cmd + 1] = '--branch'
-    install_cmd[#install_cmd + 1] = plugin.branch and plugin.branch or plugin.tag
-  end
-
-  install_cmd[#install_cmd + 1] = plugin.url
-  install_cmd[#install_cmd + 1] = install_to
-
   local needs_checkout = plugin.tag ~= nil or plugin.commit ~= nil or plugin.branch ~= nil
 
   ---@async
   ---@param disp Display
   ---@return Result
   plugin.installer = async(function(disp)
+    local install_cmd = {
+      'clone',
+      '--depth', plugin.commit and 999999 or config.git.depth,
+      '--no-single-branch',
+      '--progress'
+    }
+
+    if plugin.branch or (plugin.tag and not has_wildcard(plugin.tag)) then
+      install_cmd[#install_cmd + 1] = '--branch'
+      install_cmd[#install_cmd + 1] = plugin.branch or plugin.tag
+    end
+
+    install_cmd[#install_cmd + 1] = plugin.url
+    install_cmd[#install_cmd + 1] = plugin.install_path
+
     local output = jobs.output_table()
 
     local installer_opts = {
       capture_output = {
         stdout = jobs.logging_callback(output.err.stdout, output.data.stdout),
-        stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, disp, plugin_name),
+        stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, disp, plugin.full_name),
       },
-      timeout = config.git.clone_timeout,
-      env = M.job_env,
+      timeout = config.git.clone_timeout
     }
 
-    disp:task_update(plugin_name, 'cloning...')
-    local r = jobs.run(install_cmd, installer_opts)
+    disp:task_update(plugin.full_name, 'cloning...')
+    local r = git_run(install_cmd, installer_opts)
     if r.err then
       r.err = {
-        msg = fmt('Error cloning plugin %s to %s', plugin_name, install_to),
+        msg = fmt('Error cloning plugin %s to %s', plugin.full_name, plugin.install_path),
         data = { r.err, output },
       }
       return r
     end
 
-    installer_opts.cwd = install_to
+    installer_opts.cwd = plugin.install_path
 
     if r.ok and plugin.commit then
       r = checkout(plugin.commit, installer_opts, disp)
       if r.err then
         r.err = {
-          msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
+          msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin.full_name),
           data = { r.err, output },
         }
       end
@@ -297,8 +291,7 @@ function M.setup(plugin)
 
     if r.ok then
       -- Get current commit
-      r = jobs.run({
-        config.git.cmd,
+      r = git_run({
         'log',
         '--color=never',
         '--pretty=format:'..config.git.diff_fmt,
@@ -314,7 +307,7 @@ function M.setup(plugin)
       plugin.output = { err = output.data.stderr }
       if not r.err.msg then
         r.err = {
-          msg = fmt('Error installing %s: %s', plugin_name, table.concat(output.data.stderr, '\n')),
+          msg = fmt('Error installing %s: %s', plugin.full_name, table.concat(output.data.stderr, '\n')),
           data = { r.err, output },
         }
       end
@@ -326,10 +319,9 @@ function M.setup(plugin)
   ---@async
   ---@return Result
   plugin.remote_url = async(function()
-    local r = jobs.run({ config.git.cmd, 'remote', 'get-url', 'origin' }, {
+    local r = git_run({ 'remote', 'get-url', 'origin' }, {
       capture_output = true,
-      cwd = plugin.install_path,
-      env = M.job_env
+      cwd = plugin.install_path
     })
 
     if r.ok then
@@ -364,37 +356,35 @@ function M.setup(plugin)
       stderr = rev_onread
     }
 
-    disp:task_update(plugin_name, 'checking current commit...')
-    local r = jobs.run({ config.git.cmd, 'rev-parse', '--short', 'HEAD' }, {
+    disp:task_update(plugin.full_name, 'checking current commit...')
+    local r = git_run({ 'rev-parse', '--short', 'HEAD' }, {
       success_test = exit_ok,
       capture_output = rev_callbacks,
-      cwd = install_to,
-      env = M.job_env
+      cwd = plugin.install_path
     })
 
     if r.err then
       plugin.output = { err = vim.list_extend(update_info.err, update_info.revs), data = {} }
       r.err = {
-        msg = fmt('Error getting current commit for %s: %s', plugin_name, table.concat(update_info.revs, '\n')),
+        msg = fmt('Error getting current commit for %s: %s', plugin.full_name, table.concat(update_info.revs, '\n')),
         data = r.err,
       }
     end
 
     local current_branch
-    disp:task_update(plugin_name, 'checking current branch...')
+    disp:task_update(plugin.full_name, 'checking current branch...')
     if r.ok then
       -- local branch_cmd = {config.git.cmd, 'rev-parse', '--abbrev-ref', 'HEAD'}
-      r = jobs.run({ config.git.cmd, 'branch', '--show-current' }, {
+      r = git_run({ 'branch', '--show-current' }, {
         success_test = exit_ok,
         capture_output = true,
-        cwd = install_to,
-        env = M.job_env
+        cwd = plugin.install_path
       })
       if r.ok then
         current_branch = r.ok.output.data.stdout[1]
       else
         r.err = {
-          msg = fmt('Error checking current branch for %s: %s', plugin_name, table.concat(update_info.revs, '\n')),
+          msg = fmt('Error checking current branch for %s: %s', plugin.full_name, table.concat(update_info.revs, '\n')),
           data = r.err,
         }
       end
@@ -402,8 +392,8 @@ function M.setup(plugin)
 
     if not needs_checkout then
       local origin_branch = ''
-      disp:task_update(plugin_name, 'checking origin branch...')
-      local origin_refs_path = util.join_paths(install_to, '.git', 'refs', 'remotes', 'origin', 'HEAD')
+      disp:task_update(plugin.full_name, 'checking origin branch...')
+      local origin_refs_path = util.join_paths(plugin.install_path, '.git', 'refs', 'remotes', 'origin', 'HEAD')
       local origin_refs_file = vim.loop.fs_open(origin_refs_path, 'r', 438)
       if origin_refs_file ~= nil then
         local origin_refs_stat = vim.loop.fs_fstat(origin_refs_file)
@@ -425,15 +415,14 @@ function M.setup(plugin)
       success_test = exit_ok,
       capture_output = {
         stdout = jobs.logging_callback(update_info.err, update_info.output),
-        stderr = jobs.logging_callback(update_info.err, update_info.output, disp, plugin_name),
+        stderr = jobs.logging_callback(update_info.err, update_info.output, disp, plugin.full_name),
       },
-      cwd = install_to,
-      env = M.job_env,
+      cwd = plugin.install_path
     }
 
     if needs_checkout then
       if r.ok then
-        r = jobs.run({ config.git.cmd, 'fetch', '--depth', '999999', '--progress' }, update_opts)
+        r = git_run({ 'fetch', '--depth', '999999', '--progress' }, update_opts)
         if r.ok then
           r = handle_checkouts(plugin, disp, opts)
         end
@@ -464,29 +453,29 @@ function M.setup(plugin)
     end
 
     if r.ok then
-      local fetch_cmd = { config.git.cmd, 'fetch', '--depth', '999999', '--progress' }
+      local fetch_cmd = { 'fetch', '--depth', '999999', '--progress' }
 
       local cmd, msg
       if opts.preview_updates then
         cmd = fetch_cmd
         msg = 'fetching updates...'
       elseif opts.pull_head then
-        cmd = { config.git.cmd, 'merge', 'FETCH_HEAD' }
+        cmd = { 'merge', 'FETCH_HEAD' }
         msg = 'pulling updates from head...'
       elseif plugin.commit or plugin.tag then
         cmd = fetch_cmd
         msg = 'pulling updates...'
       else
-        cmd = { config.git.cmd, 'pull', '--ff-only', '--progress', '--rebase=false' }
+        cmd = { 'pull', '--ff-only', '--progress', '--rebase=false' }
         msg = 'pulling updates...'
       end
 
-      disp:task_update(plugin_name, msg)
-      r = jobs.run(cmd, update_opts)
+      disp:task_update(plugin.full_name, msg)
+      r = git_run(cmd, update_opts)
     else
       plugin.output = { err = vim.list_extend(update_info.err, update_info.output), data = {} }
       r.err = {
-        msg = fmt('Error getting updates for %s: %s', plugin_name, table.concat(update_info.output, '\n')),
+        msg = fmt('Error getting updates for %s: %s', plugin.full_name, table.concat(update_info.output, '\n')),
         data = r.err,
       }
     end
@@ -497,17 +486,16 @@ function M.setup(plugin)
         or opts.preview_updates and 'FETCH_HEAD'
         or 'HEAD'
 
-      disp:task_update(plugin_name, 'checking updated commit...')
-      r = jobs.run({ config.git.cmd, 'rev-parse', '--short', ref }, {
+      disp:task_update(plugin.full_name, 'checking updated commit...')
+      r = git_run({ 'rev-parse', '--short', ref }, {
         success_test = exit_ok,
         capture_output = rev_callbacks,
-        cwd = install_to,
-        env = M.job_env,
+        cwd = plugin.install_path
       })
       if r.err then
         plugin.output = { err = vim.list_extend(update_info.err, update_info.revs), data = {} }
         r.err = {
-          msg = fmt('Error checking updated commit for %s: %s', plugin_name, table.concat(update_info.revs, '\n')),
+          msg = fmt('Error checking updated commit for %s: %s', plugin.full_name, table.concat(update_info.revs, '\n')),
           data = r.err,
         }
       end
@@ -521,9 +509,8 @@ function M.setup(plugin)
     else
       local commit_headers_onread = jobs.logging_callback(update_info.err, update_info.messages)
 
-      disp:task_update(plugin_name, 'getting commit messages...')
-      r = jobs.run({
-        config.git.cmd,
+      disp:task_update(plugin.full_name, 'getting commit messages...')
+      r = git_run({
         'log',
         '--color=never',
         '--pretty=format:'.. config.git.diff_fmt,
@@ -535,8 +522,7 @@ function M.setup(plugin)
           stdout = commit_headers_onread,
           stderr = commit_headers_onread
         },
-        cwd = install_to,
-        env = M.job_env,
+        cwd = plugin.install_path,
       })
 
       plugin.output = { err = update_info.err, data = update_info.output }
@@ -559,8 +545,7 @@ function M.setup(plugin)
   plugin.diff = async(function(commit, callback)
     local diff_info = { err = {}, output = {}, messages = {} }
     local diff_onread = jobs.logging_callback(diff_info.err, diff_info.messages)
-    local r = jobs.run({
-      config.git.cmd,
+    local r = git_run({
       'show', '--no-color',
       '--pretty=medium',
       commit
@@ -569,8 +554,7 @@ function M.setup(plugin)
         stdout = diff_onread,
         stderr = diff_onread
       },
-      cwd = install_to,
-      env = M.job_env
+      cwd = plugin.install_path
     })
 
     if r.ok then
@@ -585,17 +569,16 @@ function M.setup(plugin)
   ---@async
   ---@return Result
   plugin.revert_last = async(function()
-    local r = jobs.run({ config.git.cmd, 'reset', '--hard', 'HEAD@{1}' }, {
+    local r = git_run({ 'reset', '--hard', 'HEAD@{1}' }, {
       capture_output = true,
-      cwd = install_to,
-      env = M.job_env
+      cwd = plugin.install_path
     })
     if needs_checkout and r.ok then
       r = handle_checkouts(plugin, nil, {})
       if r.ok then
-        log.info('Reverted update for ' .. plugin_name)
+        log.info('Reverted update for ' .. plugin.full_name)
       else
-        log.error(fmt('Reverting update for %s failed!', plugin_name))
+        log.error(fmt('Reverting update for %s failed!', plugin.full_name))
       end
     end
     return r
@@ -608,10 +591,9 @@ function M.setup(plugin)
   plugin.revert_to = async(function(commit)
     assert(type(commit) == 'string', fmt("commit: string expected but '%s' provided", type(commit)))
     require('packer.log').debug(fmt("Reverting '%s' to commit '%s'", plugin.name, commit))
-    return jobs.run({ config.git.cmd, 'reset', '--hard', commit, '--' }, {
+    return git_run({ 'reset', '--hard', commit, '--' }, {
       capture_output = true,
-      cwd = install_to,
-      env = M.job_env
+      cwd = plugin.install_path
     })
   end, 1)
 
@@ -619,16 +601,15 @@ function M.setup(plugin)
   ---@async
   ---@return Result
   plugin.get_rev = async(function()
-    local r = jobs.run({ config.git.cmd, 'rev-parse', '--short', 'HEAD' }, {
+    local r = git_run({ 'rev-parse', '--short', 'HEAD' }, {
       cwd = plugin.install_path,
-      env = M.job_env,
       capture_output = true
     })
 
     if r.ok then
       r.ok.data = next(r.ok.output.data.stdout)
     else
-      r.err.msg = fmt('%s: %s', plugin_name, next(r.err.output.data.stderr))
+      r.err.msg = fmt('%s: %s', plugin.full_name, next(r.err.output.data.stderr))
     end
 
     return r
