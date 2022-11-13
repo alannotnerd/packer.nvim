@@ -18,8 +18,8 @@ local M = {}
 ---@field updates  {[string]: Result}
 ---@field plugins  {[string]: PluginSpec}
 
----@type table<string, PluginSpec>
-local plugins = nil
+---@type {[string]: PluginSpec}
+local plugins = {}
 
 local display      = require 'packer.display'
 local snapshot     = require 'packer.snapshot'

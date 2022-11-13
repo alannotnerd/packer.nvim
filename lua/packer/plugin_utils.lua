@@ -103,7 +103,7 @@ function M.list_installed_plugins()
 end
 
 ---@async
----@param plugins       PluginSpec[]
+---@param plugins       {[string]: PluginSpec}
 ---@param opt_plugins   {[string]: boolean}
 ---@param start_plugins {[string]: boolean}
 ---@return {[string]: boolean}
@@ -148,7 +148,7 @@ end, 3)
 ---@field missing {[string]: boolean}
 
 ---@async
----@param plugins PluginSpec[]
+---@param plugins {[string]: PluginSpec}
 ---@return FSState
 M.get_fs_state = a.sync(function(plugins)
   log.debug 'Updating FS state'
