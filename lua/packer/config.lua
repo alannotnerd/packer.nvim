@@ -15,18 +15,7 @@ local default_config = {
   git = {
     mark_breaking_changes = true,
     cmd = 'git',
-    subcommands = {
-      install = 'clone --depth %i --no-single-branch --progress',
-      checkout = 'checkout %s --',
-      update_branch = 'merge --ff-only @{u}',
-      diff_fmt = '%%h %%s (%%cr)',
-      git_diff_fmt = 'show --no-color --pretty=medium %s',
-      get_bodies = 'log --color=never --pretty=format:"===COMMIT_START===%h%n%s===BODY_START===%b" --no-show-signature HEAD@{1}...HEAD',
-      get_fetch_bodies = 'log --color=never --pretty=format:"===COMMIT_START===%h%n%s===BODY_START===%b" --no-show-signature HEAD...FETCH_HEAD',
-      revert = 'reset --hard HEAD@{1}',
-      revert_to = 'reset --hard %s --',
-      tags_expand_fmt = 'tag -l %s --sort -version:refname',
-    },
+    diff_fmt = '%%h %%s (%%cr)',
     depth = 1,
     clone_timeout = 60,
     default_url_format = 'https://github.com/%s.git',
@@ -99,26 +88,13 @@ end
 ---@field show_all_info boolean
 ---@field keybindings {[string]: string}
 
----@class GitSubCommandsConfig
----@field install          string
----@field fetch            string
----@field checkout         string
----@field update_branch    string
----@field diff_fmt         string
----@field git_diff_fmt     string
----@field get_bodies       string
----@field get_fetch_bodies string
----@field revert           string
----@field revert_to        string
----@field tags_expand_fmt  string
-
 ---@class GitConfig
 ---@field mark_breaking_changes boolean
 ---@field cmd                   string
 ---@field depth                 integer
 ---@field clone_timeout         integer
 ---@field default_url_format    string
----@field subcommands GitSubCommandsConfig
+---@field diff_fmt         string
 
 ---@class Config
 ---@field package_root    string

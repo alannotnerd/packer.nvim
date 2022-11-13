@@ -200,11 +200,7 @@ require('packer').startup{{...}, config = {
   git = {
     cmd = 'git', -- The base command for git operations
     subcommands = { -- Format strings for git subcommands
-      install        = 'clone --depth %i --no-single-branch --progress',
-      checkout       = 'checkout %s --',
-      update_branch  = 'merge --ff-only @{u}',
-      diff_fmt       = '%%h %%s (%%cr)',
-      get_msg        = 'log --color=never --pretty=format:FMT --no-show-signature HEAD -n 1',
+      diff_fmt = '%%h %%s (%%cr)',
     },
     depth = 1, -- Git clone depth
     clone_timeout = 60, -- Timeout, in seconds, for git clones
