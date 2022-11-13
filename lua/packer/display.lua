@@ -95,8 +95,6 @@ local status_keys = {
 --- @field marks table
 local display = {}
 
-local config = require('packer.config')
-
 local keymaps = {
   quit = {
     action = 'quit',

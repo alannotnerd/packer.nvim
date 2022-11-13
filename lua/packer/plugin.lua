@@ -127,6 +127,7 @@ local function process_spec(plugin_data, plugins)
   end
 
   -- Handle aliases
+  spec.name = short_name
   spec.short_name = short_name
   spec.path = path
   spec.full_name = get_plugin_full_name(spec)

@@ -123,8 +123,10 @@ local function was_successful(r)
 end
 
 local function setup_pipe(kind, callbacks, capture_output, output)
-  if not capture_output then
-    return
+  if type(capture_output) == 'boolean' then
+    if not capture_output then
+      return
+    end
   elseif not capture_output[kind] then
     return
   end
@@ -163,13 +165,13 @@ M.run = a.wrap(function(task, opts, callback)
   local output = M.output_table()
   local callbacks = {}
 
-  local stdout = setup_pipe('stdout', opts.capture_output, callbacks, output)
+  local stdout = setup_pipe('stdout', callbacks, opts.capture_output, output)
 
   if stdout == false then
     return callback(success_test(job_result))
   end
 
-  local stderr = setup_pipe('stderr', opts.capture_output, callbacks, output)
+  local stderr = setup_pipe('stderr', callbacks, opts.capture_output, output)
 
   if stderr == false then
     return callback(success_test(job_result))

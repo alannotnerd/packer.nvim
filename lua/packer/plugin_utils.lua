@@ -127,8 +127,8 @@ local find_missing_plugins = a.sync(function(plugins, opt_plugins, start_plugins
         -- Also need to test for "full URL" plugin names, but normalized to get rid of the
         -- protocol
         local normalized_remote = remote:gsub('https://', ''):gsub('ssh://git@', '')
-        local normalized_plugin_name = plugin.name:gsub('https://', ''):gsub('ssh://git@', ''):gsub('\\', '/')
-        if (normalized_remote ~= normalized_plugin_name) and (repo_name ~= normalized_plugin_name) then
+        local normalized_plugin_url = plugin.url:gsub('https://', ''):gsub('ssh://git@', ''):gsub('\\', '/')
+        if (normalized_remote ~= normalized_plugin_url) and (repo_name ~= normalized_plugin_url) then
           missing_plugins[plugin_name] = true
         end
       end
