@@ -104,6 +104,13 @@ local reset = async(function(dest, commit)
   })
 end, 2)
 
+local function checkout(ref, opts, disp)
+  if disp then
+    disp:task_update(fmt('checking out %s %s...', ref))
+  end
+  return jobs.run({config.git.cmd, 'checkout',  ref, '--' }, opts)
+end
+
 --- @async
 --- @param plugin PluginSpec
 --- @param dest string
@@ -149,8 +156,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
 
   if r.ok and (plugin.branch or (plugin.tag and not opts.preview_updates)) then
     local branch_or_tag = plugin.branch and plugin.branch or plugin.tag
-    update_disp(fmt('checking out %s %s...', plugin.branch and 'branch' or 'tag', branch_or_tag))
-    r = jobs.run(exec_cmd() .. fmt(config.git.subcommands.checkout, branch_or_tag), job_opts)
+    r = checkout(branch_or_tag, job_opts, disp)
     if r.err then
       r.err = {
         msg = fmt(
@@ -166,8 +172,7 @@ local handle_checkouts = void(function(plugin, dest, disp, opts)
   end
 
   if r.ok and plugin.commit then
-    update_disp(fmt('checking out %s...', plugin.commit))
-    r = jobs.run(exec_cmd() .. fmt(config.git.subcommands.checkout, plugin.commit), job_opts)
+    r = checkout(plugin.commit, job_opts, disp)
     if r.err then
       r.err = {
         msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
@@ -203,26 +208,14 @@ local split_messages = function(messages)
   return lines
 end
 
+
 function M.setup(plugin)
   local plugin_name = plugin.full_name
   local install_to = plugin.install_path
   local install_cmd =
     vim.split(exec_cmd() .. fmt(config.git.subcommands.install, plugin.commit and 999999 or config.git.depth), '%s+')
 
-  local rev_cmd         = exec_cmd() .. config.git.subcommands.get_rev
-  local update_cmd      = exec_cmd() .. config.git.subcommands.update
-  local update_head_cmd = exec_cmd() .. config.git.subcommands.update_head
-  local fetch_cmd       = exec_cmd() .. config.git.subcommands.fetch
-  local branch_cmd      = exec_cmd() .. config.git.subcommands.current_branch
-
-  if plugin.commit or plugin.tag then
-    update_cmd = fetch_cmd
-  end
-
-  local current_commit_cmd = vim.split(exec_cmd() .. config.git.subcommands.get_header, '%s+')
-  for i, arg in ipairs(current_commit_cmd) do
-    current_commit_cmd[i] = string.gsub(arg, 'FMT', config.git.subcommands.diff_fmt)
-  end
+  local rev_cmd    = { config.git.cmd, 'rev-parse', '--short', 'HEAD' }
 
   if plugin.branch or (plugin.tag and not has_wildcard(plugin.tag)) then
     install_cmd[#install_cmd + 1] = '--branch'
@@ -261,21 +254,27 @@ function M.setup(plugin)
 
     installer_opts.cwd = install_to
 
-    if plugin.commit then
-      disp:task_update(plugin_name, fmt('checking out %s...', plugin.commit))
-      if r.ok then
-        r = jobs.run(exec_cmd() .. fmt(config.git.subcommands.checkout, plugin.commit), installer_opts)
-        if r.err then
-          r.err = {
-            msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
-            data = { r.err, output },
-          }
-        end
+    if r.ok and plugin.commit then
+      r = checkout(plugin.commit, installer_opts, disp)
+      if r.err then
+        r.err = {
+          msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin_name),
+          data = { r.err, output },
+        }
       end
     end
 
     if r.ok then
-      r = jobs.run(current_commit_cmd, installer_opts)
+      -- Get current commit
+      r = jobs.run({
+        config.git.cmd,
+        'log',
+        '--color=never',
+        '--pretty=format:'..config.git.subcommands.diff_fmt,
+        '--no-show-signature',
+        'HEAD',
+        '-n', '1'
+      }, installer_opts)
     end
 
     if r.ok then
@@ -349,7 +348,8 @@ function M.setup(plugin)
     local current_branch
     disp:task_update(plugin_name, 'checking current branch...')
     if r.ok then
-      r = jobs.run(branch_cmd, {
+      -- local branch_cmd = {config.git.cmd, 'rev-parse', '--abbrev-ref', 'HEAD'}
+      r = jobs.run({ config.git.cmd, 'branch', '--show-current' }, {
         success_test = exit_ok,
         capture_output = true,
         cwd = install_to,
@@ -428,13 +428,21 @@ function M.setup(plugin)
       end
     end
 
+    local fetch_cmd = { config.git.cmd, 'fetch', '--depth', '999999', '--progress' }
+
     local cmd, msg
     if opts.preview_updates then
-      cmd, msg = fetch_cmd, 'fetching updates...'
+      cmd = fetch_cmd
+      msg = 'fetching updates...'
     elseif opts.pull_head then
-      cmd, msg = update_head_cmd, 'pulling updates from head...'
+      cmd = { config.git.cmd, 'merge', 'FETCH_HEAD' }
+      msg = 'pulling updates from head...'
+    elseif plugin.commit or plugin.tag then
+      cmd = fetch_cmd
+      msg = 'pulling updates...'
     else
-      cmd, msg = update_cmd, 'pulling updates...'
+      cmd = { config.git.cmd, 'pull', '--ff-only', '--progress', '--rebase=false' }
+      msg = 'pulling updates...'
     end
 
     disp:task_update(plugin_name, msg)
@@ -480,21 +488,22 @@ function M.setup(plugin)
         local commit_headers_onread = jobs.logging_callback(update_info.err, update_info.messages)
         local commit_headers_callbacks = { stdout = commit_headers_onread, stderr = commit_headers_onread }
 
-        local diff_cmd = config.git.subcommands.diff:format(update_info.revs[1], update_info.revs[2])
-        local commit_headers_cmd = vim.split(exec_cmd() .. diff_cmd, '%s+')
-        for i, arg in ipairs(commit_headers_cmd) do
-          commit_headers_cmd[i] = string.gsub(arg, 'FMT', config.git.subcommands.diff_fmt)
-        end
+        local commit_headers_cmd = {
+          config.git.cmd,
+          'log',
+          '--color=never',
+          '--pretty=format:'.. config.git.subcommands.diff_fmt,
+          '--no-show-signature',
+          fmt('%s...%s',  update_info.revs[1], update_info.revs[2])
+        }
 
-        if r.ok then
-          disp:task_update(plugin_name, 'getting commit messages...')
-          r = jobs.run(commit_headers_cmd, {
-            success_test = exit_ok,
-            capture_output = commit_headers_callbacks,
-            cwd = install_to,
-            env = M.job_env,
-          })
-        end
+        disp:task_update(plugin_name, 'getting commit messages...')
+        r = jobs.run(commit_headers_cmd, {
+          success_test = exit_ok,
+          capture_output = commit_headers_callbacks,
+          cwd = install_to,
+          env = M.job_env,
+        })
 
         plugin.output = { err = update_info.err, data = update_info.output }
         if r.ok then

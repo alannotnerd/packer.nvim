@@ -16,18 +16,11 @@ local default_config = {
     mark_breaking_changes = true,
     cmd = 'git',
     subcommands = {
-      update = 'pull --ff-only --progress --rebase=false',
-      update_head = 'merge FETCH_HEAD',
       install = 'clone --depth %i --no-single-branch --progress',
-      fetch = 'fetch --depth 999999 --progress',
       checkout = 'checkout %s --',
       update_branch = 'merge --ff-only @{u}',
-      current_branch = 'rev-parse --abbrev-ref HEAD',
-      diff = 'log --color=never --pretty=format:FMT --no-show-signature %s...%s',
       diff_fmt = '%%h %%s (%%cr)',
       git_diff_fmt = 'show --no-color --pretty=medium %s',
-      get_rev = 'rev-parse --short HEAD',
-      get_header = 'log --color=never --pretty=format:FMT --no-show-signature HEAD -n 1',
       get_bodies = 'log --color=never --pretty=format:"===COMMIT_START===%h%n%s===BODY_START===%b" --no-show-signature HEAD@{1}...HEAD',
       get_fetch_bodies = 'log --color=never --pretty=format:"===COMMIT_START===%h%n%s===BODY_START===%b" --no-show-signature HEAD...FETCH_HEAD',
       revert = 'reset --hard HEAD@{1}',
@@ -107,18 +100,12 @@ end
 ---@field keybindings {[string]: string}
 
 ---@class GitSubCommandsConfig
----@field update           string
----@field update_head      string
 ---@field install          string
 ---@field fetch            string
 ---@field checkout         string
 ---@field update_branch    string
----@field current_branch   string
----@field diff             string
 ---@field diff_fmt         string
 ---@field git_diff_fmt     string
----@field get_rev          string
----@field get_header       string
 ---@field get_bodies       string
 ---@field get_fetch_bodies string
 ---@field revert           string

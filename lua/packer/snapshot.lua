@@ -142,7 +142,8 @@ end, 2)
 
 local fetch = async(function(cwd)
   local git = require 'packer.plugin_types.git'
-  return require('packer.jobs').run('git ' .. config.git.subcommands.fetch, {
+  local fetch_cmd = {config.git.cmd, 'fetch', '--depth', '999999', '--progress'}
+  return require('packer.jobs').run(fetch_cmd, {
     capture_output = true,
     cwd = cwd,
     env = git.job_env
