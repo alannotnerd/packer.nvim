@@ -15,7 +15,6 @@ local default_config = {
   git = {
     mark_breaking_changes = true,
     cmd = 'git',
-    diff_fmt = '%%h %%s (%%cr)',
     depth = 1,
     clone_timeout = 60,
     default_url_format = 'https://github.com/%s.git',
@@ -94,7 +93,6 @@ end
 ---@field depth                 integer
 ---@field clone_timeout         integer
 ---@field default_url_format    string
----@field diff_fmt         string
 
 ---@class Config
 ---@field package_root    string

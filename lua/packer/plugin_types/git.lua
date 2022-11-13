@@ -1,10 +1,13 @@
-local util = require 'packer.util'
-local jobs = require 'packer.jobs'
-local a = require 'packer.async'
-local void = require 'packer.async'.void
+local a      = require 'packer.async'
+local config = require 'packer.config'
+local jobs   = require 'packer.jobs'
+local log    = require 'packer.log'
 local result = require 'packer.result'
-local log = require 'packer.log'
+local util   = require 'packer.util'
+
+local void = a.void
 local async = a.sync
+
 local fmt = string.format
 
 ---@type PluginHandler
@@ -39,10 +42,7 @@ end
 ---@param tag string
 ---@return boolean
 local function has_wildcard(tag)
-  if not tag then
-    return false
-  end
-  return string.match(tag, '*') ~= nil
+  return tag and tag:match('*') ~= nil
 end
 
 local BREAK_TAG_PAT          = '[[bB][rR][eE][aA][kK]!?:]'
@@ -82,8 +82,6 @@ local function get_breaking_commits(commit_bodies)
   end
   return ret
 end
-
-local config = require('packer.config')
 
 ensure_git_env()
 
@@ -201,27 +199,14 @@ local function mark_breaking_changes(plugin, disp, exit_ok, preview_updates)
   local commit_bodies = { err = {}, output = {} }
   local commit_bodies_onread = jobs.logging_callback(commit_bodies.err, commit_bodies.output)
 
-  local commit_bodies_cmd
-  if preview_updates then
-    commit_bodies_cmd = {
-      'log',
-      '--color=never',
-      '--no-show-signature',
-      '--pretty=format:"===COMMIT_START===%h%n%s===BODY_START===%b"',
-      'HEAD...FETCH_HEAD'
-    }
-  else
-    commit_bodies_cmd = {
-        'log',
-      '--color=never',
-      '--no-show-signature',
-      '--pretty=format:"===COMMIT_START===%h%n%s===BODY_START===%b"',
-      'HEAD@{1}...HEAD'
-    }
-  end
-
   disp:task_update(plugin.name, 'checking for breaking changes...')
-  local r = git_run(commit_bodies_cmd, {
+  local r = git_run({
+    'log',
+    '--color=never',
+    '--no-show-signature',
+    '--pretty=format:===COMMIT_START===%h%n%s===BODY_START===%b',
+    preview_updates and 'HEAD...FETCH_HEAD' or 'HEAD@{1}...HEAD'
+  }, {
     success_test = exit_ok,
     capture_output = {
       stdout = commit_bodies_onread,
@@ -294,7 +279,7 @@ function M.setup(plugin)
       r = git_run({
         'log',
         '--color=never',
-        '--pretty=format:'..config.git.diff_fmt,
+        '--pretty=format:%h %s (%cr)',
         '--no-show-signature',
         'HEAD',
         '-n', '1'
@@ -414,7 +399,7 @@ function M.setup(plugin)
     local update_opts = {
       success_test = exit_ok,
       capture_output = {
-        stdout = jobs.logging_callback(update_info.err, update_info.output),
+        stdout = jobs.logging_callback(update_info.err, update_info.output, disp, plugin.full_name),
         stderr = jobs.logging_callback(update_info.err, update_info.output, disp, plugin.full_name),
       },
       cwd = plugin.install_path
@@ -513,7 +498,7 @@ function M.setup(plugin)
       r = git_run({
         'log',
         '--color=never',
-        '--pretty=format:'.. config.git.diff_fmt,
+        '--pretty=format:%h %s (%cr)',
         '--no-show-signature',
         fmt('%s...%s',  update_info.revs[1], update_info.revs[2])
       }, {
