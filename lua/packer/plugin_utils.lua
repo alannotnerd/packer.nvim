@@ -14,17 +14,21 @@ local function guess_dir_type(dir)
   local globdir = fn.glob(dir)
   local dir_type = (uv.fs_lstat(globdir) or { type = 'noexist' }).type
 
-  --[[ NOTE: We're assuming here that:
-             1. users only create custom plugins for non-git repos;
-             2. custom plugins don't use symlinks to install;
-             otherwise, there's no consistent way to tell from a dir alone… ]]
+  -- NOTE: We're assuming here that:
+  --
+  -- 1. users only create custom plugins for non-git repos;
+  -- 2. custom plugins don't use symlinks to install;
+  --
+  -- otherwise, there's no consistent way to tell from a dir alone…
   if dir_type == 'link' then
     return 'local'
-  elseif uv.fs_stat(globdir .. '/.git') then
-    return 'git'
-  elseif dir_type ~= 'noexist' then
-    return 'unknown'
   end
+
+  if uv.fs_stat(globdir .. '/.git') then
+    return 'git'
+  end
+
+  return 'unknown'
 end
 
 local function helptags_stale(dir)
