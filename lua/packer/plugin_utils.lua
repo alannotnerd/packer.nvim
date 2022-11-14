@@ -1,12 +1,10 @@
-local fn = vim.fn
-local uv = vim.loop
-
 local a = require 'packer.async'
-local jobs = require 'packer.jobs'
 local util = require 'packer.util'
-local result = require 'packer.result'
 local log = require 'packer.log'
 local config = require 'packer.config'
+
+local fn = vim.fn
+local uv = vim.loop
 
 local M = {}
 
@@ -29,47 +27,6 @@ local function guess_dir_type(dir)
   end
 
   return 'unknown'
-end
-
-local function helptags_stale(dir)
-  -- Adapted directly from minpac.vim
-  local txts = fn.glob(util.join_paths(dir, '*.txt'), true, true)
-  vim.list_extend(txts, fn.glob(util.join_paths(dir, '*.[a-z][a-z]x'), true, true))
-
-  if #txts == 0 then
-    return false
-  end
-
-  local tags = fn.glob(util.join_paths(dir, 'tags'), true, true)
-  vim.list_extend(tags, fn.glob(util.join_paths(dir, 'tags-[a-z][a-z]'), true, true))
-
-  if #tags == 0 then
-    return true
-  end
-
-  local txt_newest = math.max(unpack(util.map(fn.getftime, txts)))
-  local tag_oldest = math.min(unpack(util.map(fn.getftime, tags)))
-  return txt_newest > tag_oldest
-end
-
-M.update_helptags = vim.schedule_wrap(function(...)
-  for _, dir in ipairs(...) do
-    local doc_dir = util.join_paths(dir, 'doc')
-    if helptags_stale(doc_dir) then
-      log.info('Updating helptags for ' .. doc_dir)
-      vim.cmd('silent! helptags ' .. fn.fnameescape(doc_dir))
-    end
-  end
-end)
-
-function M.ensure_dirs()
-  if fn.isdirectory(config.opt_dir) == 0 then
-    fn.mkdir(config.opt_dir, 'p')
-  end
-
-  if fn.isdirectory(config.start_dir) == 0 then
-    fn.mkdir(config.start_dir, 'p')
-  end
 end
 
 function M.list_installed_plugins()
@@ -191,6 +148,7 @@ end
 ---@param disp Display
 ---@return Result
 M.post_update_hook = a.sync(function(plugin, disp)
+  local result = require 'packer.result'
   local plugin_name = plugin.full_name
   if plugin.run or not plugin.opt then
     a.main()
@@ -201,12 +159,9 @@ M.post_update_hook = a.sync(function(plugin, disp)
     return result.ok()
   end
 
-  if type(plugin.run) ~= 'table' then
-    plugin.run = { plugin.run }
-  end
-
   disp:task_update(plugin_name, 'running post update hooks...')
 
+  ---@diagnostic disable-next-line
   for _, run_task in ipairs(plugin.run) do
     if type(run_task) == 'function' then
       local ok, err = pcall(run_task, plugin, disp)
@@ -224,6 +179,7 @@ M.post_update_hook = a.sync(function(plugin, disp)
       -- run_task can be either a string or an array
       local res = { err = {}, output = {} }
 
+      local jobs = require 'packer.jobs'
       local hook_result = jobs.run(run_task, {
         capture_output = {
           stderr = jobs.logging_callback(res.err, res.output, disp, plugin_name),

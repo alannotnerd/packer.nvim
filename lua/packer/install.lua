@@ -6,24 +6,24 @@ local fmt = string.format
 
 ---@async
 ---@param plugin PluginSpec
----@param display Display
+---@param disp Display
 ---@param results Results
-local install_plugin = a.sync(function(plugin, display, results)
+local install_plugin = a.sync(function(plugin, disp, results)
   local plugin_name = plugin.full_name
-  display:task_start(plugin_name, 'installing...')
+  disp:task_start(plugin_name, 'installing...')
   -- TODO: If the user provided a custom function as an installer, we would like to use pcall
   -- here. Need to figure out how that integrates with async code
-  local r = plugin.installer(display)
+  local r = plugin.installer(disp)
 
   if r.ok then
-    r = plugin_utils.post_update_hook(plugin, display)
+    r = plugin_utils.post_update_hook(plugin, disp)
   end
 
   if r.ok then
-    display:task_succeeded(plugin_name, 'installed')
+    disp:task_succeeded(plugin_name, 'installed')
     log.debug(fmt('Installed %s', plugin_name))
   else
-    display:task_failed(plugin_name, 'failed to install')
+    disp:task_failed(plugin_name, 'failed to install')
     log.debug(fmt('Failed to install %s: %s', plugin_name, vim.inspect(r.err)))
   end
 
@@ -33,10 +33,10 @@ end, 3)
 
 ---@param plugins { [string]: PluginSpec }
 ---@param missing_plugins string[]
----@param display Display
+---@param disp Display
 ---@param results Results
 ---@return table
-local function install(plugins, missing_plugins, display, results)
+local function install(plugins, missing_plugins, disp, results)
   results = results or {}
   results.installs = results.installs or {}
   results.plugins = results.plugins or {}
@@ -46,7 +46,7 @@ local function install(plugins, missing_plugins, display, results)
 
   local tasks = {}
   for _, v in ipairs(missing_plugins) do
-    table.insert(tasks, a.curry(install_plugin, plugins[v], display, results))
+    table.insert(tasks, a.curry(install_plugin, plugins[v], disp, results))
   end
 
   return tasks

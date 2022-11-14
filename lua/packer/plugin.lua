@@ -5,9 +5,21 @@ local plugin_types = require 'packer.plugin_types'
 
 local fmt = string.format
 
+---@class PluginSpecInput
+---@field branch       string
+---@field rev          string
+---@field tag          string
+---@field commit       string
+---@field keys         string|string[]
+---@field event        string|string[]
+---@field ft           string|string[]
+---@field cmd          string|string[]
+---@field run          string|function|(string|function)[]
+---@field lock         boolean
+
 ---@class PluginSpec
 ---@field name         string
----@field full_name    string Include rev and branch
+---@field full_name    string Includes rev and branch
 ---@field path         string
 ---@field short_name   string
 ---@field branch       string
@@ -15,15 +27,15 @@ local fmt = string.format
 ---@field tag          string
 ---@field commit       string
 ---@field install_path string
----@field keys         string|string[]
----@field event        string|string[]
----@field ft           string|string[]
----@field cmd          string|string[]
+---@field keys         string[]
+---@field event        string[]
+---@field ft           string[]
+---@field cmd          string[]
+---@field run          (string | function)[]
 ---@field type         string
 ---@field url          string
 ---@field lock         boolean
 ---@field from_requires boolean
----@field after_files  string[]
 ---@field breaking_commits string[]
 ---@field opt          boolean
 ---@field remote_url   function
@@ -142,9 +154,9 @@ local function process_spec(plugin_data, plugins)
   end
 
   -- Normalize
-  for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
-    if type(spec[cond]) == 'string' then
-      spec[cond] = { spec[cond] }
+  for _, field in ipairs{'cmd', 'keys', 'ft', 'event', 'run'} do
+    if type(spec[field]) ~= 'table' then
+      spec[field] = { spec[field] }
     end
   end
 
@@ -193,6 +205,7 @@ local function process_spec(plugin_data, plugins)
   end
 end
 
+---@param spec PluginSpecInput
 function M.process_spec(spec)
   local plugins = {}
   process_spec(spec, plugins)

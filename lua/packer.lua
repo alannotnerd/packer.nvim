@@ -43,8 +43,41 @@ local function reltime(start)
   return fn.reltime(start)
 end
 
-local function install_common(tasks, results, display_win, start_time)
-  if #tasks == 0 or not display_win then
+local function helptags_stale(dir)
+  -- Adapted directly from minpac.vim
+  local txts = fn.glob(util.join_paths(dir, '*.txt'), true, true)
+  vim.list_extend(txts, fn.glob(util.join_paths(dir, '*.[a-z][a-z]x'), true, true))
+
+  if #txts == 0 then
+    return false
+  end
+
+  local tags = fn.glob(util.join_paths(dir, 'tags'), true, true)
+  vim.list_extend(tags, fn.glob(util.join_paths(dir, 'tags-[a-z][a-z]'), true, true))
+
+  if #tags == 0 then
+    return true
+  end
+
+  local txt_newest = math.max(unpack(util.map(fn.getftime, txts)))
+  local tag_oldest = math.min(unpack(util.map(fn.getftime, tags)))
+  return txt_newest > tag_oldest
+end
+
+local function update_helptags(paths)
+  for _, dir in ipairs(paths) do
+    local doc_dir = util.join_paths(dir, 'doc')
+    if helptags_stale(doc_dir) then
+      log.info('Updating helptags for ' .. doc_dir)
+      vim.cmd('silent! helptags ' .. fn.fnameescape(doc_dir))
+    end
+  end
+end
+
+---@param results Results
+---@param disp Display
+local function install_common(tasks, results, disp, start_time)
+  if #tasks == 0 or not disp then
     print('Nothing to do')
     log.info 'Nothing to do!'
     return
@@ -57,26 +90,22 @@ local function install_common(tasks, results, display_win, start_time)
   local limit = config.max_jobs and config.max_jobs or #tasks
 
   log.debug 'Running tasks'
-  display_win:update_headline_message(fmt('updating %d / %d plugins', #tasks, #tasks))
+  disp:update_headline_message(fmt('updating %d / %d plugins', #tasks, #tasks))
   a.join(limit, check, unpack(tasks))
 
   local install_paths = {}
-  for plugin_name, r in pairs(results.installs or {}) do
-    if r.ok then
-      table.insert(install_paths, results.plugins[plugin_name].install_path)
-    end
-  end
-
-  for plugin_name, r in pairs(results.updates or {}) do
-    if r.ok then
-      table.insert(install_paths, results.plugins[plugin_name].install_path)
+  for _, t in ipairs{results.installs, results.updates} do
+    for plugin_name, r in pairs(t) do
+      if r.ok then
+        install_paths[#install_paths+1] = results.plugins[plugin_name].install_path
+      end
     end
   end
 
   a.main()
-  plugin_utils.update_helptags(install_paths)
+  update_helptags(install_paths)
   local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
-  display_win:final_results(results, delta)
+  disp:final_results(results, delta)
 end
 
 --- Install operation:
@@ -95,16 +124,12 @@ M.install = a.sync(function()
   a.main()
   local start_time = reltime()
 
-  ---@type Results
-  local results = {}
-
-  require('packer.clean')(plugins, fs_state, results)
-
-  a.main()
   log.debug 'Gathering install tasks'
 
   local display_win = display.open()
 
+  ---@type Results
+  local results = {}
   local tasks = require('packer.install')(plugins, install_plugins, display_win, results)
 
   install_common(tasks, results, display_win, start_time)
@@ -191,8 +216,7 @@ local function loader_apply_config(plugin, name)
   end
 end
 
-local function load_plugin(names)
-  local some_unloaded = false
+local function load_plugins(names)
   for i, name in ipairs(names) do
     local plugin = _G.packer_plugins[name]
     if not plugin then
@@ -205,19 +229,9 @@ local function load_plugin(names)
       -- Set the plugin as loaded before config is run in case something in the config tries to load
       -- this same plugin again
       plugin.loaded = true
-      some_unloaded = true
       vim.cmd.packadd(names[i])
-      if plugin.after_files then
-        for _, file in ipairs(plugin.after_files) do
-          vim.cmd.source{file, silent = true}
-        end
-      end
       loader_apply_config(plugin, names[i])
     end
-  end
-
-  if not some_unloaded then
-    return
   end
 end
 
@@ -360,7 +374,7 @@ function setup_plugins.cmd(cmd_plugins)
       function(args)
         api.nvim_del_user_command(cmd)
 
-        load_plugin(names)
+        load_plugins(names)
 
         local lines = args.line1 == args.line2 and '' or (args.line1 .. ',' .. args.line2)
         vim.cmd(fmt(
@@ -392,7 +406,7 @@ function setup_plugins.keys(key_plugins)
   for keymap, names in pairs(keymaps) do
     vim.keymap.set(keymap[1], keymap[2], function()
       vim.keymap.del(keymap[1], keymap[2])
-      load_plugin(names)
+      load_plugins(names)
       api.nvim_feedkeys(keymap[2], keymap[1], false)
     end, {
         desc = 'Packer lazy load: '..table.concat(names, ', '),
@@ -442,7 +456,7 @@ function setup_plugins.ft(ft_plugins)
       pattern = ft,
       once = true,
       callback = function()
-        load_plugin(names)
+        load_plugins(names)
         for _, group in ipairs{'filetypeplugin', 'filetypeindent', 'syntaxset'} do
           api.nvim_exec_autocmds('FileType', { group = group, pattern = ft, modeline = false })
         end
@@ -476,7 +490,7 @@ function setup_plugins.event(event_plugins)
     api.nvim_create_autocmd(event, {
       once = true,
       callback = function()
-        load_plugin(names)
+        load_plugins(names)
         api.nvim_exec_autocmds(event, { modeline = false })
       end
     })

@@ -50,29 +50,30 @@ local clean_plugins = a.sync(function(plugins, fs_state, results)
 
   if #dirty_plugins == 0 then
     log.info 'Already clean!'
-  else
-    a.main()
+    return
+  end
 
-    local lines = {}
+  a.main()
+
+  local lines = {}
+  for _, path in ipairs(dirty_plugins) do
+    table.insert(lines, '  - ' .. path)
+  end
+
+  local config = require 'packer.config'
+  local display = require 'packer.display'
+
+  if config.autoremove or display.ask_user('Removing the following directories. OK? (y/N)', lines) then
+    results.removals = dirty_plugins
+    log.debug('Removed ' .. vim.inspect(dirty_plugins))
     for _, path in ipairs(dirty_plugins) do
-      table.insert(lines, '  - ' .. path)
-    end
-
-    local config = require 'packer.config'
-    local display = require 'packer.display'
-
-    if config.autoremove or display.ask_user('Removing the following directories. OK? (y/N)', lines) then
-      results.removals = dirty_plugins
-      log.debug('Removed ' .. vim.inspect(dirty_plugins))
-      for _, path in ipairs(dirty_plugins) do
-        local result = vim.fn.delete(path, 'rf')
-        if result == -1 then
-          log.warn('Could not remove ' .. path)
-        end
+      local result = vim.fn.delete(path, 'rf')
+      if result == -1 then
+        log.warn('Could not remove ' .. path)
       end
-    else
-      log.warn 'Cleaning cancelled!'
     end
+  else
+    log.warn 'Cleaning cancelled!'
   end
 end, 4)
 

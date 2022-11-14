@@ -16,16 +16,13 @@ local function fix_plugin_type(plugin, results, fs_state)
   if plugin.opt then
     from = util.join_paths(config.start_dir, plugin.short_name)
     to = util.join_paths(config.opt_dir, plugin.short_name)
-    fs_state.opt[to] = true
-    fs_state.start[from] = nil
-    fs_state.missing[plugin.short_name] = nil
   else
     from = util.join_paths(config.opt_dir, plugin.short_name)
     to = util.join_paths(config.start_dir, plugin.short_name)
-    fs_state.start[to] = true
-    fs_state.opt[from] = nil
-    fs_state.missing[plugin.short_name] = nil
   end
+  fs_state.start[to] = true
+  fs_state.opt[from] = nil
+  fs_state.missing[plugin.short_name] = nil
 
   -- NOTE: If we stored all plugins somewhere off-package-path and used symlinks to put them in the
   -- right directories, this could be lighter-weight
@@ -41,41 +38,43 @@ end
 
 ---@async
 ---@param plugin PluginSpec
----@param display_win Display
+---@param disp Display
 ---@param results Results
 ---@param opts table
-local update_plugin = async(function(plugin, display_win, results, opts)
+local update_plugin = async(function(plugin, disp, results, opts)
   local plugin_name = plugin.full_name
-  -- TODO: This will have to change when separate packages are implemented
-  local install_path = util.join_paths(config.pack_dir, plugin.opt and 'opt' or 'start', plugin.short_name)
-  plugin.install_path = install_path
+  disp:task_start(plugin_name, 'updating...')
+
   if plugin.lock then
+    disp:task_succeeded(plugin_name, 'locked')
     return
   end
-  display_win:task_start(plugin_name, 'updating...')
-  local r = plugin.updater(display_win, opts)
-  if r.ok then
-    local msg = 'up to date'
-    if plugin.type == 'git' then
-      local info = r.info
-      local actual_update = info.revs[1] ~= info.revs[2]
-      msg = actual_update and fmt('updated: %s...%s', info.revs[1], info.revs[2]) or 'already up to date'
-      if actual_update and not opts.preview_updates then
-        log.debug(fmt('Updated %s: %s', plugin_name, vim.inspect(info)))
-        r = plugin_utils.post_update_hook(plugin, display_win)
-      end
-    end
 
-    if r.ok then
-      display_win:task_succeeded(plugin_name, msg)
+  local r = plugin.updater(disp, opts)
+  local msg = 'up to date'
+  if r.ok and plugin.type == 'git' then
+    local revs = r.info.revs
+    local actual_update = revs[1] ~= revs[2]
+    if actual_update then
+      msg = fmt('updated: %s...%s', revs[1], revs[2])
+      if not opts.preview_updates then
+        log.debug(fmt('Updated %s: %s', plugin_name, vim.inspect(r.info)))
+        r = plugin_utils.post_update_hook(plugin, disp)
+      end
+    else
+      msg = 'already up to date'
     end
+  end
+
+  if r.ok then
+    disp:task_succeeded(plugin_name, msg)
   else
-    display_win:task_failed(plugin_name, 'failed to update')
+    disp:task_failed(plugin_name, 'failed to update')
     local errmsg = '<unknown error>'
     if r ~= nil and r.err ~= nil then
-      errmsg = r.err
+      errmsg = vim.inspect(r.err)
     end
-    log.debug(fmt('Failed to update %s: %s', plugin_name, vim.inspect(errmsg)))
+    log.debug(fmt('Failed to update %s: %s', plugin_name, errmsg))
   end
 
   results.updates[plugin_name] = r
@@ -86,10 +85,10 @@ local M = {}
 
 ---@param plugins { [string]: PluginSpec }
 ---@param update_plugins string[]
----@param display_win? Display
+---@param disp? Display
 ---@param results Results
 ---@param opts { pull_head: boolean, preview_updates: boolean}
-function M.update(plugins, update_plugins, display_win, results, opts)
+function M.update(plugins, update_plugins, disp, results, opts)
   results = results or {}
   results.updates = results.updates or {}
   results.plugins = results.plugins or {}
@@ -100,7 +99,7 @@ function M.update(plugins, update_plugins, display_win, results, opts)
       log.error(fmt('Unknown plugin: %s', v))
     end
     if plugin and not plugin.lock then
-      table.insert(tasks, a.curry(update_plugin, plugin, display_win, results, opts))
+      table.insert(tasks, a.curry(update_plugin, plugin, disp, results, opts))
     end
   end
 
@@ -118,8 +117,8 @@ function M.fix_plugin_types(plugins, plugin_names, results, fs_state)
   -- NOTE: This function can only be run on plugins already installed
   for _, v in ipairs(plugin_names) do
     local plugin = plugins[v]
-    local install_dir = util.join_paths(plugin.opt and config.start_dir or config.opt_dir, plugin.short_name)
-    if vim.loop.fs_stat(install_dir) ~= nil then
+    local wrong_install_dir = util.join_paths(plugin.opt and config.start_dir or config.opt_dir, plugin.short_name)
+    if vim.loop.fs_stat(wrong_install_dir) then
       fix_plugin_type(plugin, results, fs_state)
     end
   end

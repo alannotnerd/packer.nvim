@@ -297,28 +297,32 @@ display.decrement_headline_count = vim.schedule_wrap(function(self)
 end)
 
 --- Update a task as having successfully completed
-display.task_succeeded = vim.schedule_wrap(function(self, plugin, message)
+display.task_done = vim.schedule_wrap(function(self, plugin, message, success)
   if not self:valid_display() then
     return
   end
   local line = api.nvim_buf_get_extmark_by_id(self.buf, self.ns, self.marks[plugin], {})
-  self:set_lines(line[1], line[1] + 1, { fmt(' %s %s: %s', config.display.done_sym, plugin, message) })
+  local icon
+  if success then
+    icon = config.display.done_sym
+  else
+    icon = config.display.error_sym
+  end
+  self:set_lines(line[1], line[1] + 1, { fmt(' %s %s: %s', icon, plugin, message) })
   api.nvim_buf_del_extmark(self.buf, self.ns, self.marks[plugin])
   self.marks[plugin] = nil
   self:decrement_headline_count()
 end)
 
+--- Update a task as having successfully completed
+function display:task_succeeded(plugin, message)
+  display:task_done(plugin, message, true)
+end
+
 --- Update a task as having unsuccessfully failed
-display.task_failed = vim.schedule_wrap(function(self, plugin, message)
-  if not self:valid_display() then
-    return
-  end
-  local line = api.nvim_buf_get_extmark_by_id(self.buf, self.ns, self.marks[plugin], {})
-  self:set_lines(line[1], line[1] + 1, { fmt(' %s %s: %s', config.display.error_sym, plugin, message) })
-  api.nvim_buf_del_extmark(self.buf, self.ns, self.marks[plugin])
-  self.marks[plugin] = nil
-  self:decrement_headline_count()
-end)
+function display:task_failed(plugin, message)
+  display:task_done(plugin, message, false)
+end
 
 --- Update the status message of a task in progress
 display.task_update = vim.schedule_wrap(function(self, plugin, message)
@@ -387,13 +391,13 @@ display.status = vim.schedule_wrap(function(self, plugins)
 
   local padding = string.rep(' ', 3)
   local rtps = api.nvim_list_runtime_paths()
-  for plug_name, plug_conf in pairs(plugins) do
-    local load_state = plug_conf.loaded and ''
-                       or vim.tbl_contains(rtps, plug_conf.path) and ' (manually loaded)'
+  for plug_name, plugin in pairs(plugins) do
+    local load_state = plugin.loaded and ''
+                       or vim.tbl_contains(rtps, plugin.path) and ' (manually loaded)'
                        or ' (not loaded)'
     local header_lines = { fmt(' %s %s%s', config.display.item_sym, plug_name, load_state) }
     local config_lines = {}
-    for key, value in pairs(plug_conf) do
+    for key, value in pairs(plugin) do
       if vim.tbl_contains(status_keys, key) then
         local details = format_values(key, value)
         if type(details) == 'string' then
