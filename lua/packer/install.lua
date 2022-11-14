@@ -37,12 +37,13 @@ end, 3)
 ---@param results Results
 ---@return table
 local function install(plugins, missing_plugins, disp, results)
-  results = results or {}
-  results.installs = results.installs or {}
-  results.plugins = results.plugins or {}
   if #missing_plugins == 0 then
     return {}
   end
+
+  results = results or {}
+  results.installs = results.installs or {}
+  results.plugins = results.plugins or {}
 
   local tasks = {}
   for _, v in ipairs(missing_plugins) do
