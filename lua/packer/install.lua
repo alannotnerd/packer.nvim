@@ -13,7 +13,7 @@ local install_plugin = a.sync(function(plugin, disp, results)
   disp:task_start(plugin_name, 'installing...')
   -- TODO: If the user provided a custom function as an installer, we would like to use pcall
   -- here. Need to figure out how that integrates with async code
-  local r = plugin.installer(disp)
+  local r = plugin.fn.installer(disp)
 
   if r.ok then
     r = plugin_utils.post_update_hook(plugin, disp)

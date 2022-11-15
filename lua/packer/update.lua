@@ -1,6 +1,5 @@
 local util = require 'packer.util'
 local result = require 'packer.result'
-local display = require 'packer.display'
 local a = require 'packer.async'
 local log = require 'packer.log'
 local plugin_utils = require 'packer.plugin_utils'
@@ -50,7 +49,7 @@ local update_plugin = async(function(plugin, disp, results, opts)
     return
   end
 
-  local r = plugin.updater(disp, opts)
+  local r = plugin.fn.updater(disp, opts)
   local msg = 'up to date'
   if r.ok and plugin.type == 'git' then
     local revs = r.info.revs
