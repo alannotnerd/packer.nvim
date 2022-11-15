@@ -220,13 +220,19 @@ local function mark_breaking_changes(plugin, disp, exit_ok, preview_updates)
   return r
 end
 
+---@param plugin PluginSpec
+---@return PluginFuns
 function M.setup(plugin)
+
+  ---@type PluginFuns
+  local fn = {}
+
   local needs_checkout = plugin.tag ~= nil or plugin.commit ~= nil or plugin.branch ~= nil
 
   ---@async
   ---@param disp Display
   ---@return Result
-  plugin.installer = async(function(disp)
+  fn.installer = async(function(disp)
     local install_cmd = {
       'clone',
       '--depth', plugin.commit and 999999 or config.git.depth,
@@ -303,7 +309,7 @@ function M.setup(plugin)
 
   ---@async
   ---@return Result
-  plugin.remote_url = async(function()
+  fn.remote_url = async(function()
     local r = git_run({ 'remote', 'get-url', 'origin' }, {
       capture_output = true,
       cwd = plugin.install_path
@@ -320,7 +326,7 @@ function M.setup(plugin)
   ---@param disp Display
   ---@param opts { pull_head: boolean, preview_updates: boolean}
   ---@return Result
-  plugin.updater = async(function(disp, opts)
+  fn.updater = async(function(disp, opts)
     local update_info = {
       err      = {},
       revs     = {},
@@ -527,7 +533,7 @@ function M.setup(plugin)
 
   ---@async
   ---@return Result
-  plugin.diff = async(function(commit, callback)
+  fn.diff = async(function(commit, callback)
     local diff_info = { err = {}, output = {}, messages = {} }
     local diff_onread = jobs.logging_callback(diff_info.err, diff_info.messages)
     local r = git_run({
@@ -553,7 +559,7 @@ function M.setup(plugin)
 
   ---@async
   ---@return Result
-  plugin.revert_last = async(function()
+  fn.revert_last = async(function()
     local r = git_run({ 'reset', '--hard', 'HEAD@{1}' }, {
       capture_output = true,
       cwd = plugin.install_path
@@ -573,7 +579,7 @@ function M.setup(plugin)
   ---@async
   ---@param commit string
   ---@return Result
-  plugin.revert_to = async(function(commit)
+  fn.revert_to = async(function(commit)
     assert(type(commit) == 'string', fmt("commit: string expected but '%s' provided", type(commit)))
     require('packer.log').debug(fmt("Reverting '%s' to commit '%s'", plugin.name, commit))
     return git_run({ 'reset', '--hard', commit, '--' }, {
@@ -585,7 +591,7 @@ function M.setup(plugin)
   ---Returns HEAD's short hash
   ---@async
   ---@return Result
-  plugin.get_rev = async(function()
+  fn.get_rev = async(function()
     local r = git_run({ 'rev-parse', '--short', 'HEAD' }, {
       cwd = plugin.install_path,
       capture_output = true
@@ -600,6 +606,7 @@ function M.setup(plugin)
     return r
   end, 1)
 
+  return fn
 end
 
 return M

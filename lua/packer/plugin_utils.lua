@@ -127,11 +127,13 @@ local function load_plugin(plugin)
 
   for _, path in ipairs {
     util.join_paths(plugin.install_path, 'plugin', '**', '*.vim'),
+    util.join_paths(plugin.install_path, 'plugin', '**', '*.lua'),
     util.join_paths(plugin.install_path, 'after', 'plugin', '**', '*.vim'),
+    util.join_paths(plugin.install_path, 'after', 'plugin', '**', '*.lua'),
   } do
     local ok, files = pcall(fn.glob, path, false, true)
     if not ok then
-      if files:find('E77') then
+      if files:find('E77') then  -- E77: Too many file names
         vim.cmd('silent exe "source ' .. path .. '"')
       else
         error(files)

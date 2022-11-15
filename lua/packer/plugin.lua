@@ -38,6 +38,9 @@ local fmt = string.format
 ---@field from_requires boolean
 ---@field breaking_commits string[]
 ---@field opt          boolean
+---@field fn           PluginFuns
+
+---@class PluginFuns
 ---@field remote_url   function
 ---@field installer    function
 ---@field updater      fun(Display, table)
@@ -167,7 +170,9 @@ local function process_spec(plugin_data, plugins)
   -- Add the git URL for displaying in PackerStatus and PackerSync.
   spec.url = remove_ending_git_url(spec.url)
 
-  plugin_types[spec.type].setup(spec)
+  spec.fn = plugin_types[spec.type].setup(spec)
+
+  spec[1] = nil
 
   plugins[short_name] = spec
 

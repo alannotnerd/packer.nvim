@@ -25,14 +25,19 @@ local unlink = a.wrap(uv.fs_unlink, 2)
 local M = {}
 
 ---@param plugin PluginSpec
+---@return PluginFuns
 function M.setup(plugin)
+
+  ---@type PluginFuns
+  local fn = {}
+
   local from = uv.fs_realpath(util.strip_trailing_sep(plugin.path))
   local to = util.strip_trailing_sep(plugin.install_path)
 
   ---@async
   ---@param disp Display
   ---@return Result
-  plugin.installer = a.sync(function(disp)
+  fn.installer = a.sync(function(disp)
     disp:task_update(plugin.full_name, 'making symlink...')
     local err, success = symlink(from, to, { dir = true })
     if not success then
@@ -45,7 +50,7 @@ function M.setup(plugin)
   ---@async
   ---@param disp Display
   ---@return Result
-  plugin.updater = a.sync(function(disp)
+  fn.updater = a.sync(function(disp)
     disp:task_update(plugin.full_name, 'checking symlink...')
     local resolved_path = uv.fs_realpath(to)
     if resolved_path ~= from then
@@ -62,10 +67,12 @@ function M.setup(plugin)
   end, 1)
 
   ---@return Result
-  plugin.revert_last = function(_)
+  fn.revert_last = function(_)
     log.warn "Can't revert a local plugin!"
     return result.ok()
   end
+
+  return fn
 end
 
 return M
