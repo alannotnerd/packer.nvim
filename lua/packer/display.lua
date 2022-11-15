@@ -30,7 +30,6 @@ local function unpack_config_value(value, value_type, formatter)
   elseif value_type == 'table' then
     local result = {}
     for _, k in ipairs(value) do
-      print('DEBUG1', k)
       local item = formatter and formatter(k) or k
       table.insert(result, fmt('  - %s', item))
     end
@@ -54,32 +53,26 @@ end
 ---@param value any
 ---@return string|string[]
 local function format_values(key, value)
-  local value_type = type(value)
-  if key == 'path' then
-    local is_opt = value:match 'opt' ~= nil
-    return { fmt('"%s"', vim.fn.fnamemodify(value, ':~')), fmt('opt: %s', vim.inspect(is_opt)) }
-  elseif key == 'url' then
+  if key == 'url' then
     return fmt('"%s"', value)
-  elseif key == 'keys' then
-    return unpack_config_value(value, value_type, format_keys)
-  elseif key == 'commands' then
-    return unpack_config_value(value, value_type, format_cmd)
-  else
-    return vim.inspect(value)
   end
+
+  if key == 'keys' then
+    return unpack_config_value(value, type(value), format_keys)
+  end
+
+  if key == 'commands' then
+    return unpack_config_value(value, type(value), format_cmd)
+  end
+
+  local s = vim.inspect(value):gsub('\n', ', ')
+  return s
 end
 
-local status_keys = {
-  'path',
-  'url',
-  'commands',
-  'keys',
-  'ft',
-  'event',
-  'branch',
-  'commit',
-  'tag',
-  'lock',
+local plugin_keys_exclude = {
+  fn = true,
+  full_name = true,
+  name = true,
 }
 
 --- @class Display
@@ -378,6 +371,29 @@ local function setup_status_syntax()
   end
 end
 
+---@param plugin PluginSpec
+---@param rtps string[]
+---@return string
+local function load_state(plugin, rtps)
+  if not plugin.opt then
+    return ''
+  end
+
+  if plugin.loaded or vim.tbl_contains(rtps, plugin.install_path) then
+    return ' (manually loaded)'
+  end
+
+  return ' (not loaded)'
+end
+
+local function pad(x)
+  local r = {}
+  for i, s in ipairs(x) do
+    r[i] = '   '..s
+  end
+  return r
+end
+
 display.set_status = vim.schedule_wrap(function(self, plugins)
   if not self:valid_display() then
     return
@@ -388,33 +404,31 @@ display.set_status = vim.schedule_wrap(function(self, plugins)
   local plugs = {}
   local lines = {}
 
-  local padding = string.rep(' ', 3)
   local rtps = api.nvim_list_runtime_paths()
+
   for plug_name, plugin in pairs(plugins) do
-    local load_state = not plugin.opt and ''
-                       or vim.tbl_contains(rtps, plugin.install_path) and ' (manually loaded)'
-                       or ' (not loaded)'
-    lines[#lines+1] = fmt(' %s %s%s', config.display.item_sym, plug_name, load_state)
+    lines[#lines+1] = fmt(' %s %s%s', config.display.item_sym, plug_name, load_state(plugin, rtps))
 
     local config_lines = {}
     for key, value in pairs(plugin) do
-      if vim.tbl_contains(status_keys, key) then
+      if not plugin_keys_exclude[key] then
         local details = format_values(key, value)
         if type(details) == 'string' then
           -- insert a position one so that one line details appear above multiline ones
-          table.insert(config_lines, 1, fmt('%s%s: %s', padding, key, details))
+          table.insert(config_lines, 1, fmt('%s: %s', key, details))
         else
-          details = vim.tbl_map(function(line)
-            return padding .. line
-          end, details)
-          vim.list_extend(config_lines, { fmt('%s%s: ', padding, key), unpack(details) })
+          vim.list_extend(config_lines, { fmt('%s: ', key), unpack(details) })
         end
-        plugs[plug_name] = { lines = config_lines, displayed = false }
+        plugs[plug_name] = {
+          lines = pad(config_lines),
+          displayed = false
+        }
       end
     end
   end
-  table.sort(lines)
   self.items = plugs
+
+  table.sort(lines)
   self:set_lines(config.display.header_lines, -1, lines)
 end)
 

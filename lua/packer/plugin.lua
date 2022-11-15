@@ -20,7 +20,6 @@ local fmt = string.format
 ---@class PluginSpec
 ---@field name         string
 ---@field full_name    string Includes rev and branch
----@field path         string
 ---@field branch       string
 ---@field rev          string
 ---@field tag          string
@@ -37,6 +36,7 @@ local fmt = string.format
 ---@field from_requires boolean
 ---@field breaking_commits string[]
 ---@field opt          boolean
+---@field loaded       boolean Only use when opt == true
 ---@field fn           PluginFuns
 
 ---@class PluginFuns
@@ -142,7 +142,6 @@ local function process_spec(plugin_data, plugins)
 
   -- Handle aliases
   spec.name = name
-  spec.path = path
   spec.full_name = get_plugin_full_name(spec)
 
   -- Some config keys modify a plugin type
@@ -163,7 +162,7 @@ local function process_spec(plugin_data, plugins)
 
   spec.install_path = util.join_paths(spec.opt and config.opt_dir or config.start_dir, name)
 
-  spec.url, spec.type = guess_plugin_type(spec.path)
+  spec.url, spec.type = guess_plugin_type(path)
 
   -- Add the git URL for displaying in PackerStatus and PackerSync.
   spec.url = remove_ending_git_url(spec.url)

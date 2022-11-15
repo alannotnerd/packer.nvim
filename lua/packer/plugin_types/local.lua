@@ -31,7 +31,7 @@ function M.setup(plugin)
   ---@type PluginFuns
   local fn = {}
 
-  local from = uv.fs_realpath(util.strip_trailing_sep(plugin.path))
+  local from = uv.fs_realpath(util.strip_trailing_sep(plugin.url))
   local to = util.strip_trailing_sep(plugin.install_path)
 
   ---@async
