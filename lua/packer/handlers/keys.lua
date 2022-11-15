@@ -1,20 +1,23 @@
 
 return function(key_plugins, loader)
   local keymaps = {}
-  for name, plugin in pairs(key_plugins) do
+  for _, plugin in pairs(key_plugins) do
     for _, keymap in ipairs(plugin.keys) do
       if type(keymap) == 'string' then
         keymap = { '', keymap }
       end
       keymaps[keymap] = keymaps[keymap] or {}
-      table.insert(keymaps[keymap], name)
+      table.insert(keymaps[keymap], plugin)
     end
   end
 
-  for keymap, names in pairs(keymaps) do
+  for keymap, kplugins in pairs(keymaps) do
+    local names = vim.tbl_map(function(e)
+      return e.name
+    end, kplugins)
     vim.keymap.set(keymap[1], keymap[2], function()
       vim.keymap.del(keymap[1], keymap[2])
-      loader(names)
+      loader(kplugins)
       vim.api.nvim_feedkeys(keymap[2], keymap[1], false)
     end, {
         desc = 'Packer lazy load: '..table.concat(names, ', '),

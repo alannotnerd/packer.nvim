@@ -1,25 +1,21 @@
 return function(cmd_plugins, loader)
   local commands = {}
-  for name, plugin in pairs(cmd_plugins) do
-    -- TODO(lewis6991): normalize this higher up
+  for _, plugin in pairs(cmd_plugins) do
     local cmds = plugin.cmd
-    if type(cmds) == 'string' then
-      cmds = { cmds }
-    end
     plugin.commands = cmds
 
     for _, cmd in ipairs(cmds) do
       commands[cmd] = commands[cmd] or {}
-      table.insert(commands[cmd], name)
+      table.insert(commands[cmd], plugin)
     end
   end
 
-  for cmd, names in pairs(commands) do
+  for cmd, cplugins in pairs(commands) do
     vim.api.nvim_create_user_command(cmd,
       function(args)
         vim.api.nvim_del_user_command(cmd)
 
-        loader(names)
+        loader(cplugins)
 
         local lines = args.line1 == args.line2 and '' or (args.line1 .. ',' .. args.line2)
         vim.cmd(string.format(

@@ -220,31 +220,24 @@ M.status = a.sync(function()
   R.display().open():set_status(_G.packer_plugins)
 end)
 
-local function loader_apply_config(plugin, name)
+local function apply_config(plugin)
   if plugin.config then
     if type(plugin.config) == 'function' then
       plugin.config()
     else
-      loadstring(plugin.config, name..'.config()')()
+      loadstring(plugin.config, plugin.name..'.config()')()
     end
   end
 end
 
-local function load_plugins(names)
-  for i, name in ipairs(names) do
-    local plugin = _G.packer_plugins[name]
-    if not plugin then
-      local err_message = fmt('Error: attempted to load %s which is not present in plugins table!', names[i])
-      vim.notify(err_message, vim.log.levels.ERROR, { title = 'packer.nvim' })
-      error(err_message)
-    end
-
+local function loader(lplugins)
+  for _, plugin in ipairs(lplugins) do
     if not plugin.loaded then
-      -- Set the plugin as loaded before config is run in case something in the config tries to load
-      -- this same plugin again
+      -- Set the plugin as loaded before config is run in case something in the
+      -- config tries to load this same plugin again
       plugin.loaded = true
-      vim.cmd.packadd(names[i])
-      loader_apply_config(plugin, names[i])
+      vim.cmd.packadd(plugins.name)
+      apply_config(plugin)
     end
   end
 end
@@ -391,13 +384,13 @@ local function load_plugin_configs()
 
   _G.packer_plugins = plugins
 
-  for name, plugin in pairs(uncond_plugins) do
-    loader_apply_config(plugin, name)
+  for _, plugin in pairs(uncond_plugins) do
+    apply_config(plugin)
   end
 
   for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
     if next(cond_plugins[cond]) then
-      require('packer.handlers')(cond, cond_plugins[cond], load_plugins)
+      require('packer.handlers')(cond, cond_plugins[cond], loader)
     end
   end
 end
