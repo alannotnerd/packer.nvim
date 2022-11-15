@@ -65,6 +65,11 @@ local function format_values(key, value)
     return unpack_config_value(value, type(value), format_cmd)
   end
 
+  if type(value) == 'function' then
+    local info = debug.getinfo(value, 'Sl')
+    return fmt('<Lua: %s:%s>', info.short_src, info.linedefined)
+  end
+
   local s = vim.inspect(value):gsub('\n', ', ')
   return s
 end
@@ -361,7 +366,7 @@ local function setup_status_syntax()
     { 'packerStatusCommit'    , 'Constant'},
     { 'packerStatusSuccess'   , 'Constant'},
     { 'packerStatusFail'      , 'ErrorMsg'},
-    { 'packerPackageName'     , 'Label'},
+    { 'packerPackageName'     , 'Title'},
     { 'packerPackageNotLoaded', 'Comment'},
     { 'packerString'          , 'String'},
     { 'packerBool'            , 'Boolean'},

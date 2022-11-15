@@ -217,8 +217,7 @@ M.status = a.sync(function()
 end)
 
 local function loader_apply_config(plugin, name)
-  if plugin.config and not plugin._done_config then
-    plugin._done_config = true
+  if plugin.config then
     if type(plugin.config) == 'function' then
       plugin.config()
     else
