@@ -5,7 +5,7 @@ Fork that aims to de-scope and refactor
 Aims:
 - heavily refactor
 - remove compilation
-- port to Teal
+- optional: port to Teal. For now will use emmylua
 
 ## Table of Contents
 1. [Features](#features)
@@ -57,9 +57,6 @@ Then you can write your plugin specification in Lua, e.g. (in `~/.config/nvim/lu
 
 ```lua
 -- This file can be loaded by calling `lua require('plugins')` from your init.vim
-
--- Only required if you have packer configured as `opt`
-vim.cmd.packadd('packer.nvim')
 
 require('packer').startup({
   -- Packer can manage itself
@@ -118,21 +115,20 @@ require('packer').startup({
 `packer` provides the following commands after you've run and configured `packer` with `require('packer').startup(...)`:
 
 ```vim
--- Remove any disabled or unused plugins
+" Remove any disabled or unused plugins
 :PackerClean
 
--- Clean, then install missing plugins
+" Install missing plugins
 :PackerInstall
 
--- Clean, then update and install plugins
--- supports the `--preview` flag as an optional first argument to preview updates
+" Clean, then update and install plugins
+" supports the `--preview` flag as an optional first argument to preview updates
 :PackerUpdate
 
--- Perform `PackerUpdate`
--- supports the `--preview` flag as an optional first argument to preview updates
-:PackerSync
+" View status of plugins
+:PackerStatus
 
--- Loads opt plugin immediately
+" Loads opt plugin immediately
 :PackerLoad completion-nvim ale
 ```
 
@@ -162,12 +158,6 @@ require('packer').startup{{
   -- 'foo2/bar2.nvim';
 
 }}
-
--- Automatically set up your configuration after cloning packer.nvim
--- Put this at the end after all plugins
-if packer_bootstrap then
-  require('packer').sync()
-end
 ```
 
 ## Usage
@@ -193,9 +183,6 @@ require('packer').startup{{...}, config = {
   plugin_package      = 'packer', -- The default package for plugins
   max_jobs            = nil, -- Limit the number of simultaneous jobs. nil means no limit
   auto_clean          = true, -- During sync(), remove unused plugins
-  disable_commands    = false, -- Disable creating commands
-  transitive_opt      = true, -- Make dependencies of opt plugins also opt by default
-  transitive_disable  = true, -- Automatically disable dependencies of disabled plugins
   preview_updates     = false, -- If true, always preview updates before choosing which plugins to update, same as `PackerUpdate --preview`.
   git = {
     cmd = 'git', -- The base command for git operations
@@ -251,7 +238,6 @@ Plugin specs can take two forms:
   'myusername/example',    -- The plugin location string
 
   -- The following keys are all optional
-  updater  = function,            -- Specifies custom updater. See "custom installers" below.
   branch   = string,              -- Specifies a git branch to use
   tag      = string,              -- Specifies a git tag to use. Supports '*' for "latest tag"
   commit   = string,              -- Specifies a git commit to use

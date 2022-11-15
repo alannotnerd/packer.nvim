@@ -10,7 +10,6 @@ local default_config = {
   plugin_package = 'packer',
   max_jobs = nil,
   auto_clean = true,
-  disable_commands = false,
   preview_updates = false,
   git = {
     mark_breaking_changes = true,

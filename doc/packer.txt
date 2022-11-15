@@ -108,11 +108,6 @@ Clean, then update and install plugins.
 Supports the `--preview` flag as an optional first argument to preview
 updates.
 
-`PackerSync`                                    *packer-commands-sync*
-Perform `PackerUpdate`
-Supports the `--preview` flag as an optional first argument to preview
-updates.
-
 `PackerSnapshot`                                    *packer-commands-snapshot*
 Snapshots your plugins to a file
 
@@ -157,9 +152,6 @@ default values: >
     plugin_package = 'packer', -- The default package for plugins
     max_jobs = nil, -- Limit the number of simultaneous jobs. nil means no limit
     auto_clean = true, -- During sync(), remove unused plugins
-    disable_commands = false, -- Disable creating commands
-    transitive_opt = true, -- Make dependencies of opt plugins also opt by default
-    transitive_disable = true, -- Automatically disable dependencies of disabled plugins
     preview_updates = false, -- If true, always preview updates before choosing which plugins to update, same as `PackerUpdate --preview`.
     git = {
       cmd = 'git', -- The base command for git operations
@@ -380,7 +372,6 @@ use()                                                              *packer.use()
         keys = string or list,       -- Specifies maps which load this plugin. See |packer-plugin-keybindings|
         event = string or list,      -- Specifies autocommand events which load this plugin.
         fn = string or list          -- Specifies functions which load this plugin.
-        setup = string or function,  -- Specifies code to run before this plugin is loaded.
       }
     - With a list of plugins specified in either of the above two forms
 

@@ -36,7 +36,7 @@ local fmt = string.format
 ---@field from_requires boolean
 ---@field breaking_commits string[]
 ---@field opt          boolean
----@field loaded       boolean Only use when opt == true
+---@field loaded       boolean
 ---@field fn           PluginFuns
 
 ---@class PluginFuns
@@ -152,6 +152,8 @@ local function process_spec(plugin_data, plugins)
   if spec.keys or spec.ft or spec.cmd or spec.event then
     spec.opt = true
   end
+
+  spec.loaded = not spec.opt
 
   -- Normalize
   for _, field in ipairs{'cmd', 'keys', 'ft', 'event', 'run'} do
