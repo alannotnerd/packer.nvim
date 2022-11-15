@@ -1,75 +1,76 @@
-local a = require 'packer.async'
-local log = require 'packer.log'
-local util = require 'packer.util'
-local result = require 'packer.result'
+local a = require('packer.async')
+local log = require('packer.log')
+local util = require('packer.util')
+local result = require('packer.result')
 
 local uv = vim.loop
 
--- Due to #679, we know that fs_symlink requires admin privileges on Windows. This is a workaround,
--- as suggested by @nonsleepr.
+local M = {}
+
+
+
+
+
+
+
+
+
+
+
 
 local symlink_fn
 if util.is_windows then
-  symlink_fn = function(path, new_path, flags, callback)
-    flags = flags or {}
-    flags.junction = true
-    return uv.fs_symlink(path, new_path, flags, callback)
-  end
+   symlink_fn = function(path, new_path, flags, callback)
+      flags = flags or {}
+      flags.junction = true
+      return uv.fs_symlink(path, new_path, flags, callback)
+   end
 else
-  symlink_fn = uv.fs_symlink
+   symlink_fn = uv.fs_symlink
 end
 
 local symlink = a.wrap(symlink_fn, 4)
 local unlink = a.wrap(uv.fs_unlink, 2)
 
-local M = {}
-
----@async
----@param disp Display
----@return Result
 M.installer = a.sync(function(plugin, disp)
-  local from = uv.fs_realpath(util.strip_trailing_sep(plugin.url))
-  local to = util.strip_trailing_sep(plugin.install_path)
+   local from = uv.fs_realpath(util.strip_trailing_sep(plugin.url))
+   local to = util.strip_trailing_sep(plugin.install_path)
 
-  disp:task_update(plugin.full_name, 'making symlink...')
-  local err, success = symlink(from, to, { dir = true })
-  if not success then
-    plugin.output = { err = { err } }
-    return result.err(err)
-  end
-  return result.ok()
+   disp:task_update(plugin.full_name, 'making symlink...')
+   local err, success = symlink(from, to, { dir = true })
+   if not success then
+      plugin.err = { err }
+      return result.err({ msg = err })
+   end
+   return result.ok()
 end, 2)
 
----@async
----@param disp Display
----@return Result
 M.updater = a.sync(function(plugin, disp)
-  local from = uv.fs_realpath(util.strip_trailing_sep(plugin.url))
-  local to = util.strip_trailing_sep(plugin.install_path)
-  disp:task_update(plugin.full_name, 'checking symlink...')
-  local resolved_path = uv.fs_realpath(to)
-  if resolved_path ~= from then
-    disp:task_update(plugin.full_name, 'updating symlink...')
-    local err, success = unlink(to)
-    if success then
-      err = symlink(from, to, { dir = true })
-    end
-    if err then
-      return result.err(err)
-    end
-  end
-  return result.ok()
+   local from = uv.fs_realpath(util.strip_trailing_sep(plugin.url))
+   local to = util.strip_trailing_sep(plugin.install_path)
+   disp:task_update(plugin.full_name, 'checking symlink...')
+   local resolved_path = uv.fs_realpath(to)
+   if resolved_path ~= from then
+      disp:task_update(plugin.full_name, 'updating symlink...')
+      local err, success = unlink(to)
+      if success then
+         err = symlink(from, to, { dir = true })
+      end
+      if err then
+         return result.err(err)
+      end
+   end
+   return result.ok({})
 end, 1)
 
----@return Result
-M.revert_last = function(_, _)
-  log.warn "Can't revert a local plugin!"
-  return result.ok()
+M.revert_last = function(_)
+   log.warn("Can't revert a local plugin!")
+   return result.ok({})
 end
 
 M.diff = function(_, _, _)
-  log.warn "Can't diff a local plugin!"
-  return result.ok()
+   log.warn("Can't diff a local plugin!")
+   return result.ok({})
 end
 
 return M
