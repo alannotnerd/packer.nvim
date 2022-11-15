@@ -377,18 +377,20 @@ local function setup_status_syntax()
 end
 
 ---@param plugin PluginSpec
----@param rtps string[]
 ---@return string
-local function load_state(plugin, rtps)
-  if not plugin.opt then
-    return ''
+local function load_state(plugin)
+  if not plugin.loaded then
+    if not plugin.opt then
+      return ' (not installed)'
+    end
+    return ' (not loaded)'
   end
 
-  if plugin.loaded or vim.tbl_contains(rtps, plugin.install_path) then
+  if plugin.opt then
     return ' (manually loaded)'
   end
 
-  return ' (not loaded)'
+  return ''
 end
 
 local function pad(x)
@@ -409,10 +411,8 @@ display.set_status = vim.schedule_wrap(function(self, plugins)
   local plugs = {}
   local lines = {}
 
-  local rtps = api.nvim_list_runtime_paths()
-
   for plug_name, plugin in pairs(plugins) do
-    lines[#lines+1] = fmt(' %s %s%s', config.display.item_sym, plug_name, load_state(plugin, rtps))
+    lines[#lines+1] = fmt(' %s %s%s', config.display.item_sym, plug_name, load_state(plugin))
 
     local config_lines = {}
     for key, value in pairs(plugin) do

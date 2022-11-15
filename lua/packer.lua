@@ -221,7 +221,7 @@ M.status = a.sync(function()
 end)
 
 local function apply_config(plugin)
-  if plugin.config then
+  if plugin.config and plugin.loaded then
     if type(plugin.config) == 'function' then
       plugin.config()
     else
@@ -230,13 +230,14 @@ local function apply_config(plugin)
   end
 end
 
+---@param lplugins {[string]:PluginSpec}
 local function loader(lplugins)
   for _, plugin in ipairs(lplugins) do
     if not plugin.loaded then
       -- Set the plugin as loaded before config is run in case something in the
       -- config tries to load this same plugin again
       plugin.loaded = true
-      vim.cmd.packadd(plugins.name)
+      vim.cmd.packadd(plugin.name)
       apply_config(plugin)
     end
   end

@@ -153,8 +153,6 @@ local function process_spec(plugin_data, plugins)
     spec.opt = true
   end
 
-  spec.loaded = not spec.opt
-
   -- Normalize
   for _, field in ipairs{'cmd', 'keys', 'ft', 'event', 'run'} do
     if spec[field] and type(spec[field]) ~= 'table' then
@@ -163,6 +161,8 @@ local function process_spec(plugin_data, plugins)
   end
 
   spec.install_path = util.join_paths(spec.opt and config.opt_dir or config.start_dir, name)
+
+  spec.loaded = not spec.opt and vim.loop.fs_stat(spec.install_path) ~= nil
 
   spec.url, spec.type = guess_plugin_type(path)
 
