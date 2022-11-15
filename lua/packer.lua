@@ -33,8 +33,7 @@ local R = {
 -- Finds plugins present in the `packer` package but not in the managed set
 ---@async
 M.clean = a.void(function()
-  local fs_state = R.plugin_utils().get_fs_state(plugins)
-  R.clean()(plugins, fs_state)
+  R.clean()(plugins)
 end)
 
 local function helptags_stale(dir)

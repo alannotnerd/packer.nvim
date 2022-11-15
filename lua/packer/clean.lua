@@ -7,10 +7,12 @@ end
 -- Find and remove any plugins not currently configured for use
 ---@async
 ---@param plugins PluginSpec[]
----@param fs_state FSState
+---@param fs_state? FSState
 ---@param removals? { [string]: Result }
 return a.sync(function(plugins, fs_state, removals)
   local log = require 'packer.log'
+
+  fs_state = fs_state or require('packer.plugin_utils').get_fs_state(plugins)
 
   log.debug 'Starting clean'
   local dirty_plugins = {}
