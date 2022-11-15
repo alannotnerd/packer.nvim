@@ -79,6 +79,12 @@ local plugin_keys_exclude = {
   name = true,
 }
 
+--- @class DisplayItem
+--- @field plugin        PluginSpec
+--- @field lines         string[]
+--- @field displayed     boolean
+--- @field ignore_update boolean
+
 --- @class Display
 --- @field interactive   boolean
 --- @field buf           integer
@@ -86,7 +92,7 @@ local plugin_keys_exclude = {
 --- @field ns            integer
 --- @field opts          DisplayConfig
 --- @field results       Results
---- @field items   table
+--- @field items         {[string]:DisplayItem}
 --- @field item_order table
 --- @field marks table
 local display = {}
@@ -400,6 +406,24 @@ local function pad(x)
   return r
 end
 
+--- @param plugin PluginSpec
+local function get_plugin_status(plugin)
+  local config_lines = {}
+  for key, value in pairs(plugin) do
+    if not plugin_keys_exclude[key] then
+      local details = format_values(key, value)
+      if type(details) == 'string' then
+        -- insert a position one so that one line details appear above multiline ones
+        table.insert(config_lines, 1, fmt('%s: %s', key, details))
+      else
+        vim.list_extend(config_lines, { fmt('%s: ', key), unpack(details) })
+      end
+    end
+  end
+
+  return config_lines
+end
+
 display.set_status = vim.schedule_wrap(function(self, plugins)
   if not self:valid_display() then
     return
@@ -407,30 +431,18 @@ display.set_status = vim.schedule_wrap(function(self, plugins)
   setup_status_syntax()
   self:update_headline_message(fmt('Total plugins: %d', vim.tbl_count(plugins)))
 
-  local plugs = {}
   local lines = {}
 
-  for plug_name, plugin in pairs(plugins) do
-    lines[#lines+1] = fmt(' %s %s%s', config.display.item_sym, plug_name, load_state(plugin))
+  self.items = self.items or {}
 
-    local config_lines = {}
-    for key, value in pairs(plugin) do
-      if not plugin_keys_exclude[key] then
-        local details = format_values(key, value)
-        if type(details) == 'string' then
-          -- insert a position one so that one line details appear above multiline ones
-          table.insert(config_lines, 1, fmt('%s: %s', key, details))
-        else
-          vim.list_extend(config_lines, { fmt('%s: ', key), unpack(details) })
-        end
-        plugs[plug_name] = {
-          lines = pad(config_lines),
-          displayed = false
-        }
-      end
-    end
+  for plugin_name, plugin in pairs(plugins) do
+    lines[#lines+1] = fmt(' %s %s%s', config.display.item_sym, plugin_name, load_state(plugin))
+    self.items[plugin_name] = {
+      plugin = plugin,
+      lines = pad(get_plugin_status(plugin)),
+      displayed = false
+    }
   end
-  self.items = plugs
 
   table.sort(lines)
   self:set_lines(config.display.header_lines, -1, lines)
@@ -539,7 +551,6 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
         table.insert(message, fmt(' %s Failed to update %s', config.display.error_sym, plugin_name))
       end
 
-      plugin.actual_update = actual_update
       if actual_update or failed_update then
         vim.list_extend(raw_lines, message)
       end
@@ -564,35 +575,38 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
   -- Ensure there are no newlines
   local lines = strip_newlines(raw_lines)
   self:set_lines(config.display.header_lines, -1, lines)
-  local plugins = {}
   for plugin_name, plugin in pairs(_G.packer_plugins) do
-    local plugin_data = { displayed = false, lines = {}, spec = plugin }
+    local item = {
+      displayed = false,
+      lines = {},
+      plugin = plugin
+    }
     if plugin.output then
       if plugin.output.err and #plugin.output.err > 0 then
-        table.insert(plugin_data.lines, '  Errors:')
+        table.insert(item.lines, '  Errors:')
         for _, line in ipairs(plugin.output.err) do
           line = vim.trim(line)
           if line:find '\n' then
             for sub_line in line:gmatch '[^\r\n]+' do
-              table.insert(plugin_data.lines, '    ' .. sub_line)
+              table.insert(item.lines, '    ' .. sub_line)
             end
           else
-            table.insert(plugin_data.lines, '    ' .. line)
+            table.insert(item.lines, '    ' .. line)
           end
         end
       end
     end
 
     if plugin.messages and #plugin.messages > 0 then
-      table.insert(plugin_data.lines, fmt('  URL: %s', plugin.url))
-      table.insert(plugin_data.lines, '  Commits:')
+      table.insert(item.lines, fmt('  URL: %s', plugin.url))
+      table.insert(item.lines, '  Commits:')
       for _, msg in ipairs(plugin.messages) do
         for _, line in ipairs(vim.split(msg, '\n')) do
-          table.insert(plugin_data.lines, string.rep(' ', 4) .. line)
+          table.insert(item.lines, string.rep(' ', 4) .. line)
         end
       end
 
-      table.insert(plugin_data.lines, '')
+      table.insert(item.lines, '')
     end
 
     if plugin.breaking_commits and #plugin.breaking_commits > 0 then
@@ -603,10 +617,10 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
       end
     end
 
-    plugins[plugin_name] = plugin_data
+    self.items = self.items or {}
+    self.items[plugin_name] = item
   end
 
-  self.items = plugins
   self.item_order = item_order
   if config.display.show_all_info then
     self:show_all_info()
@@ -626,16 +640,16 @@ function display:show_all_info()
 
   local line = config.display.header_lines + 1
   for _, plugin_name in pairs(self.item_order) do
-    local plugin_data = self.items[plugin_name]
-    if plugin_data and plugin_data.spec.actual_update and #plugin_data.lines > 0 then
+    local item = self.items[plugin_name]
+    if item and #item.lines > 0 then
       local next_line
       if config.display.compact then
         next_line = line + 1
-        plugin_data.displayed = false
+        item.displayed = false
       else
-        self:set_lines(line, line, plugin_data.lines)
-        next_line = line + #plugin_data.lines + 1
-        plugin_data.displayed = true
+        self:set_lines(line, line, item.lines)
+        next_line = line + #item.lines + 1
+        item.displayed = true
       end
       self.marks[plugin_name] = {
         start = set_extmark(self.buf, self.ns, nil, line - 1, 0),
@@ -664,13 +678,14 @@ function display:toggle_info()
     return
   end
 
-  local plugin_data = self.items[plugin_name]
-  if plugin_data.displayed then
-    self:set_lines(cursor_pos[1], cursor_pos[1] + #plugin_data.lines, {})
-    plugin_data.displayed = false
-  elseif #plugin_data.lines > 0 then
-    self:set_lines(cursor_pos[1], cursor_pos[1], plugin_data.lines)
-    plugin_data.displayed = true
+  local item = self.items[plugin_name]
+
+  if item.displayed then
+    self:set_lines(cursor_pos[1], cursor_pos[1] + #item.lines, {})
+    item.displayed = false
+  elseif #item.lines > 0 then
+    self:set_lines(cursor_pos[1], cursor_pos[1], item.lines)
+    item.displayed = true
   else
     log.info('No further information for ' .. plugin_name)
   end
@@ -698,12 +713,12 @@ function display:diff()
     return
   end
 
-  if not self.items[plugin_name] or not self.items[plugin_name].spec then
+  if not self.items[plugin_name] then
     log.warn 'Plugin not available!'
     return
   end
 
-  local plugin_data = self.items[plugin_name].spec
+  local plugin = self.items[plugin_name].plugin
   local current_line = self:get_current_line()
   local commit = vim.fn.matchstr(current_line, COMMIT_RANGE_PAT)
   if commit == '' then
@@ -715,7 +730,9 @@ function display:diff()
     return
   end
 
-  plugin_data.diff(commit, function(lines, err)
+  local plugin_type = require'packer.plugin_types'[plugin.type]
+
+  plugin_type.diff(plugin, commit, function(lines, err)
     if err then
       return log.warn 'Unable to get diff!'
     end
@@ -730,23 +747,19 @@ function display:toggle_update()
     return
   end
   local plugin_name = self:find_nearest_plugin()
-  local plugin = self.items[plugin_name]
-  if not plugin then
+  local item = self.items[plugin_name]
+  if not item then
     log.warn 'Plugin not available!'
     return
   end
-  local plugin_data = plugin.spec
-  if not plugin_data.actual_update then
-    return
-  end
 
-  plugin_data.ignore_update = not plugin_data.ignore_update
+  item.ignore_update = not item.ignore_update
 
   local mark_ids = self.marks[plugin_name]
   local start_idx = api.nvim_buf_get_extmark_by_id(self.buf, self.ns, mark_ids.start, {})[1]
   local symbol
   local status_msg
-  if plugin_data.ignore_update then
+  if item.ignore_update then
     status_msg = [[Won't update]]
     symbol = config.display.item_sym
   else
@@ -756,7 +769,7 @@ function display:toggle_update()
   self:set_lines(
     start_idx,
     start_idx + 1,
-    {make_update_msg(symbol, status_msg, plugin_name, plugin_data)}
+    {make_update_msg(symbol, status_msg, plugin_name, item.plugin)}
   )
   -- NOTE we need to reset the mark
   self.marks[plugin_name].start = set_extmark(self.buf, self.ns, nil, start_idx, 0)
@@ -768,9 +781,9 @@ function display:continue()
   end
   local plugins = {}
   for plugin_name, _ in pairs(self.results.updates) do
-    local plugin_data = self.items[plugin_name].spec
-    if plugin_data.actual_update and not plugin_data.ignore_update then
-      table.insert(plugins, plugin_data.name)
+    local item = self.items[plugin_name]
+    if item.ignore_update then
+      table.insert(plugins, plugin_name)
     end
   end
   if #plugins > 0 then
@@ -796,19 +809,22 @@ function display:prompt_revert()
     return
   end
 
-  local plugin_data = self.items[plugin_name].spec
-  if plugin_data.actual_update then
+  local item = self.items[plugin_name]
+  local plugin = item.plugin
+  local actual_update = plugin.revs[1] ~= plugin.revs[2]
+  if actual_update then
     prompt_user('Revert update for ' .. plugin_name .. '?', {
       'Do you want to revert '
         .. plugin_name
         .. ' from '
-        .. plugin_data.revs[2]
+        .. plugin.revs[2]
         .. ' to '
-        .. plugin_data.revs[1]
+        .. plugin.revs[1]
         .. '?',
     }, function(ans)
       if ans then
-        plugin_data.revert_last()
+        local plugin_type = require'packer.plugin_types'[plugin.type]
+        plugin_type.revert_last(plugin)
       end
     end)
   else

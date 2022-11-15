@@ -67,4 +67,9 @@ M.revert_last = function(_, _)
   return result.ok()
 end
 
+M.diff = function(_, _, _)
+  log.warn "Can't diff a local plugin!"
+  return result.ok()
+end
+
 return M

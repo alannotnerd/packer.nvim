@@ -21,6 +21,7 @@ local fmt = string.format
 ---@field full_name    string Includes rev and branch
 ---@field branch       string
 ---@field rev          string
+---@field revs         {[1]: string, [2]: string}
 ---@field tag          string
 ---@field commit       string
 ---@field install_path string
