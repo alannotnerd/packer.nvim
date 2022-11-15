@@ -391,10 +391,11 @@ display.set_status = vim.schedule_wrap(function(self, plugins)
   local padding = string.rep(' ', 3)
   local rtps = api.nvim_list_runtime_paths()
   for plug_name, plugin in pairs(plugins) do
-    local load_state = plugin.loaded and ''
-                       or vim.tbl_contains(rtps, plugin.path) and ' (manually loaded)'
+    local load_state = not plugin.opt and ''
+                       or vim.tbl_contains(rtps, plugin.install_path) and ' (manually loaded)'
                        or ' (not loaded)'
-    local header_lines = { fmt(' %s %s%s', config.display.item_sym, plug_name, load_state) }
+    lines[#lines+1] = fmt(' %s %s%s', config.display.item_sym, plug_name, load_state)
+
     local config_lines = {}
     for key, value in pairs(plugin) do
       if vim.tbl_contains(status_keys, key) then
@@ -411,7 +412,6 @@ display.set_status = vim.schedule_wrap(function(self, plugins)
         plugs[plug_name] = { lines = config_lines, displayed = false }
       end
     end
-    vim.list_extend(lines, header_lines)
   end
   table.sort(lines)
   self.items = plugs
