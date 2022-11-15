@@ -155,7 +155,7 @@ local function process_spec(plugin_data, plugins)
 
   -- Normalize
   for _, field in ipairs{'cmd', 'keys', 'ft', 'event', 'run'} do
-    if type(spec[field]) ~= 'table' then
+    if spec[field] and type(spec[field]) ~= 'table' then
       spec[field] = { spec[field] }
     end
   end
