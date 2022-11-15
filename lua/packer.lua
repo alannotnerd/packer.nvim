@@ -2,14 +2,12 @@ local api = vim.api
 local fn = vim.fn
 local fmt = string.format
 
-local util = require 'packer.util'
+local a      = require 'packer.async'
+local config = require 'packer.config'
+local log    = require 'packer.log'
+local util   = require 'packer.util'
+
 local join_paths = util.join_paths
-
-local config = require('packer.config')
-
-local a = require 'packer.async'
-
-local M = {}
 
 ---@class Results
 ---@field removals {[string]: Result}
@@ -20,17 +18,23 @@ local M = {}
 ---@type {[string]: PluginSpec}
 local plugins = {}
 
-local display      = require 'packer.display'
-local snapshot     = require 'packer.snapshot'
-local log          = require 'packer.log'
-local plugin_utils = require 'packer.plugin_utils'
+local M = {}
+
+-- Pseudo lazy require. Dumb enough for LSP to propagate the types
+local R = {
+  plugin_utils = function() return require('packer.plugin_utils') end,
+  clean        = function() return require('packer.clean')        end,
+  display      = function() return require('packer.display')      end,
+  install      = function() return require('packer.install')      end,
+  snapshot     = function() return require('packer.snapshot')     end
+}
 
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
 ---@async
 M.clean = a.void(function()
-  local fs_state = plugin_utils.get_fs_state(plugins)
-  require('packer.clean')(plugins, fs_state)
+  local fs_state = R.plugin_utils().get_fs_state(plugins)
+  R.clean()(plugins, fs_state)
 end)
 
 local function reltime(start)
@@ -106,7 +110,7 @@ end
 M.install = a.sync(function()
   log.debug 'packer.install: requiring modules'
 
-  local fs_state = plugin_utils.get_fs_state(plugins)
+  local fs_state = R.plugin_utils().get_fs_state(plugins)
   local install_plugins = vim.tbl_keys(fs_state.missing)
   if #install_plugins == 0 then
     log.info 'All configured plugins are installed'
@@ -118,10 +122,10 @@ M.install = a.sync(function()
 
   log.debug 'Gathering install tasks'
 
-  local disp = display.open()
+  local disp = R.display().open()
 
   local installs = {}
-  local install_tasks = require('packer.install')(plugins, install_plugins, disp, installs)
+  local install_tasks = R.install()(plugins, install_plugins, disp, installs)
 
   run_tasks(install_tasks, disp)
 
@@ -163,7 +167,7 @@ end
 M.update = a.void(function(...)
   local opts, update_plugins = filter_opts_from_plugins(...)
   local start_time = reltime()
-  local fs_state = plugin_utils.get_fs_state(plugins)
+  local fs_state = R.plugin_utils().get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
 
   local update = require('packer.update')
@@ -177,18 +181,18 @@ M.update = a.void(function(...)
   }
 
   update.fix_plugin_types(plugins, missing_plugins, results.moves, fs_state)
-  require('packer.clean')(plugins, fs_state, results.removals)
+  R.clean()(plugins, fs_state, results.removals)
 
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
 
   a.main()
   log.debug 'Gathering install tasks'
 
-  local disp = display.open()
+  local disp = R.display().open()
 
   local tasks = {}
 
-  local install_tasks = require('packer.install')(plugins, missing_plugins, display, results.installs)
+  local install_tasks = R.install()(plugins, missing_plugins, disp, results.installs)
   vim.list_extend(tasks, install_tasks)
 
   log.debug 'Gathering update tasks'
@@ -213,7 +217,7 @@ M.status = a.sync(function()
     return
   end
 
-  display.open():set_status(_G.packer_plugins)
+  R.display().open():set_status(_G.packer_plugins)
 end)
 
 local function loader_apply_config(plugin, name)
@@ -302,7 +306,7 @@ M.snapshot = a.void(function(snapshot_name, ...)
   end
 
   if write_snapshot then
-    local r = snapshot.create(snapshot_path, target_plugins)
+    local r = R.snapshot().create(snapshot_path, target_plugins)
     if r.ok then
       log.info(r.ok.message)
       if next(r.ok.failed) then
@@ -345,7 +349,7 @@ M.rollback = a.void(function(snapshot_name, ...)
     end, plugins)
   end
 
-  local r = snapshot.rollback(snapshot_path, target_plugins)
+  local r = R.snapshot().rollback(snapshot_path, target_plugins)
 
   if r.ok then
     a.main()
@@ -542,11 +546,23 @@ local function load_plugin_configs()
   end
 end
 
+local function do_snapshot(k)
+  return function(...)
+    R.snapshot()[k](...)
+  end
+end
+
+local function do_snapshot_cmpl(k)
+  return function(...)
+    R.snapshot().completion[k](...)
+  end
+end
+
 local function make_commands()
   for _, cmd in ipairs {
-    { 'PackerSnapshot'         , '+', snapshot.snapshot, snapshot.completion.create   },
-    { 'PackerSnapshotRollback' , '+', snapshot.rollback, snapshot.completion.rollback },
-    { 'PackerSnapshotDelete'   , '+', snapshot.delete  , snapshot.completion.snapshot },
+    { 'PackerSnapshot'         , '+', do_snapshot('create')  , do_snapshot_cmpl('create')   },
+    { 'PackerSnapshotRollback' , '+', do_snapshot('rollback'), do_snapshot_cmpl('rollback') },
+    { 'PackerSnapshotDelete'   , '+', do_snapshot('delete')  , do_snapshot_cmpl('snapshot') },
     { 'PackerInstall'          , '*', M.install   , M.plugin_complete },
     { 'PackerUpdate'           , '*', M.update    , M.plugin_complete },
     { 'PackerClean'            , '*', M.clean },
