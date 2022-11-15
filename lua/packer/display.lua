@@ -435,6 +435,7 @@ function display:has_changes(plugin)
 end
 
 --- Display the final results of an operation
+--- @param results Results
 display.final_results = vim.schedule_wrap(function(self, results, time, opts)
   self.opts = opts
   if not self:valid_display() then
@@ -516,7 +517,7 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
       else
         failed_update = true
         actual_update = false
-        table.insert(display.status.failed_update_list, plugin.short_name)
+        table.insert(display.status.failed_update_list, plugin.name)
         table.insert(item_order, plugin_name)
         table.insert(message, fmt(' %s Failed to update %s', config.display.error_sym, plugin_name))
       end
@@ -752,7 +753,7 @@ function display:continue()
   for plugin_name, _ in pairs(self.results.updates) do
     local plugin_data = self.items[plugin_name].spec
     if plugin_data.actual_update and not plugin_data.ignore_update then
-      table.insert(plugins, plugin_data.short_name)
+      table.insert(plugins, plugin_data.name)
     end
   end
   if #plugins > 0 then

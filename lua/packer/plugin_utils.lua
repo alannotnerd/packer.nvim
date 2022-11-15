@@ -69,7 +69,7 @@ local find_missing_plugins = a.sync(function(plugins, opt_plugins, start_plugins
   -- reinstall
   local missing_plugins = {}
   for plugin_name, plugin in pairs(plugins) do
-    local plugin_path = util.join_paths(config[plugin.opt and 'opt_dir' or 'start_dir'], plugin.short_name)
+    local plugin_path = util.join_paths(config[plugin.opt and 'opt_dir' or 'start_dir'], plugin.name)
     local plugin_installed = (plugin.opt and opt_plugins or start_plugins)[plugin_path]
 
     a.main()
@@ -119,7 +119,7 @@ end, 1)
 
 local function load_plugin(plugin)
   if plugin.opt then
-    vim.cmd.packadd(plugin.short_name)
+    vim.cmd.packadd(plugin.name)
     return
   end
 

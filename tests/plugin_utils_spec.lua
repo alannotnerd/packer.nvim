@@ -23,8 +23,7 @@ a.describe('Plugin utils -', function()
         [repo_name] = {
           opt = false,
           type = "git",
-          name = fmt("user1/%s", repo_name),
-          short_name = repo_name,
+          name = repo_name,
           remote_url = function()
             return async(function()
               return {ok = {remote = fmt('https://github.com/%s', test_repo_name)}}
@@ -43,8 +42,7 @@ a.describe('Plugin utils -', function()
         [repo_name] = {
           opt = false,
           type = "git",
-          name = test_repo_name,
-          short_name = repo_name,
+          name = repo_name,
           remote_url = function()
             return async(function()
               return {ok = {remote = fmt('https://github.com/%s', test_repo_name)}}
@@ -63,8 +61,7 @@ a.describe('Plugin utils -', function()
         [repo_name] = {
           opt = false,
           type = "git",
-          name = fmt("user1/%s", repo_name),
-          short_name = repo_name,
+          name = repo_name,
           remote_url = function()
             return async(function()
               return {ok = {remote = fmt('git@github.com:%s.git', test_repo_name)}}

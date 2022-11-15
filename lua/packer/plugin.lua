@@ -21,7 +21,6 @@ local fmt = string.format
 ---@field name         string
 ---@field full_name    string Includes rev and branch
 ---@field path         string
----@field short_name   string
 ---@field branch       string
 ---@field rev          string
 ---@field tag          string
@@ -69,7 +68,7 @@ end
 
 ---@param text string
 ---@return string, string
-local function get_plugin_short_name(text)
+local function get_plugin_name(text)
   local path = vim.fn.expand(text)
   local name_segments = vim.split(path, util.get_separator())
   local segment_idx = #name_segments
@@ -82,7 +81,7 @@ local function get_plugin_short_name(text)
 end
 
 local function get_plugin_full_name(plugin)
-  local plugin_name = plugin.name or plugin.short_name
+  local plugin_name = plugin.name
   if plugin.branch then
     -- NOTE: maybe have to change the seperator here too
     plugin_name = plugin_name .. '/' .. plugin.branch
@@ -129,21 +128,20 @@ local function process_spec(plugin_data, plugins)
     return
   end
 
-  local short_name, path = get_plugin_short_name(spec[1])
+  local name, path = get_plugin_name(spec[1])
 
-  if short_name == '' then
+  if name == '' then
     log.warn(fmt('"%s" is an invalid plugin name!', spec[1]))
     return
   end
 
-  if plugins[short_name] and not plugins[short_name].from_requires then
-    log.warn(fmt('Plugin "%s" is used twice! (line %s)', short_name, spec_line))
+  if plugins[name] and not plugins[name].from_requires then
+    log.warn(fmt('Plugin "%s" is used twice! (line %s)', name, spec_line))
     return
   end
 
   -- Handle aliases
-  spec.name = short_name
-  spec.short_name = short_name
+  spec.name = name
   spec.path = path
   spec.full_name = get_plugin_full_name(spec)
 
@@ -163,7 +161,7 @@ local function process_spec(plugin_data, plugins)
     end
   end
 
-  spec.install_path = util.join_paths(spec.opt and config.opt_dir or config.start_dir, short_name)
+  spec.install_path = util.join_paths(spec.opt and config.opt_dir or config.start_dir, name)
 
   spec.url, spec.type = guess_plugin_type(spec.path)
 
@@ -174,7 +172,7 @@ local function process_spec(plugin_data, plugins)
 
   spec[1] = nil
 
-  plugins[short_name] = spec
+  plugins[name] = spec
 
   if spec.requires then
     -- Handle single plugins given as strings or single plugin specs given as tables
@@ -201,7 +199,7 @@ local function process_spec(plugin_data, plugins)
       if not plugins[req_name] then
         if spec.manual_opt then
           req.opt = true
-          req.after = spec.short_name
+          req.after = spec.name
         end
 
         process_spec({ spec = req, line = spec_line }, plugins)

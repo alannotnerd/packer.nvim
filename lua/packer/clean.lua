@@ -34,11 +34,11 @@ local clean_plugins = a.sync(function(plugins, fs_state, results)
 
     -- We don't want to report paths which don't exist for removal; that will confuse people
     local path_exists = false
-    if missing_plugins[plugin_config.short_name] then
+    if missing_plugins[plugin_config.name] then
       path_exists = vim.loop.fs_stat(path) ~= nil
     end
 
-    local plugin_missing = path_exists and missing_plugins[plugin_config.short_name]
+    local plugin_missing = path_exists and missing_plugins[plugin_config.name]
     if plugin_missing or is_dirty(plugin_config, plugin_isopt) then
       dirty_plugins[#dirty_plugins + 1] = path
     end

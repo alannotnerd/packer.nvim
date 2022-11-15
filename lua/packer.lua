@@ -267,8 +267,8 @@ M.snapshot = a.void(function(snapshot_name, ...)
   if next(args) ~= nil then -- provided extra args
     target_plugins = vim.tbl_filter( -- filter plugins
       function(plugin)
-        for k, plugin_shortname in pairs(args) do
-          if plugin_shortname == plugin.short_name then
+        for k, name in pairs(args) do
+          if name == plugin.name then
             args[k] = nil
             return true
           end
@@ -326,8 +326,8 @@ M.rollback = a.void(function(snapshot_name, ...)
 
   if next(args) ~= nil then -- provided extra args
     target_plugins = vim.tbl_filter(function(plugin)
-      for _, plugin_sname in pairs(args) do
-        if plugin_sname == plugin.short_name then
+      for _, name in pairs(args) do
+        if name == plugin.name then
           return true
         end
       end

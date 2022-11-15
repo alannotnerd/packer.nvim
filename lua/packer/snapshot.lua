@@ -96,17 +96,17 @@ local generate_snapshot = async(function(plugins)
     local rev = plugin.get_rev()
 
     if rev.err then
-      failed[plugin.short_name] =
-        fmt("Snapshotting %s failed because of error '%s'", plugin.short_name, vim.inspect(rev.err.msg))
+      failed[plugin.name] =
+        fmt("Snapshotting %s failed because of error '%s'", plugin.name, vim.inspect(rev.err.msg))
     else
-      completed[plugin.short_name] = { commit = rev.ok.data }
+      completed[plugin.name] = { commit = rev.ok.data }
     end
   end
 
   return result.ok { failed = failed, completed = completed }
 end, 1)
 
----Serializes a table of git-plugins with `short_name` as table key and another
+---Serializes a table of git-plugins with `name` as table key and another
 ---table with `commit`; the serialized tables will be written in the path `snapshot_path`
 ---provided, if there is already a snapshot it will be overwritten
 ---Snapshotting work only with git plugins,
@@ -172,19 +172,19 @@ M.rollback = async(function(snapshot_path, plugins)
   local failed = {}
 
   for _, plugin in pairs(plugins) do
-    if plugins_snapshot[plugin.short_name] then
-      local commit = plugins_snapshot[plugin.short_name].commit
+    if plugins_snapshot[plugin.name] then
+      local commit = plugins_snapshot[plugin.name].commit
       if commit then
         local r = fetch(plugin.install_path)
         if r.ok then
-          r = plugin.revert_to(commit)
+          r = plugin.fn.revert_to(commit)
         end
 
         if r.ok then
-          completed[plugin.short_name] = r.ok
+          completed[plugin.name] = r.ok
         else
-          failed[plugin.short_name] = failed[plugin.short_name] or {}
-          table.insert(failed[plugin.short_name], r.err)
+          failed[plugin.name] = failed[plugin.name] or {}
+          table.insert(failed[plugin.name], r.err)
         end
       end
     end

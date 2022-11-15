@@ -14,7 +14,7 @@ describe("Packer use tests", function()
     end)
     packer.__manage_all()
     assert.truthy(spec.install_path)
-    assert.equal(spec.install_path, packer_path .. spec.short_name)
+    assert.equal(spec.install_path, packer_path .. spec.name)
   end)
 
   it("should add metadata to a plugin from a spec", function ()
