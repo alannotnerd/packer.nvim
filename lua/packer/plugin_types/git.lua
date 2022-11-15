@@ -241,12 +241,10 @@ function M.setup(plugin)
     }
 
     if plugin.branch or (plugin.tag and not has_wildcard(plugin.tag)) then
-      install_cmd[#install_cmd + 1] = '--branch'
-      install_cmd[#install_cmd + 1] = plugin.branch or plugin.tag
+      vim.list_extend(install_cmd, { '--branch', plugin.branch or plugin.tag })
     end
 
-    install_cmd[#install_cmd + 1] = plugin.url
-    install_cmd[#install_cmd + 1] = plugin.install_path
+    vim.list_extend(install_cmd, { plugin.url, plugin.install_path })
 
     local output = jobs.output_table()
 

@@ -77,7 +77,6 @@ local update_plugin = async(function(plugin, disp, results, opts)
   end
 
   results.updates[plugin_name] = r
-  results.plugins[plugin_name] = plugin
 end, 4)
 
 local M = {}
@@ -90,7 +89,6 @@ local M = {}
 function M.update(plugins, update_plugins, disp, results, opts)
   results = results or {}
   results.updates = results.updates or {}
-  results.plugins = results.plugins or {}
   local tasks = {}
   for _, v in ipairs(update_plugins) do
     local plugin = plugins[v]

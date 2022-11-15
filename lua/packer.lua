@@ -16,7 +16,6 @@ local M = {}
 ---@field installs {[string]: Result}
 ---@field moves    {[string]: Result}
 ---@field updates  {[string]: Result}
----@field plugins  {[string]: PluginSpec}
 
 ---@type {[string]: PluginSpec}
 local plugins = {}
@@ -77,7 +76,7 @@ end
 ---@param results Results
 ---@param disp Display
 local function install_common(tasks, results, disp, start_time)
-  if #tasks == 0 or not disp then
+  if #tasks == 0 then
     print('Nothing to do')
     log.info 'Nothing to do!'
     return
@@ -97,7 +96,7 @@ local function install_common(tasks, results, disp, start_time)
   for _, t in ipairs{results.installs, results.updates} do
     for plugin_name, r in pairs(t) do
       if r.ok then
-        install_paths[#install_paths+1] = results.plugins[plugin_name].install_path
+        install_paths[#install_paths+1] = plugins[plugin_name].install_path
       end
     end
   end
@@ -326,8 +325,8 @@ M.rollback = a.void(function(snapshot_name, ...)
 
   if next(args) ~= nil then -- provided extra args
     target_plugins = vim.tbl_filter(function(plugin)
-      for _, name in pairs(args) do
-        if name == plugin.name then
+      for _, plugin_sname in pairs(args) do
+        if plugin_sname == plugin.name then
           return true
         end
       end
