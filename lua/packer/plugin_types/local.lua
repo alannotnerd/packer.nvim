@@ -24,55 +24,47 @@ local unlink = a.wrap(uv.fs_unlink, 2)
 
 local M = {}
 
----@param plugin PluginSpec
----@return PluginFuns
-function M.setup(plugin)
-
-  ---@type PluginFuns
-  local fn = {}
-
+---@async
+---@param disp Display
+---@return Result
+M.installer = a.sync(function(plugin, disp)
   local from = uv.fs_realpath(util.strip_trailing_sep(plugin.url))
   local to = util.strip_trailing_sep(plugin.install_path)
 
-  ---@async
-  ---@param disp Display
-  ---@return Result
-  fn.installer = a.sync(function(disp)
-    disp:task_update(plugin.full_name, 'making symlink...')
-    local err, success = symlink(from, to, { dir = true })
-    if not success then
-      plugin.output = { err = { err } }
+  disp:task_update(plugin.full_name, 'making symlink...')
+  local err, success = symlink(from, to, { dir = true })
+  if not success then
+    plugin.output = { err = { err } }
+    return result.err(err)
+  end
+  return result.ok()
+end, 2)
+
+---@async
+---@param disp Display
+---@return Result
+M.updater = a.sync(function(plugin, disp)
+  local from = uv.fs_realpath(util.strip_trailing_sep(plugin.url))
+  local to = util.strip_trailing_sep(plugin.install_path)
+  disp:task_update(plugin.full_name, 'checking symlink...')
+  local resolved_path = uv.fs_realpath(to)
+  if resolved_path ~= from then
+    disp:task_update(plugin.full_name, 'updating symlink...')
+    local err, success = unlink(to)
+    if success then
+      err = symlink(from, to, { dir = true })
+    end
+    if err then
       return result.err(err)
     end
-    return result.ok()
-  end)
-
-  ---@async
-  ---@param disp Display
-  ---@return Result
-  fn.updater = a.sync(function(disp)
-    disp:task_update(plugin.full_name, 'checking symlink...')
-    local resolved_path = uv.fs_realpath(to)
-    if resolved_path ~= from then
-      disp:task_update(plugin.full_name, 'updating symlink...')
-      local err, success = unlink(to)
-      if success then
-        err = symlink(from, to, { dir = true })
-      end
-      if err then
-        return result.err(err)
-      end
-    end
-    return result.ok()
-  end, 1)
-
-  ---@return Result
-  fn.revert_last = function(_)
-    log.warn "Can't revert a local plugin!"
-    return result.ok()
   end
+  return result.ok()
+end, 1)
 
-  return fn
+---@return Result
+M.revert_last = function(_, _)
+  log.warn "Can't revert a local plugin!"
+  return result.ok()
 end
 
 return M

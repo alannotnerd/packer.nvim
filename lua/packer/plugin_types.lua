@@ -1,6 +1,6 @@
 --- @class PluginHandler
---- @field setup    function
---- @field cfg      function
+--- @field installer fun(plugin: PluginSpec, disp: Display): Result
+--- @field updater   fun(plugin: PluginSpec, disp: Display, opts: table): Result
 --- @field job_env? string[]
 
 ---@type {[string]: PluginHandler}

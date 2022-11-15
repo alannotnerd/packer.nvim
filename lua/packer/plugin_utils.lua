@@ -77,7 +77,7 @@ local find_missing_plugins = a.sync(function(plugins, opt_plugins, start_plugins
     if not plugin_installed or plugin.type ~= guessed_type then
       missing_plugins[plugin_name] = true
     elseif guessed_type == 'git' then
-      local r = plugin.fn.remote_url()
+      local r = require'packer.plugin_types.git'.remote_url(plugin)
       local remote = r.ok and r.ok.remote or nil
       if remote then
         -- Form a Github-style user/repo string

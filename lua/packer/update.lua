@@ -50,7 +50,9 @@ local update_plugin = async(function(plugin, disp, updates, opts)
     return
   end
 
-  local r = plugin.fn.updater(disp, opts)
+  local plugin_type = require'packer.plugin_types'[plugin.type]
+
+  local r = plugin_type.updater(plugin, disp, opts)
   local msg = 'up to date'
   if r.ok and plugin.type == 'git' then
     local revs = r.info.revs

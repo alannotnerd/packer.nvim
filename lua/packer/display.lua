@@ -75,7 +75,6 @@ local function format_values(key, value)
 end
 
 local plugin_keys_exclude = {
-  fn = true,
   full_name = true,
   name = true,
 }

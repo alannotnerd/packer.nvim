@@ -1,7 +1,6 @@
 local util   = require 'packer.util'
 local log    = require 'packer.log'
 local config = require('packer.config')
-local plugin_types = require 'packer.plugin_types'
 
 local fmt = string.format
 
@@ -37,13 +36,6 @@ local fmt = string.format
 ---@field breaking_commits string[]
 ---@field opt          boolean
 ---@field loaded       boolean
----@field fn           PluginFuns
-
----@class PluginFuns
----@field remote_url   function
----@field installer    function
----@field updater      fun(Display, table)
----@field revert_to    function
 
 ---@class PluginData
 ---@field line integer
@@ -168,8 +160,6 @@ local function process_spec(plugin_data, plugins)
 
   -- Add the git URL for displaying in PackerStatus and PackerSync.
   spec.url = remove_ending_git_url(spec.url)
-
-  spec.fn = plugin_types[spec.type].setup(spec)
 
   spec[1] = nil
 

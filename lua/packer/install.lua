@@ -10,9 +10,10 @@ local fmt = string.format
 ---@param installs {[string]: Result}
 local install_plugin = a.sync(function(plugin, disp, installs)
   disp:task_start(plugin.full_name, 'installing...')
-  -- TODO: If the user provided a custom function as an installer, we would like to use pcall
-  -- here. Need to figure out how that integrates with async code
-  local r = plugin.fn.installer(disp)
+
+  local plugin_type = require'packer.plugin_types'[plugin.type]
+
+  local r = plugin_type.installer(plugin, disp)
 
   if r.ok then
     r = plugin_utils.post_update_hook(plugin, disp)

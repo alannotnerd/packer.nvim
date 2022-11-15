@@ -2,6 +2,7 @@ local a = require 'packer.async'
 local util = require 'packer.util'
 local log = require 'packer.log'
 local plugin_utils = require 'packer.plugin_utils'
+local git = require 'packer.plugin_types.git'
 local result = require 'packer.result'
 local async = a.sync
 local fmt = string.format
@@ -140,8 +141,8 @@ M.create = async(function(snapshot_path, plugins)
   end
 end, 2)
 
+
 local fetch = async(function(cwd)
-  local git = require 'packer.plugin_types.git'
   local fetch_cmd = {config.git.cmd, 'fetch', '--depth', '999999', '--progress'}
   return require('packer.jobs').run(fetch_cmd, {
     capture_output = true,
@@ -177,7 +178,7 @@ M.rollback = async(function(snapshot_path, plugins)
       if commit then
         local r = fetch(plugin.install_path)
         if r.ok then
-          r = plugin.fn.revert_to(commit)
+          r = git.revert_to(plugin, commit)
         end
 
         if r.ok then
