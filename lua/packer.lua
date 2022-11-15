@@ -37,15 +37,6 @@ M.clean = a.void(function()
   R.clean()(plugins, fs_state)
 end)
 
-local function reltime(start)
-  if start == nil then
-    ---@diagnostic disable-next-line
-    return fn.reltime()
-  end
-  ---@diagnostic disable-next-line
-  return fn.reltime(start)
-end
-
 local function helptags_stale(dir)
   -- Adapted directly from minpac.vim
   local txts = fn.glob(util.join_paths(dir, '*.txt'), true, true)
@@ -118,7 +109,7 @@ M.install = a.sync(function()
   end
 
   a.main()
-  local start_time = reltime()
+  local start_time = vim.loop.hrtime()
 
   log.debug 'Gathering install tasks'
 
@@ -132,7 +123,7 @@ M.install = a.sync(function()
   a.main()
   update_helptags(installs)
 
-  local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
+  local delta = (vim.loop.hrtime() - start_time) / 1e9
   disp:final_results({installs = installs}, delta)
 end)
 
@@ -166,7 +157,7 @@ end
 --- @async
 M.update = a.void(function(...)
   local opts, update_plugins = filter_opts_from_plugins(...)
-  local start_time = reltime()
+  local start_time = vim.loop.hrtime()
   local fs_state = R.plugin_utils().get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
 
@@ -206,7 +197,7 @@ M.update = a.void(function(...)
   a.main()
   update_helptags(vim.tbl_extend('error', results.installs, results.updates))
 
-  local delta = fn.reltimestr(reltime(start_time)):gsub(' ', '')
+  local delta = (vim.loop.hrtime() - start_time) / 1e9
   disp:final_results(results, delta)
 end)
 
