@@ -95,6 +95,13 @@ local function run_tasks(tasks, disp)
   return a.join(limit, check, tasks)
 end
 
+---@return number
+local function measure(f)
+  local start_time = vim.loop.hrtime()
+  f()
+  return (vim.loop.hrtime() - start_time) / 1e9
+end
+
 --- Install operation:
 -- Installs missing plugins, then updates helptags and rplugins
 ---@async
@@ -109,21 +116,20 @@ M.install = a.sync(function()
   end
 
   a.main()
-  local start_time = vim.loop.hrtime()
 
   log.debug 'Gathering install tasks'
 
   local disp = R.display().open()
-
   local installs = {}
-  local install_tasks = R.install()(plugins, install_plugins, disp, installs)
 
-  run_tasks(install_tasks, disp)
+  local delta = measure(function()
+    local install_tasks = R.install()(plugins, install_plugins, disp, installs)
+    run_tasks(install_tasks, disp)
 
-  a.main()
-  update_helptags(installs)
+    a.main()
+    update_helptags(installs)
+  end)
 
-  local delta = (vim.loop.hrtime() - start_time) / 1e9
   disp:final_results({installs = installs}, delta)
 end)
 
@@ -157,7 +163,6 @@ end
 --- @async
 M.update = a.void(function(...)
   local opts, update_plugins = filter_opts_from_plugins(...)
-  local start_time = vim.loop.hrtime()
   local fs_state = R.plugin_utils().get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
 
@@ -177,27 +182,28 @@ M.update = a.void(function(...)
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
 
   a.main()
-  log.debug 'Gathering install tasks'
 
   local disp = R.display().open()
 
-  local tasks = {}
+  local delta = measure(function()
+    local tasks = {}
 
-  local install_tasks = R.install()(plugins, missing_plugins, disp, results.installs)
-  vim.list_extend(tasks, install_tasks)
+    log.debug 'Gathering install tasks'
+    local install_tasks = R.install()(plugins, missing_plugins, disp, results.installs)
+    vim.list_extend(tasks, install_tasks)
 
-  log.debug 'Gathering update tasks'
-  a.main()
+    log.debug 'Gathering update tasks'
+    a.main()
 
-  local update_tasks = update.update(plugins, installed_plugins, disp, results.updates, opts)
-  vim.list_extend(tasks, update_tasks)
+    local update_tasks = update.update(plugins, installed_plugins, disp, results.updates, opts)
+    vim.list_extend(tasks, update_tasks)
 
-  run_tasks(tasks, disp)
+    run_tasks(tasks, disp)
 
-  a.main()
-  update_helptags(vim.tbl_extend('error', results.installs, results.updates))
+    a.main()
+    update_helptags(vim.tbl_extend('error', results.installs, results.updates))
+  end)
 
-  local delta = (vim.loop.hrtime() - start_time) / 1e9
   disp:final_results(results, delta)
 end)
 
