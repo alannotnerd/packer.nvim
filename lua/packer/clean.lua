@@ -8,14 +8,12 @@ end
 ---@async
 ---@param plugins PluginSpec[]
 ---@param fs_state FSState
----@param results? Results
-local clean_plugins = a.sync(function(plugins, fs_state, results)
+---@param removals? { [string]: Result }
+return a.sync(function(plugins, fs_state, removals)
   local log = require 'packer.log'
 
   log.debug 'Starting clean'
   local dirty_plugins = {}
-  results = results or {}
-  results.removals = results.removals or {}
   local opt_plugins = vim.deepcopy(fs_state.opt)
   local start_plugins = vim.deepcopy(fs_state.start)
   local missing_plugins = fs_state.missing
@@ -64,7 +62,11 @@ local clean_plugins = a.sync(function(plugins, fs_state, results)
   local display = require 'packer.display'
 
   if config.autoremove or display.ask_user('Removing the following directories. OK? (y/N)', lines) then
-    results.removals = dirty_plugins
+    if removals then
+      for n, r in pairs(dirty_plugins) do
+        removals[n] = r
+      end
+    end
     log.debug('Removed ' .. vim.inspect(dirty_plugins))
     for _, path in ipairs(dirty_plugins) do
       local result = vim.fn.delete(path, 'rf')
@@ -76,5 +78,3 @@ local clean_plugins = a.sync(function(plugins, fs_state, results)
     log.warn 'Cleaning cancelled!'
   end
 end, 4)
-
-return clean_plugins

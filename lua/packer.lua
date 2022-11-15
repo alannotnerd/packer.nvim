@@ -63,7 +63,15 @@ local function helptags_stale(dir)
   return txt_newest > tag_oldest
 end
 
-local function update_helptags(paths)
+--- @param results {[string]: Result}
+local function update_helptags(results)
+  local paths = {}
+  for plugin_name, r in pairs(results) do
+    if r.ok then
+      paths[#paths+1] = plugins[plugin_name].install_path
+    end
+  end
+
   for _, dir in ipairs(paths) do
     local doc_dir = util.join_paths(dir, 'doc')
     if helptags_stale(doc_dir) then
@@ -73,9 +81,8 @@ local function update_helptags(paths)
   end
 end
 
----@param results Results
 ---@param disp Display
-local function install_common(tasks, results, disp, start_time)
+local function run_tasks(tasks, disp)
   if #tasks == 0 then
     print('Nothing to do')
     log.info 'Nothing to do!'
@@ -83,28 +90,14 @@ local function install_common(tasks, results, disp, start_time)
   end
 
   local function check()
-    return not display.status.running
+    return not disp.status.running
   end
 
   local limit = config.max_jobs and config.max_jobs or #tasks
 
   log.debug 'Running tasks'
   disp:update_headline_message(fmt('updating %d / %d plugins', #tasks, #tasks))
-  a.join(limit, check, unpack(tasks))
-
-  local install_paths = {}
-  for _, t in ipairs{results.installs, results.updates} do
-    for plugin_name, r in pairs(t) do
-      if r.ok then
-        install_paths[#install_paths+1] = plugins[plugin_name].install_path
-      end
-    end
-  end
-
-  a.main()
-  update_helptags(install_paths)
-  local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
-  disp:final_results(results, delta)
+  return a.join(limit, check, tasks)
 end
 
 --- Install operation:
@@ -125,13 +118,18 @@ M.install = a.sync(function()
 
   log.debug 'Gathering install tasks'
 
-  local display_win = display.open()
+  local disp = display.open()
 
-  ---@type Results
-  local results = {}
-  local tasks = require('packer.install')(plugins, install_plugins, display_win, results)
+  local installs = {}
+  local install_tasks = require('packer.install')(plugins, install_plugins, disp, installs)
 
-  install_common(tasks, results, display_win, start_time)
+  run_tasks(install_tasks, disp)
+
+  a.main()
+  update_helptags(installs)
+
+  local delta = string.gsub(fn.reltimestr(reltime(start_time)), ' ', '')
+  disp:final_results({installs = installs}, delta)
 end)
 
 -- Filter out options specified as the first argument to update or sync
@@ -165,33 +163,47 @@ end
 M.update = a.void(function(...)
   local opts, update_plugins = filter_opts_from_plugins(...)
   local start_time = reltime()
-  local results = {}
   local fs_state = plugin_utils.get_fs_state(plugins)
   local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
 
   local update = require('packer.update')
-  update.fix_plugin_types(plugins, missing_plugins, results, fs_state)
-  require('packer.clean')(plugins, fs_state, results)
+
+  ---@type Results
+  local results = {
+    moves = {},
+    removals = {},
+    installs = {},
+    updates = {}
+  }
+
+  update.fix_plugin_types(plugins, missing_plugins, results.moves, fs_state)
+  require('packer.clean')(plugins, fs_state, results.removals)
 
   missing_plugins = ({util.partition(vim.tbl_keys(results.moves), missing_plugins)})[2]
 
   a.main()
   log.debug 'Gathering install tasks'
 
-  local display_win = display.open()
+  local disp = display.open()
 
-  local install_tasks = require('packer.install')(plugins, missing_plugins, display, results)
+  local tasks = {}
+
+  local install_tasks = require('packer.install')(plugins, missing_plugins, display, results.installs)
+  vim.list_extend(tasks, install_tasks)
 
   log.debug 'Gathering update tasks'
   a.main()
 
-  local update_tasks = update.update(plugins, installed_plugins, display_win, results, opts)
-
-  local tasks = {}
-  vim.list_extend(tasks, install_tasks)
+  local update_tasks = update.update(plugins, installed_plugins, disp, results.updates, opts)
   vim.list_extend(tasks, update_tasks)
 
-  install_common(tasks, results, display_win, start_time)
+  run_tasks(tasks, disp)
+
+  a.main()
+  update_helptags(vim.tbl_extend('error', results.installs, results.updates))
+
+  local delta = fn.reltimestr(reltime(start_time)):gsub(' ', '')
+  disp:final_results(results, delta)
 end)
 
 ---@async
@@ -201,7 +213,7 @@ M.status = a.sync(function()
     return
   end
 
-  display.open():status(_G.packer_plugins)
+  display.open():set_status(_G.packer_plugins)
 end)
 
 local function loader_apply_config(plugin, name)

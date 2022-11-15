@@ -7,23 +7,23 @@ local function execute(func, callback, ...)
 
   local function step(...)
     local ret = {co.resume(thread, ...)}
-    local stat, err_or_fn_or_ret, nargs = unpack(ret)
+    local stat, nargs, fn_or_ret = unpack(ret)
 
     if not stat then
       error(string.format("The coroutine failed with this message: %s\n%s",
-        err_or_fn_or_ret, debug.traceback(thread)))
+        nargs, debug.traceback(thread)))
     end
 
     if co.status(thread) == 'dead' then
       if callback then
-        callback(err_or_fn_or_ret)
+        callback(unpack(ret, 3))
       end
       return
     end
 
     local args = {select(4, unpack(ret))}
     args[nargs] = step
-    err_or_fn_or_ret(unpack(args, 1, nargs))
+    fn_or_ret(unpack(args, 1, nargs))
   end
 
   step(...)
@@ -42,7 +42,7 @@ function M.wrap(func, argc)
     if not co.running() or select('#', ...) == argc then
       return func(...)
     end
-    return co.yield(func, argc, ...)
+    return co.yield(argc, func, ...)
   end
 end
 
@@ -80,20 +80,27 @@ function M.void(func)
   end
 end
 
-function M.join(n, interrupt_check, ...)
-  local thunks = { ... }
-
-  return co.yield(function(finish)
+--- @async
+--- @param n integer
+--- @param interrupt_check fun(): boolean
+--- @param thunks (fun(function))[]
+--- @return (any[])[]
+function M.join(n, interrupt_check, thunks)
+  return co.yield(1, function(finish)
     if #thunks == 0 then
       return finish()
     end
+
     local remaining = { select(n + 1, unpack(thunks)) }
     local to_go = #thunks
 
-    local function cb()
+    local ret = {}
+
+    local function cb(...)
+      ret[#ret+1] = {...}
       to_go = to_go - 1
       if to_go == 0 then
-        finish()
+        finish(ret)
       elseif not interrupt_check or not interrupt_check() then
         if #remaining > 0 then
           local next_task = table.remove(remaining)

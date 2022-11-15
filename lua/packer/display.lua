@@ -30,6 +30,7 @@ local function unpack_config_value(value, value_type, formatter)
   elseif value_type == 'table' then
     local result = {}
     for _, k in ipairs(value) do
+      print('DEBUG1', k)
       local item = formatter and formatter(k) or k
       table.insert(result, fmt('  - %s', item))
     end
@@ -40,7 +41,7 @@ end
 
 local function format_keys(value)
   local mapping = type(value) == 'string' and value or value[2]
-  local mode = value[1] ~= '' and 'mode: ' .. value[1] or ''
+  local mode = value[1] and value[1] ~= '' and 'mode: ' .. value[1] or ''
   return fmt('"%s", %s', mapping, mode)
 end
 
@@ -73,8 +74,6 @@ local status_keys = {
   'url',
   'commands',
   'keys',
-  'module',
-  'as',
   'ft',
   'event',
   'branch',
@@ -379,7 +378,7 @@ local function setup_status_syntax()
   end
 end
 
-display.status = vim.schedule_wrap(function(self, plugins)
+display.set_status = vim.schedule_wrap(function(self, plugins)
   if not self:valid_display() then
     return
   end
@@ -502,7 +501,7 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
       table.insert(keymap_display_order, 2, 'toggle_update')
     end
     for plugin_name, result in pairs(results.updates) do
-      local plugin = results.plugins[plugin_name]
+      local plugin = _G.packer_plugins[plugin_name]
       local message = {}
       local actual_update = true
       local failed_update = false
@@ -548,7 +547,7 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
   local lines = strip_newlines(raw_lines)
   self:set_lines(config.display.header_lines, -1, lines)
   local plugins = {}
-  for plugin_name, plugin in pairs(results.plugins) do
+  for plugin_name, plugin in pairs(_G.packer_plugins) do
     local plugin_data = { displayed = false, lines = {}, spec = plugin }
     if plugin.output then
       if plugin.output.err and #plugin.output.err > 0 then
