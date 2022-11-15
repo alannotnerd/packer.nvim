@@ -365,152 +365,6 @@ end)
 
 M.config = config
 
-local setup_plugins = {}
-
-function setup_plugins.cmd(cmd_plugins)
-  local commands = {}
-  for name, plugin in pairs(cmd_plugins) do
-    -- TODO(lewis6991): normalize this higher up
-    local cmds = plugin.cmd
-    if type(cmds) == 'string' then
-      cmds = { cmds }
-    end
-    plugin.commands = cmds
-
-    for _, cmd in ipairs(cmds) do
-      commands[cmd] = commands[cmd] or {}
-      table.insert(commands[cmd], name)
-    end
-  end
-
-  for cmd, names in pairs(commands) do
-    api.nvim_create_user_command(cmd,
-      function(args)
-        api.nvim_del_user_command(cmd)
-
-        load_plugins(names)
-
-        local lines = args.line1 == args.line2 and '' or (args.line1 .. ',' .. args.line2)
-        vim.cmd(fmt(
-          '%s %s%s%s %s',
-          args.mods or '',
-          lines,
-          cmd,
-          args.bang and '!' or '',
-          args.args
-        ))
-      end,
-      { complete = 'file', bang = true, nargs = '*' }
-    )
-  end
-end
-
-function setup_plugins.keys(key_plugins)
-  local keymaps = {}
-  for name, plugin in pairs(key_plugins) do
-    for _, keymap in ipairs(plugin.keys) do
-      if type(keymap) == 'string' then
-        keymap = { '', keymap }
-      end
-      keymaps[keymap] = keymaps[keymap] or {}
-      table.insert(keymaps[keymap], name)
-    end
-  end
-
-  for keymap, names in pairs(keymaps) do
-    vim.keymap.set(keymap[1], keymap[2], function()
-      vim.keymap.del(keymap[1], keymap[2])
-      load_plugins(names)
-      api.nvim_feedkeys(keymap[2], keymap[1], false)
-    end, {
-        desc = 'Packer lazy load: '..table.concat(names, ', '),
-        silent = true
-      })
-  end
-end
-
-local function detect_ftdetect(plugin_path)
-  local source_paths = {}
-  for _, parts in ipairs{ { 'ftdetect' }, { 'after', 'ftdetect' } } do
-    parts[#parts+1] = [[**/*.\(vim\|lua\)]]
-    local path = plugin_path .. util.get_separator() .. table.concat(parts, util.get_separator())
-    local ok, files = pcall(vim.fn.glob, path, false, true)
-    if not ok then
-      ---@diagnostic disable-next-line
-      if string.find(files, 'E77') then
-        source_paths[#source_paths + 1] = path
-      else
-        error(files)
-      end
-    elseif #files > 0 then
-      ---@diagnostic disable-next-line
-      vim.list_extend(source_paths, files)
-    end
-  end
-
-  return source_paths
-end
-
-function setup_plugins.ft(ft_plugins)
-  local fts = {}
-
-  local ftdetect_paths = {}
-
-  for name, plugin in pairs(ft_plugins) do
-    for _, ft in ipairs(plugin.ft) do
-      fts[ft] = fts[ft] or {}
-      table.insert(fts[ft], name)
-    end
-
-    vim.list_extend(ftdetect_paths, detect_ftdetect(plugin.install_path))
-  end
-
-  for ft, names in pairs(fts) do
-    api.nvim_create_autocmd('FileType', {
-      pattern = ft,
-      once = true,
-      callback = function()
-        load_plugins(names)
-        for _, group in ipairs{'filetypeplugin', 'filetypeindent', 'syntaxset'} do
-          api.nvim_exec_autocmds('FileType', { group = group, pattern = ft, modeline = false })
-        end
-      end
-    })
-  end
-
-  if #ftdetect_paths > 0 then
-    vim.cmd'augroup filetypedetect'
-    for _, path in ipairs(ftdetect_paths) do
-      -- 'Sourcing ftdetect script at: ' path, result)
-      vim.cmd.source(path)
-    end
-    vim.cmd'augroup END'
-  end
-
-end
-
-function setup_plugins.event(event_plugins)
-
-  local events = {}
-
-  for name, plugin in pairs(event_plugins) do
-    for _, event in ipairs(plugin.event) do
-      events[event] = events[event] or {}
-      table.insert(events[event], name)
-    end
-  end
-
-  for event, names in pairs(events) do
-    api.nvim_create_autocmd(event, {
-      once = true,
-      callback = function()
-        load_plugins(names)
-        api.nvim_exec_autocmds(event, { modeline = false })
-      end
-    })
-  end
-end
-
 local function load_plugin_configs()
   local cond_plugins = {
     cmd   = {},
@@ -542,7 +396,9 @@ local function load_plugin_configs()
   end
 
   for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
-    setup_plugins[cond](cond_plugins[cond])
+    if next(cond_plugins[cond]) then
+      require('packer.handlers')(cond, cond_plugins[cond], load_plugins)
+    end
   end
 end
 
