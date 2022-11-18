@@ -3,15 +3,6 @@ local util = {}
 
 
 
-function util.map(func, seq)
-   local result = {}
-   for _, v in ipairs(seq) do
-      result[#result + 1] = func(v)
-   end
-
-   return result
-end
-
 
 function util.partition(sub, seq)
    local sub_vals = {}

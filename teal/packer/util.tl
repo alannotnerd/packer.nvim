@@ -3,15 +3,6 @@ local record util
   use_shellslash: boolean
 end
 
-function util.map<E, T>(func: (function(E): T), seq: {E}): {T}
-  local result = {}
-  for _, v in ipairs(seq) do
-    result[#result+1] = func(v)
-  end
-
-  return result
-end
-
 --- Partition seq using values in sub
 function util.partition<T>(sub: {T}, seq: {T}): {T}, {T}
   local sub_vals = {}

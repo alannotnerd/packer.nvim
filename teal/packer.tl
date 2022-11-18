@@ -50,8 +50,8 @@ local function helptags_stale(dir: string): boolean
     return true
   end
 
-  local txt_newest = math.max(unpack(util.map(fn.getftime, txts)))
-  local tag_oldest = math.min(unpack(util.map(fn.getftime, tags)))
+  local txt_newest = math.max(unpack(vim.tbl_map(fn.getftime, txts)))
+  local tag_oldest = math.min(unpack(vim.tbl_map(fn.getftime, tags)))
   return txt_newest > tag_oldest
 end
 
