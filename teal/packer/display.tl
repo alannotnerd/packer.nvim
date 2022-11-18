@@ -55,8 +55,6 @@ local function format_cmd(value: any): string
 end
 
 ---format a configuration value of unknown type into a string or list of strings
----@param key string
----@param value any
 local function format_values(key: string, value: any): string|{string}
   if key == 'url' then
     return fmt('"%s"', value)
@@ -83,8 +81,6 @@ local plugin_keys_exclude: {string:boolean} = {
   full_name = true,
   name = true,
 }
-
-local display: Display = {}
 
 local record Keymap
   action: string
@@ -389,6 +385,11 @@ local function prompt_revert(disp: Display)
     log.warn(plugin_name .. " wasn't updated; can't revert!")
   end
 end
+
+local display: Display = {
+  running = false,
+  ask_user = awrap(prompt_user, 3)
+}
 
 local keymaps: {string:Keymap} = {
   quit = {
@@ -840,7 +841,6 @@ display.final_results = vim.schedule_wrap(function(self: Display, results: Displ
   end
 end)
 
-
 local function look_back(str: string): string
   return fmt([[\(%s\)\@%d<=]], str, #str)
 end
@@ -929,8 +929,6 @@ local function setup_window(disp: Display)
 end
 
 --- Open a new display window
--- Takes either a string representing a command or a function returning a (window, buffer) pair.
----@return Display
 function display.open(): Display
   local opener = config.display.open_cmd
 
@@ -963,10 +961,5 @@ function display.open(): Display
 
   return disp
 end
-
-display.running = false
-
---- Async prompt_user
-display.ask_user = awrap(prompt_user, 3)
 
 return display
