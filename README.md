@@ -2,10 +2,10 @@
 
 Fork that aims to de-scope and refactor
 
-Aims:
-- heavily refactor
-- remove compilation
-- optional: port to Teal. For now will use emmylua
+Differences:
+- heavily refactored
+- no compilation
+- re-written in Teal
 
 ## Table of Contents
 1. [Features](#features)
