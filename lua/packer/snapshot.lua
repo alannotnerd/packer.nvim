@@ -165,7 +165,7 @@ end, 2)
 
 
 
-M.rollback = async(function(snapshot_path, plugins)
+M.rollback = async(function(_snapshot_path, _plugins)
    return err({ message = 'Not implemented' })
 
 

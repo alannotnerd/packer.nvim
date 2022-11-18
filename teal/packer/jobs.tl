@@ -24,7 +24,7 @@ local record M
 
   record Opts
     success_test: function(r: JobResult): Result<JobResult>
-    capture_output: boolean | StdioCallbacks
+    capture_output: boolean
     cwd: string
     timeout: integer
     env: {string}
@@ -41,7 +41,7 @@ end
 --      output flushes before finishing reading
 -- - disp: optional packer.display object for updating task status. Requires `name`
 -- - name: optional string name for a current task. Used to update task status
-function M.logging_callback(err_tbl: {string}, data_tbl: {string}, disp: Display, name: string): function(string, string)
+local function logging_callback(err_tbl: {string}, data_tbl: {string}, disp: Display, name: string): function(string, string)
   return function(err: string, data: string)
     if err then
       table.insert(err_tbl, vim.trim(err))
@@ -128,12 +128,8 @@ local function was_successful(r: M.JobResult): Result<M.JobResult>
   return result.err(r)
 end
 
-local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, capture_output: boolean | M.StdioCallbacks, output: JobOutput): boolean | uv.Pipe
-  if capture_output is boolean then
-    if not capture_output then
-      return
-    end
-  elseif not capture_output[kind] then
+local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, capture_output: boolean, output: JobOutput): boolean | uv.Pipe
+  if not capture_output then
     return
   end
 
@@ -143,11 +139,7 @@ local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, captur
     return false
   end
 
-  if capture_output is boolean then
-    callbacks[kind] = M.logging_callback(output.err[kind], output.data[kind])
-  else
-    callbacks[kind] = capture_output[kind]
-  end
+  callbacks[kind] = logging_callback(output.err[kind], output.data[kind])
 
   return handle
 end

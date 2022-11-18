@@ -123,13 +123,8 @@ local handle_checkouts = void(function(plugin, disp, opts)
 
    update_disp('fetching reference...')
 
-   local output = jobs.output_table()
-
    local job_opts = {
-      capture_output = {
-         stdout = jobs.logging_callback(output.err.stdout, output.data.stdout, disp, plugin.full_name),
-         stderr = jobs.logging_callback(output.err.stderr, output.data.stderr),
-      },
+      capture_output = true,
       cwd = plugin.install_path,
    }
 
@@ -142,7 +137,7 @@ local handle_checkouts = void(function(plugin, disp, opts)
          '--sort', '-version:refname',
       }, job_opts)
       if jr.ok then
-         local data = output.data.stdout[1]
+         local data = jr.ok.output.data.stdout[1]
          plugin.tag = vim.split(data, '\n')[1]
       else
          r = err({ output = jr.err.output })
@@ -166,7 +161,7 @@ local handle_checkouts = void(function(plugin, disp, opts)
             plugin.full_name),
 
             data = jr.err,
-            output = output,
+            output = jr.err.output,
          })
       end
    end
@@ -177,22 +172,20 @@ local handle_checkouts = void(function(plugin, disp, opts)
          r = err({
             msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin.full_name),
             data = jr.err,
-            output = output,
+            output = jr.err.output,
          })
       end
    end
 
    if r.ok then
       r.ok = {
-         output = output,
+         output = r.ok.output,
       }
-   elseif r.err.msg then
-      r.err.output = output
    else
       r.err = {
          msg = fmt('Error updating %s: %s', plugin.full_name, vim.inspect(r.err)),
          data = r.err,
-         output = output,
+         output = r.err.output,
       }
    end
 
@@ -217,9 +210,6 @@ local function mark_breaking_changes(
    disp,
    preview_updates)
 
-   local commit_bodies = { err = {}, output = {} }
-   local commit_bodies_onread = jobs.logging_callback(commit_bodies.err, commit_bodies.output)
-
    disp:task_update(plugin.name, 'checking for breaking changes...')
    local r = git_run({
       'log',
@@ -228,14 +218,11 @@ local function mark_breaking_changes(
       '--pretty=format:===COMMIT_START===%h%n%s===BODY_START===%b',
       preview_updates and 'HEAD...FETCH_HEAD' or 'HEAD@{1}...HEAD',
    }, {
-      capture_output = {
-         stdout = commit_bodies_onread,
-         stderr = commit_bodies_onread,
-      },
+      capture_output = true,
       cwd = plugin.install_path,
    })
    if r.ok then
-      plugin.breaking_commits = get_breaking_commits(commit_bodies.output)
+      plugin.breaking_commits = get_breaking_commits(r.ok.output.data.stdout)
    end
    return r
 end
@@ -258,13 +245,8 @@ M.installer = async(function(plugin, disp)
 
    vim.list_extend(install_cmd, { plugin.url, plugin.install_path })
 
-   local output = jobs.output_table()
-
    local installer_opts = {
-      capture_output = {
-         stdout = jobs.logging_callback(output.err.stdout, output.data.stdout),
-         stderr = jobs.logging_callback(output.err.stderr, output.data.stderr, disp, plugin.full_name),
-      },
+      capture_output = true,
       timeout = config.git.clone_timeout,
    }
 
@@ -276,7 +258,7 @@ M.installer = async(function(plugin, disp)
       if jr.err then
          r = err({
             msg = fmt('Error cloning plugin %s to %s', plugin.full_name, plugin.install_path),
-            data = { r.err, output },
+            output = jr.err.output,
          })
          return r
       end
@@ -289,7 +271,7 @@ M.installer = async(function(plugin, disp)
       if jr.err then
          r = err({
             msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin.full_name),
-            data = { r.err, output },
+            output = jr.err.output,
          })
       end
    end
@@ -307,19 +289,19 @@ M.installer = async(function(plugin, disp)
       if jr.err then
          r = err({
             msg = 'Error running log',
-            data = { r.err, output },
+            output = jr.err.output,
          })
       end
    end
 
    if r.ok then
-      plugin.messages = output.data.stdout
+
    else
-      plugin.err = output.data.stderr
+      plugin.err = r.err.output.data.stderr
       if not r.err.msg then
          r.err = {
-            msg = fmt('Error installing %s: %s', plugin.full_name, table.concat(output.data.stderr, '\n')),
-            data = { r.err, output },
+            msg = fmt('Error installing %s: %s', plugin.full_name, table.concat(r.err.output.data.stderr, '\n')),
+            output = r.err.output,
          }
       end
    end
@@ -515,28 +497,20 @@ M.remote_url = async(function(plugin)
 end, 1)
 
 M.diff = async(function(plugin, commit, callback)
-   local diff_info = { err = {}, output = {}, messages = {} }
-   local diff_onread = jobs.logging_callback(diff_info.err, diff_info.messages)
    local jr = git_run({
       'show', '--no-color',
       '--pretty=medium',
       commit,
    }, {
-      capture_output = {
-         stdout = diff_onread,
-         stderr = diff_onread,
-      },
+      capture_output = true,
       cwd = plugin.install_path,
    })
 
-   local r
    if jr.ok then
-      r = callback(split_messages(diff_info.messages))
+      return callback(split_messages(jr.ok.output.data.stdout))
    else
-      r = callback(nil, jr.err.output.data.stderr)
+      return callback(nil, jr.err.output.data.stderr)
    end
-
-   return r
 end, 3)
 
 local function topluginres(r)

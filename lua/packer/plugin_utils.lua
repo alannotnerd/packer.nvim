@@ -179,23 +179,16 @@ M.post_update_hook = a.sync(function(plugin, disp)
          a.main()
          vim.cmd(run_task:sub(2))
       else
-
-
-         local res = { err = {}, output = {} }
-
          local jobs = require('packer.jobs')
-         local hook_result = jobs.run(run_task, {
-            capture_output = {
-               stderr = jobs.logging_callback(res.err, res.output, disp, plugin_name),
-               stdout = jobs.logging_callback(res.err, res.output, disp, plugin_name),
-            },
+         local jr = jobs.run(run_task, {
+            capture_output = true,
             cwd = plugin.install_path,
          })
 
-         if hook_result.err then
+         if jr.err then
             return result.err({
-               msg = string.format('Error running post update hook: %s', table.concat(res.output, '\n')),
-               data = hook_result.err,
+               msg = string.format('Error running post update hook: %s', table.concat(jr.err.output.data.stderr, '\n')),
+               data = jr.err,
             })
          end
       end

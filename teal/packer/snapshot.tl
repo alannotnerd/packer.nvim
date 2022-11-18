@@ -165,7 +165,7 @@ end, 2)
 
 ---Rollbacks `plugins` to the hash specified in `snapshot_path` if exists.
 ---It automatically runs `git fetch --depth 999999 --progress` to retrieve the history
-M.rollback = async(function(snapshot_path: string, plugins: {string:Plugin}): Result<M.SResult>
+M.rollback = async(function(_snapshot_path: string, _plugins: {string:Plugin}): Result<M.SResult>
   return err { message = 'Not implemented' }
   -- assert(type(snapshot_path) == 'string', 'snapshot_path: expected string but got ' .. type(snapshot_path))
   -- assert(type(plugins) == 'table', 'plugins: expected table but got ' .. type(snapshot_path))

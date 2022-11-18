@@ -41,7 +41,7 @@ local M = {JobResult = {}, StdioCallbacks = {}, Opts = {}, }
 
 
 
-function M.logging_callback(err_tbl, data_tbl, disp, name)
+local function logging_callback(err_tbl, data_tbl, disp, name)
    return function(err, data)
       if err then
          table.insert(err_tbl, vim.trim(err))
@@ -129,11 +129,7 @@ local function was_successful(r)
 end
 
 local function setup_pipe(kind, callbacks, capture_output, output)
-   if type(capture_output) == "boolean" then
-      if not capture_output then
-         return
-      end
-   elseif not capture_output[kind] then
+   if not capture_output then
       return
    end
 
@@ -143,11 +139,7 @@ local function setup_pipe(kind, callbacks, capture_output, output)
       return false
    end
 
-   if type(capture_output) == "boolean" then
-      callbacks[kind] = M.logging_callback(output.err[kind], output.data[kind])
-   else
-      callbacks[kind] = capture_output[kind]
-   end
+   callbacks[kind] = logging_callback(output.err[kind], output.data[kind])
 
    return handle
 end
