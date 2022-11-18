@@ -83,7 +83,7 @@ local function run_tasks(tasks: {a.Thunk}, disp: Display): {any}
   end
 
   local function check(): boolean
-    return not disp.status.running
+    return not disp.running
   end
 
   local limit = config.max_jobs and config.max_jobs or #tasks

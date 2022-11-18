@@ -154,25 +154,17 @@ global record Display
 
   marks         : {string:integer}
 
-  record Status
-    running: boolean
-    any_failed_install : boolean
-    failed_update_list : {string}
-    disp: Display
-  end
-  status: Status
+  running: boolean
+
+  any_failed_install : boolean
+  failed_update_list : {string}
+  disp: Display
 
   open: function(): Display
   task_update: function(Display, plugin: string, msg: string)
   task_start: function(Display, plugin: string, msg: string)
-  task_done: function(Display, plugin: string, msg: string, success: boolean)
   task_succeeded: function(Display, plugin: string, msg: string)
   task_failed: function(Display, plugin: string, msg: string)
-  valid_display: function(Display): boolean
-  set_lines: function(Display, integer, integer, {string})
-  get_lines: function(Display, integer, integer): {string}
-  get_current_line: function(Display): string
-  decrement_headline_count: function(Display)
   update_headline_message: function(Display, string)
   set_status: function(Display, {string:Plugin})
   is_previewing: function(Display): boolean

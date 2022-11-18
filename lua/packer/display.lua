@@ -107,8 +107,13 @@ local function is_plugin_line(line)
 end
 
 
+local function valid_display(disp)
+   return disp and disp.interactive and api.nvim_buf_is_valid(disp.buf) and api.nvim_win_is_valid(disp.win)
+end
+
+
 local function find_nearest_plugin(disp)
-   if not disp:valid_display() then
+   if not valid_display(disp) then
       return
    end
 
@@ -150,7 +155,7 @@ local COMMIT_SINGLE_PAT = fmt([[\<%s\>]], COMMIT_PAT)
 local COMMIT_RANGE_PAT = fmt([[\<%s\.\.%s\>]], COMMIT_PAT, COMMIT_PAT)
 
 local function diff(disp)
-   if not disp:valid_display() then
+   if not valid_display(disp) then
       return
    end
 
@@ -171,7 +176,7 @@ local function diff(disp)
    end
 
    local plugin = disp.items[plugin_name].plugin
-   local current_line = disp:get_current_line()
+   local current_line = api.nvim_get_current_line()
    local commit = vim.fn.matchstr(current_line, COMMIT_RANGE_PAT)
    if commit == '' then
       commit = vim.fn.matchstr(current_line, COMMIT_SINGLE_PAT)
@@ -199,6 +204,16 @@ local function make_update_msg(symbol, status, plugin_name, plugin)
    return fmt(' %s %s %s: %s..%s', symbol, status, plugin_name, plugin.revs[1], plugin.revs[2])
 end
 
+
+local function set_lines(disp, start_idx, end_idx, lines)
+   if not valid_display(disp) then
+      return
+   end
+   vim.bo[disp.buf].modifiable = true
+   api.nvim_buf_set_lines(disp.buf, start_idx, end_idx, true, lines)
+   vim.bo[disp.buf].modifiable = false
+end
+
 local function toggle_update(disp)
    if not disp:is_previewing() then
       return
@@ -223,11 +238,8 @@ local function toggle_update(disp)
       status_msg = 'Can update'
       symbol = config.display.done_sym
    end
-   disp:set_lines(
-   start_idx,
-   start_idx + 1,
+   set_lines(disp, start_idx, start_idx + 1,
    { make_update_msg(symbol, status_msg, plugin_name, item.plugin) })
-
 
    disp.marks[plugin_name] = set_extmark(disp.buf, disp.ns, nil, start_idx, 0)
 end
@@ -252,7 +264,7 @@ end
 
 
 local function toggle_info(disp)
-   if not disp:valid_display() then
+   if not valid_display(disp) then
       return
    end
    if disp.items == nil or next(disp.items) == nil then
@@ -269,10 +281,10 @@ local function toggle_info(disp)
    local item = disp.items[plugin_name]
 
    if item.displayed then
-      disp:set_lines(cursor_pos[1], cursor_pos[1] + #item.lines, {})
+      set_lines(disp, cursor_pos[1], cursor_pos[1] + #item.lines, {})
       item.displayed = false
    elseif #item.lines > 0 then
-      disp:set_lines(cursor_pos[1], cursor_pos[1], item.lines)
+      set_lines(disp, cursor_pos[1], cursor_pos[1], item.lines)
       item.displayed = true
    else
       log.info('No further information for ' .. plugin_name)
@@ -341,7 +353,7 @@ end
 
 
 local function prompt_revert(disp)
-   if not disp:valid_display() then
+   if not valid_display(disp) then
       return
    end
    if next(disp.items) == nil then
@@ -383,7 +395,7 @@ local keymaps = {
       action = 'quit',
       rhs = function()
 
-         display.status.running = false
+         display.running = false
          vim.fn.execute('q!', 'silent')
       end,
 
@@ -392,8 +404,8 @@ local keymaps = {
    diff = {
       action = 'show the diff',
       rhs = function()
-         if display.status.disp then
-            diff(display.status.disp)
+         if display.disp then
+            diff(display.disp)
          end
       end,
    },
@@ -401,8 +413,8 @@ local keymaps = {
    toggle_update = {
       action = 'toggle update',
       rhs = function()
-         if display.status.disp then
-            toggle_update(display.status.disp)
+         if display.disp then
+            toggle_update(display.disp)
          end
       end,
    },
@@ -410,8 +422,8 @@ local keymaps = {
    continue = {
       action = 'continue with updates',
       rhs = function()
-         if display.status.disp then
-            continue(display.status.disp)
+         if display.disp then
+            continue(display.disp)
          end
       end,
    },
@@ -419,8 +431,8 @@ local keymaps = {
    toggle_info = {
       action = 'show more info',
       rhs = function()
-         if display.status.disp then
-            toggle_info(display.status.disp)
+         if display.disp then
+            toggle_info(display.disp)
          end
       end,
    },
@@ -428,8 +440,8 @@ local keymaps = {
    prompt_revert = {
       action = 'revert an update',
       rhs = function()
-         if display.status.disp then
-            prompt_revert(display.status.disp)
+         if display.disp then
+            prompt_revert(display.disp)
          end
       end,
    },
@@ -437,10 +449,10 @@ local keymaps = {
    retry = {
       action = 'retry failed operations',
       rhs = function()
-         if display.status.any_failed_install then
+         if display.any_failed_install then
             require('packer').install()
-         elseif #display.status.failed_update_list > 0 then
-            require('packer').update(unpack(display.status.failed_update_list))
+         elseif #display.failed_update_list > 0 then
+            require('packer').update(unpack(display.failed_update_list))
          end
       end,
    },
@@ -457,108 +469,80 @@ local default_keymap_display_order = {
 }
 
 
-function display:valid_display()
-   return self and self.interactive and api.nvim_buf_is_valid(self.buf) and api.nvim_win_is_valid(self.win)
-end
-
-function display:set_lines(start_idx, end_idx, lines)
-   if not self:valid_display() then
-      return
-   end
-   vim.bo[self.buf].modifiable = true
-   api.nvim_buf_set_lines(self.buf, start_idx, end_idx, true, lines)
-   vim.bo[self.buf].modifiable = false
-end
-
-function display:get_lines(start_idx, end_idx)
-   if not self:valid_display() then
-      return
-   end
-   return api.nvim_buf_get_lines(self.buf, start_idx, end_idx, true)
-end
-
-function display:get_current_line()
-   if not self:valid_display() then
-      return
-   end
-   return api.nvim_get_current_line()
-end
-
-
 display.task_start = vim.schedule_wrap(function(self, plugin, message)
-   if not self:valid_display() then
+   if not valid_display(self) then
       return
    end
    if self.marks[plugin] then
       self:task_update(plugin, message)
       return
    end
-   display.status.running = true
-   self:set_lines(config.display.header_lines, config.display.header_lines, {
+   display.running = true
+   set_lines(self, config.display.header_lines, config.display.header_lines, {
       fmt(' %s %s: %s', config.display.working_sym, plugin, message),
    })
    self.marks[plugin] = set_extmark(self.buf, self.ns, nil, config.display.header_lines, 0)
 end)
 
 
-display.decrement_headline_count = vim.schedule_wrap(function(self)
-   if not self:valid_display() then
+local decrement_headline_count = vim.schedule_wrap(function(disp)
+   if not valid_display(disp) then
       return
    end
-   local headline = api.nvim_buf_get_lines(self.buf, 0, 1, false)[1]
+   local headline = api.nvim_buf_get_lines(disp.buf, 0, 1, false)[1]
    local count_start, count_end = headline:find('%d+')
    local count = tonumber(headline:sub(count_start, count_end))
    local updated_headline = headline:sub(1, count_start - 1) ..
    tostring(count - 1) ..
    headline:sub(count_end + 1)
-   self:set_lines(0, 1, { updated_headline })
+   set_lines(disp, 0, 1, { updated_headline })
 end)
 
 
-display.task_done = vim.schedule_wrap(function(self, plugin, message, success)
-   if not self:valid_display() then
+local task_done = vim.schedule_wrap(function(self, plugin, message, success)
+   if not valid_display(self) then
       return
    end
    local line = api.nvim_buf_get_extmark_by_id(self.buf, self.ns, self.marks[plugin], {})
    local icon = success and config.display.done_sym or config.display.error_sym
-   self:set_lines(line[1], line[1] + 1, { fmt(' %s %s: %s', icon, plugin, message) })
+   set_lines(self, line[1], line[1] + 1, { fmt(' %s %s: %s', icon, plugin, message) })
    api.nvim_buf_del_extmark(self.buf, self.ns, self.marks[plugin])
    self.marks[plugin] = nil
-   self:decrement_headline_count()
+   decrement_headline_count(self)
 end)
 
 
 function display:task_succeeded(plugin, message)
-   display:task_done(plugin, message, true)
+   task_done(display, plugin, message, true)
 end
 
 
 function display:task_failed(plugin, message)
-   display:task_done(plugin, message, false)
+   task_done(display, plugin, message, false)
 end
 
 
 display.task_update = vim.schedule_wrap(function(self, plugin, message)
-   if not self:valid_display() then
+   if not valid_display(self) then
       return
    end
    if not self.marks[plugin] then
       return
    end
    local line = api.nvim_buf_get_extmark_by_id(self.buf, self.ns, self.marks[plugin], {})
-   self:set_lines(line[1], line[1] + 1, { fmt(' %s %s: %s', config.display.working_sym, plugin, message) })
+   set_lines(self, line[1], line[1] + 1, { fmt(' %s %s: %s', config.display.working_sym, plugin, message) })
    set_extmark(self.buf, self.ns, self.marks[plugin], line[1], 0)
 end)
 
 
 display.update_headline_message = vim.schedule_wrap(function(self, message)
-   if not self:valid_display() then
+   if not valid_display(self) then
       return
    end
    local headline = config.display.title .. ' - ' .. message
    local width = api.nvim_win_get_width(self.win) - 2
    local pad_width = math.max(math.floor((width - string.len(headline)) / 2.0), 0)
-   self:set_lines(0, config.display.header_lines - 1, { string.rep(' ', pad_width) .. headline })
+   set_lines(self, 0, config.display.header_lines - 1, { string.rep(' ', pad_width) .. headline })
 end)
 
 
@@ -619,7 +603,7 @@ local function get_plugin_status(plugin)
 end
 
 display.set_status = vim.schedule_wrap(function(self, plugins)
-   if not self:valid_display() then
+   if not valid_display(self) then
       return
    end
    setup_status_syntax()
@@ -639,7 +623,7 @@ display.set_status = vim.schedule_wrap(function(self, plugins)
    end
 
    table.sort(lines)
-   self:set_lines(config.display.header_lines, -1, lines)
+   set_lines(self, config.display.header_lines, -1, lines)
 end)
 
 function display:is_previewing()
@@ -659,7 +643,7 @@ end
 
 
 local function show_all_info(disp)
-   if not disp:valid_display() then
+   if not valid_display(disp) then
       return
    end
 
@@ -677,7 +661,7 @@ local function show_all_info(disp)
             next_line = line + 1
             item.displayed = false
          else
-            disp:set_lines(line, line, item.lines)
+            set_lines(disp, line, line, item.lines)
             next_line = line + #item.lines + 1
             item.displayed = true
          end
@@ -695,14 +679,14 @@ end
 
 display.final_results = vim.schedule_wrap(function(self, results, time, opts)
    self.opts = opts
-   if not self:valid_display() then
+   if not valid_display(self) then
       return
    end
    local keymap_display_order = {}
    vim.list_extend(keymap_display_order, default_keymap_display_order)
    self.results = results
    setup_status_syntax()
-   display.status.running = false
+   display.running = false
    time = tonumber(time)
    self:update_headline_message(fmt('finished in %.3fs', time))
    local raw_lines = {}
@@ -735,8 +719,8 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
       end
    end
 
-   display.status.any_failed_install = false
-   display.status.failed_update_list = {}
+   display.any_failed_install = false
+   display.failed_update_list = {}
 
    if results.installs then
       for plugin, result in pairs(results.installs) do
@@ -750,7 +734,7 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
          plugin))
 
 
-         display.status.any_failed_install = display.status.any_failed_install or not result.ok
+         display.any_failed_install = display.any_failed_install or not result.ok
       end
    end
 
@@ -777,7 +761,7 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
          else
             failed_update = true
             actual_update = false
-            table.insert(display.status.failed_update_list, plugin.name)
+            table.insert(display.failed_update_list, plugin.name)
             table.insert(item_order, plugin_name)
             table.insert(message, fmt(' %s Failed to update %s', config.display.error_sym, plugin_name))
          end
@@ -793,7 +777,7 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
    end
 
    table.insert(raw_lines, '')
-   local show_retry = display.status.any_failed_install or #display.status.failed_update_list > 0
+   local show_retry = display.any_failed_install or #display.failed_update_list > 0
    for _, keymap in ipairs(keymap_display_order) do
       local k = keymaps[keymap]
       if k.lhs then
@@ -805,7 +789,7 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
 
 
    local lines = strip_newlines(raw_lines)
-   self:set_lines(config.display.header_lines, -1, lines)
+   set_lines(self, config.display.header_lines, -1, lines)
    for plugin_name, plugin in pairs(_G.packer_plugins) do
       local item = {
          displayed = false,
@@ -950,12 +934,12 @@ end
 function display.open()
    local opener = config.display.open_cmd
 
-   if display.status.disp then
-      if api.nvim_win_is_valid(display.status.disp.win) then
-         api.nvim_win_close(display.status.disp.win, true)
+   if display.disp then
+      if api.nvim_win_is_valid(display.disp.win) then
+         api.nvim_win_close(display.disp.win, true)
       end
 
-      display.status.disp = nil
+      display.disp = nil
    end
 
    local disp = setmetatable({
@@ -974,16 +958,13 @@ function display.open()
       disp.ns = api.nvim_create_namespace('')
       make_header(disp)
       setup_window(disp)
-      display.status.disp = disp
+      display.disp = disp
    end
 
    return disp
 end
 
-display.status = {
-   running = false,
-   disp = nil,
-}
+display.running = false
 
 
 display.ask_user = awrap(prompt_user, 3)
