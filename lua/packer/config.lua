@@ -48,7 +48,7 @@ local default_config = {
 local config = vim.deepcopy(default_config)
 
 local function set(_, user_config)
-   config = util.deep_extend('force', config, user_config or {})
+   config = vim.tbl_deep_extend('force', config, user_config or {})
    config.package_root = vim.fn.fnamemodify(config.package_root, ':p')
    config.package_root = config.package_root:gsub(util.get_separator() .. '$', '', 1)
    config.pack_dir = join_paths(config.package_root, 'packer')

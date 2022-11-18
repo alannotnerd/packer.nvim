@@ -46,35 +46,6 @@ function util.join_paths(...: string): string
   return table.concat({ ... }, util.get_separator())
 end
 
-function util.deep_extend(policy: string, ...: any): table
-  local result = {}
-  local function helper(policy0: string, k: any, v1: any, v2: any): any
-    if type(v1) ~= 'table' or type(v2) ~= 'table' then
-      if policy0 == 'error' then
-        error('Key ' .. vim.inspect(k) .. ' is already present with value ' .. vim.inspect(v1))
-      elseif policy0 == 'force' then
-        return v2
-      else
-        return v1
-      end
-    else
-      return util.deep_extend(policy0, v1, v2)
-    end
-  end
-
-  for _, t in ipairs { ... } do
-    for k, v in pairs(t as table) do
-      if result[k] ~= nil then
-        result[k] = helper(policy, k, result[k], v)
-      else
-        result[k] = v
-      end
-    end
-  end
-
-  return result
-end
-
 -- Credit to @crs for the original function
 function util.float(opts: {string:any}): boolean, integer, integer
   local last_win = vim.api.nvim_get_current_win()
