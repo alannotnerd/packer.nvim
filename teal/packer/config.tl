@@ -2,9 +2,6 @@ local util = require 'packer.util'
 
 local join_paths = util.join_paths
 
-
----@operator call:Config
-
 local default_config: Config = {
   snapshot = nil,
   snapshot_path = join_paths(vim.fn.stdpath 'cache', 'packer.nvim'),
@@ -50,8 +47,6 @@ local default_config: Config = {
 
 local config = vim.deepcopy(default_config)
 
----@param user_config Config
----@return Config
 local function set(_, user_config: Config): Config
   config = util.deep_extend('force', config, user_config or {}) as Config
   config.package_root = vim.fn.fnamemodify(config.package_root, ':p')

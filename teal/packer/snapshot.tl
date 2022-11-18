@@ -93,7 +93,6 @@ M.completion.rollback = function(lead:string, cmdline:string, pos:integer): {str
 end
 
 ---Creates a with with `completed` and `failed` keys, each containing a map with plugin name as key and commit hash/error as value
----@async
 local generate_snapshot = async(function(plugins:{string:Plugin}): Result<M.SResult>
   local completed = {}
   local failed = {}
@@ -214,7 +213,6 @@ M.rollback = async(function(_snapshot_path: string, _plugins: {string:Plugin}): 
 end, 2)
 
 ---Deletes the snapshot provided
----@param snapshot_name string absolute path or just a snapshot name
 function M.delete(snapshot_name: string)
   assert(type(snapshot_name) == 'string', fmt('Expected string, got %s', type(snapshot_name)))
   local snapshot_path = uv.fs_realpath(snapshot_name)

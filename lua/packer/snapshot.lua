@@ -93,7 +93,6 @@ M.completion.rollback = function(lead, cmdline, pos)
 end
 
 
-
 local generate_snapshot = async(function(plugins)
    local completed = {}
    local failed = {}
@@ -212,7 +211,6 @@ M.rollback = async(function(_snapshot_path, _plugins)
 
 
 end, 2)
-
 
 
 function M.delete(snapshot_name)

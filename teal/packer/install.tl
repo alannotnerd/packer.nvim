@@ -4,7 +4,6 @@ local plugin_utils = require 'packer.plugin_utils'
 
 local fmt = string.format
 
----@param installs {[string]: Result}
 local install_plugin = a.sync(function(
   plugin: Plugin,
   disp: Display,

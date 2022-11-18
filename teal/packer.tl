@@ -30,7 +30,6 @@ end
 
 --- Clean operation:
 -- Finds plugins present in the `packer` package but not in the managed set
----@async
 M.clean = a.void(function()
   require('packer.clean')(plugins)
 end)
@@ -56,7 +55,6 @@ local function helptags_stale(dir: string): boolean
   return txt_newest > tag_oldest
 end
 
---- @param results {[string]: Result}
 local function update_helptags(results: {string:Result<PluginResult>})
   local paths = {}
   for plugin_name, r in pairs(results as {string:Result<PluginResult>}) do
@@ -74,7 +72,6 @@ local function update_helptags(results: {string:Result<PluginResult>})
   end
 end
 
----@param disp Display
 local function run_tasks(tasks: {a.Thunk}, disp: Display): {any}
   if #tasks == 0 then
     print('Nothing to do')
@@ -93,7 +90,6 @@ local function run_tasks(tasks: {a.Thunk}, disp: Display): {any}
   return a.join(limit, check, tasks)
 end
 
----@return number
 local function measure(f: function()): number
   local start_time = vim.loop.hrtime()
   f()
@@ -102,7 +98,6 @@ end
 
 --- Install operation:
 -- Installs missing plugins, then updates helptags and rplugins
----@async
 M.install = a.sync(function()
   log.debug 'packer.install: requiring modules'
 
@@ -159,7 +154,6 @@ end
 --- plugins, then updates installed plugins and updates helptags and rplugins
 --- Options can be specified in the first argument as either a table
 --- or explicit `'--preview'`.
---- @async
 M.update = a.void(function(first: string|table, ...:string)
   local opts, update_plugins = filter_opts_from_plugins(first, ...)
   local plugin_utils = require('packer.plugin_utils')
@@ -206,7 +200,6 @@ M.update = a.void(function(first: string|table, ...:string)
   disp:final_results(results, delta)
 end)
 
----@async
 M.status = a.sync(function()
   if _G.packer_plugins == nil then
     log.warn 'packer_plugins table is nil! Cannot run packer.status()!'
@@ -250,8 +243,6 @@ function M.plugin_complete(lead: string, _:string): {string}
 end
 
 ---Snapshots installed plugins
----@async
----@param snapshot_name string absolute path or just a snapshot name
 M.snapshot = a.void(function(snapshot_name: string, ...:string)
   local args = { ... }
   snapshot_name = snapshot_name or require('os').date '%Y-%m-%d'
@@ -310,10 +301,6 @@ end)
 
 ---Instantly rolls back plugins to a previous state specified by `snapshot_name`
 ---If `snapshot_name` doesn't exist an error will be displayed
----@param snapshot_name string @name of the snapshot or the absolute path to the snapshot
----@vararg string @ if provided, the only plugins to be rolled back,
----otherwise all the plugins will be rolled back
----@async
 M.rollback = a.void(function(snapshot_name: string, ...: string)
   local args = { ... }
 
@@ -429,7 +416,6 @@ end
 -- Convenience function for simple setup
 -- spec can be a table with a table of plugin specifications as its first
 -- element, config overrides as another element.
----@param spec { [1]: PluginSpec, config: Config }
 function M.startup(spec: SSpec)
   assert(type(spec) == 'table')
   assert(type(spec[1]) == 'table')

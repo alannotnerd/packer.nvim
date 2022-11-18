@@ -7,8 +7,6 @@ local function is_dirty(plugin: Plugin, isopt: boolean): boolean
 end
 
 -- Find and remove any plugins not currently configured for use
----@param fs_state? FSState
----@param removals? { [string]: Result }
 return a.sync(function(plugins: {string:Plugin}, fs_state: plugin_utils.FSState, removals: {string})
   local log = require 'packer.log'
 

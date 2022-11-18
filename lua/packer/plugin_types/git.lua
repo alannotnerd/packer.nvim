@@ -61,7 +61,6 @@ local BREAKING_CHANGE_PAT = '[[bB][rR][eE][aA][kK][iI][nN][gG][ _][cC][hH][aA][n
 local TYPE_EXCLAIM_PAT = '[[a-zA-Z]+!:]'
 local TYPE_SCOPE_EXPLAIN_PAT = '[[a-zA-Z]+%([^)]+%)!:]'
 
-
 local function get_breaking_commits(commit_bodies)
    local ret = {}
    local commits = vim.gsplit(table.concat(commit_bodies, '\n'), '===COMMIT_START===', true)
@@ -111,8 +110,6 @@ end
 local function err(t)
    return result.err(t)
 end
-
-
 
 local handle_checkouts = void(function(plugin, disp, opts)
    local function update_disp(msg)
@@ -201,10 +198,6 @@ local function split_messages(messages)
    return lines
 end
 
-
-
-
-
 local function mark_breaking_changes(
    plugin,
    disp,
@@ -226,10 +219,6 @@ local function mark_breaking_changes(
    end
    return r
 end
-
-
-
-
 
 M.installer = async(function(plugin, disp)
    local install_cmd = {

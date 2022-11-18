@@ -120,7 +120,6 @@ local function spawn(cmd, options, callback)
 end
 
 
-
 local function was_successful(r)
    if r.exit_code == 0 then
       return result.ok(r)
@@ -143,16 +142,6 @@ local function setup_pipe(kind, callbacks, capture_output, output)
 
    return handle
 end
-
-
-
-
-
-
-
-
-
-
 
 
 

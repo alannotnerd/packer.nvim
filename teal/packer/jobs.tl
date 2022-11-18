@@ -120,7 +120,6 @@ local function spawn(cmd: string, options: uv.SpawnOpts, callback: function(inte
 end
 
 --- Utility function to perform a common check for process success and return a result object
----@param r JobResult
 local function was_successful(r: M.JobResult): Result<M.JobResult>
   if r.exit_code == 0 then
     return result.ok(r)
@@ -146,16 +145,6 @@ end
 
 --- Main exposed function for the jobs module. Takes a task and options and returns an async
 -- function that will run the task with the given opts via vim.loop.spawn
--- Arguments:
---  - task: either a string or table. If string, split, and the first component is treated as the
---    command. If table, first element is treated as the command. All subsequent elements are passed
---    as args
---  - opts: table of options. Can include the keys "options" (like the options table passed to
---    vim.loop.spawn), "success_test" (a function, called like `was_successful` (above)),
---    "capture_output" (either a boolean, in which case default output capture is set up and the
---    resulting tables are included in the result, or a set of tables, in which case output is logged
---    to the given tables)
---- @type fun(table, table): Result
 M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(Result<M.JobResult>))
   ---@type JobResult
   local job_result = { exit_code = -1, signal = -1 } as M.JobResult

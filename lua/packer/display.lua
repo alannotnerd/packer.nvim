@@ -55,8 +55,6 @@ local function format_cmd(value)
 end
 
 
-
-
 local function format_values(key, value)
    if key == 'url' then
       return fmt('"%s"', value)
@@ -83,8 +81,6 @@ local plugin_keys_exclude = {
    full_name = true,
    name = true,
 }
-
-local display = {}
 
 
 
@@ -389,6 +385,11 @@ local function prompt_revert(disp)
       log.warn(plugin_name .. " wasn't updated; can't revert!")
    end
 end
+
+local display = {
+   running = false,
+   ask_user = awrap(prompt_user, 3),
+}
 
 local keymaps = {
    quit = {
@@ -840,7 +841,6 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
    end
 end)
 
-
 local function look_back(str)
    return fmt([[\(%s\)\@%d<=]], str, #str)
 end
@@ -929,8 +929,6 @@ local function setup_window(disp)
 end
 
 
-
-
 function display.open()
    local opener = config.display.open_cmd
 
@@ -963,10 +961,5 @@ function display.open()
 
    return disp
 end
-
-display.running = false
-
-
-display.ask_user = awrap(prompt_user, 3)
 
 return display

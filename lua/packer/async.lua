@@ -30,7 +30,6 @@
 local co = coroutine
 
 
-
 local function execute(func, callback, ...)
    local thread = co.create(func)
 
@@ -65,9 +64,6 @@ local M = {}
 
 
 
-
-
-
 function M.wrap(func, argc)
    return function(...)
       if not co.running() or select('#', ...) == argc then
@@ -76,12 +72,6 @@ function M.wrap(func, argc)
       return co.yield(argc, func, ...)
    end
 end
-
-
-
-
-
-
 
 
 
@@ -98,10 +88,6 @@ function M.sync(func, nargs)
 end
 
 
-
-
-
-
 function M.void(func)
    return function(...)
       if co.running() then
@@ -110,7 +96,6 @@ function M.void(func)
       execute(func, nil, ...)
    end
 end
-
 
 function M.join(n, interrupt_check, thunks)
    return co.yield(1, function(finish)
@@ -154,7 +139,6 @@ function M.curry(fn, ...)
       fn(unpack(args))
    end
 end
-
 
 
 

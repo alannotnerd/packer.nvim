@@ -1,7 +1,5 @@
 
 
-
-
 return function(cond, plugins, loader)
    if cond == 'keys' then
       require('packer.handlers.keys')(plugins, loader)

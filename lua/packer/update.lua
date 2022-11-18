@@ -9,7 +9,6 @@ local async = a.sync
 
 local config = require('packer.config')
 
-
 local function move_plugin(plugin, moves, fs_state)
    local from
    local to
@@ -81,8 +80,6 @@ end, 4)
 
 local M = {}
 
-
-
 function M.update(
    plugins,
    update_plugins,
@@ -107,7 +104,6 @@ function M.update(
 
    return tasks
 end
-
 
 function M.fix_plugin_types(
    plugins,

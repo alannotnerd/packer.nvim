@@ -7,8 +7,6 @@ local function is_dirty(plugin, isopt)
 end
 
 
-
-
 return a.sync(function(plugins, fs_state, removals)
    local log = require('packer.log')
 

@@ -30,7 +30,6 @@ end
 local co = coroutine
 
 ---Executes a future with a callback when it is done
----@param func function: the future to execute
 local function execute(func: function, callback: function, ...: any)
   local thread = co.create(func)
 
@@ -65,9 +64,6 @@ end
 ---Creates an async function with a callback style function.
 ---
 ---@generic F : function
----@param func F A callback style function to be converted. The last argument must be the callback.
----@param argc integer The number of arguments of func. Must be included.
----@return function
 function M.wrap(func: function, argc: integer): function
   return function(...): any...
     if not co.running() or select('#', ...) == argc then
@@ -80,12 +76,6 @@ end
 ---Use this to create a function which executes in an async context but
 ---called from a non-async context. Inherently this cannot return anything
 ---since it is non-blocking
----
----@generic F : function
----@param func F argument nargs+1 must be a callback which is called when
---                      fn finishes
----@param nargs integer? Number of arguments
----@return F
 function M.sync(func: function, nargs: integer): function
   nargs = nargs or 0
   return function(...): any...
@@ -98,10 +88,6 @@ function M.sync(func: function, nargs: integer): function
 end
 
 ---For functions that don't provide a callback as there last argument
----
----@generic F : function
----@param func F
----@return F
 function M.void(func: function): function
   return function(...): any...
     if co.running() then
@@ -111,7 +97,6 @@ function M.void(func: function): function
   end
 end
 
---- @param thunks (fun(function))[]
 function M.join(n: integer, interrupt_check: (function(): boolean), thunks: {Async.Thunk}): any
   return co.yield(1, function(finish: function(...:any): any...): any
     if #thunks == 0 then
@@ -157,7 +142,6 @@ end
 
 ---An async function that when called will yield to the Neovim scheduler to be
 ---able to call the API.
----@async
 M.main = M.wrap(vim.schedule, 1)
 
 return M as Async

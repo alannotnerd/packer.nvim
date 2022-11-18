@@ -9,7 +9,6 @@ local async = a.sync
 
 local config = require('packer.config')
 
----@param moves {[string]: Result}
 local function move_plugin(plugin: Plugin, moves: {string:Result<PluginResult>}, fs_state: plugin_utils.FSState)
   local from: string
   local to: string
@@ -81,8 +80,6 @@ end, 4)
 
 local M = {}
 
----@param updates {[string]:Result}
----@param opts { pull_head: boolean, preview_updates: boolean}
 function M.update(
   plugins: {string:Plugin},
   update_plugins: {string},
@@ -108,7 +105,6 @@ function M.update(
   return tasks
 end
 
----@param moves {[string]: Result}
 function M.fix_plugin_types(
   plugins: {string:Plugin},
   plugin_names: {string},

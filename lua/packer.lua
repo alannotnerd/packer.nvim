@@ -30,7 +30,6 @@ local M = {}
 
 
 
-
 M.clean = a.void(function()
    require('packer.clean')(plugins)
 end)
@@ -56,7 +55,6 @@ local function helptags_stale(dir)
    return txt_newest > tag_oldest
 end
 
-
 local function update_helptags(results)
    local paths = {}
    for plugin_name, r in pairs(results) do
@@ -73,7 +71,6 @@ local function update_helptags(results)
       end
    end
 end
-
 
 local function run_tasks(tasks, disp)
    if #tasks == 0 then
@@ -93,13 +90,11 @@ local function run_tasks(tasks, disp)
    return a.join(limit, check, tasks)
 end
 
-
 local function measure(f)
    local start_time = vim.loop.hrtime()
    f()
    return (vim.loop.hrtime() - start_time) / 1e9
 end
-
 
 
 
@@ -159,7 +154,6 @@ end
 
 
 
-
 M.update = a.void(function(first, ...)
    local opts, update_plugins = filter_opts_from_plugins(first, ...)
    local plugin_utils = require('packer.plugin_utils')
@@ -206,7 +200,6 @@ M.update = a.void(function(first, ...)
    disp:final_results(results, delta)
 end)
 
-
 M.status = a.sync(function()
    if _G.packer_plugins == nil then
       log.warn('packer_plugins table is nil! Cannot run packer.status()!')
@@ -248,8 +241,6 @@ function M.plugin_complete(lead, _)
    table.sort(completion_list)
    return completion_list
 end
-
-
 
 
 M.snapshot = a.void(function(snapshot_name, ...)
@@ -307,10 +298,6 @@ M.snapshot = a.void(function(snapshot_name, ...)
       end
    end
 end)
-
-
-
-
 
 
 
@@ -419,7 +406,6 @@ local function make_commands()
       end, { nargs = cmd[2], complete = cmd[4] })
    end
 end
-
 
 
 
