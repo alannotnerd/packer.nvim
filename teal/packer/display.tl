@@ -252,7 +252,8 @@ local function continue(disp: Display)
     end
   end
   if #plugins > 0 then
-    require('packer').update({pull_head = true, preview_updates = false}, unpack(plugins))
+    -- TODO(lewis6991): circular dependency
+    -- require('packer').update({pull_head = true, preview_updates = false}, unpack(plugins))
   else
     log.warn 'No plugins selected!'
   end
@@ -451,9 +452,11 @@ local keymaps: {string:Keymap} = {
     action = 'retry failed operations',
     rhs = function()
       if display.any_failed_install then
-        require('packer').install()
+        -- TODO(lewis6991): circular dependency
+        -- require('packer').install()
       elseif #display.failed_update_list > 0 then
-        require('packer').update(unpack(display.failed_update_list))
+        -- TODO(lewis6991): circular dependency
+        -- require('packer').update(unpack(display.failed_update_list))
       end
     end
   },
