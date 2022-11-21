@@ -213,7 +213,7 @@ local function mark_breaking_changes(
   return r
 end
 
-M.installer = async(function(plugin: Plugin, disp: Display): Result<PluginResult>
+local function get_install_cmd(plugin: Plugin): {string}
   local install_cmd = {
     'clone',
     '--depth', tostring(plugin.commit and 999999 or config.git.depth),
@@ -227,68 +227,60 @@ M.installer = async(function(plugin: Plugin, disp: Display): Result<PluginResult
 
   vim.list_extend(install_cmd, { plugin.url, plugin.install_path })
 
-  local installer_opts: jobs.Opts = {
+  return install_cmd
+end
+
+local function install(plugin: Plugin, disp: Display): Result<jobs.JobResult>
+  disp:task_update(plugin.full_name, 'cloning...')
+
+  local jr = git_run(get_install_cmd(plugin), {
     capture_output = true,
     timeout = config.git.clone_timeout
+  })
+  if jr.err then
+    return jr
+  end
+
+  if plugin.commit then
+    jr = checkout(plugin.commit, {
+      capture_output = true,
+      cwd = plugin.install_path
+    }, disp)
+    if jr.err then
+      return jr
+    end
+  end
+
+  -- Get current commit
+  jr = git_run({
+    'log',
+    '--color=never',
+    '--pretty=format:%h %s (%cr)',
+    '--no-show-signature',
+    'HEAD',
+    '-n', '1'
+  }, {
+    capture_output = true,
+    cwd = plugin.install_path
+  })
+
+  return jr
+end
+
+M.installer = async(function(plugin: Plugin, disp: Display): Result<PluginResult>
+  local jr = install(plugin, disp)
+
+  if jr.ok then
+    plugin.messages = jr.ok.output.data.stdout
+    return result.ok{}
+  end
+
+  plugin.err = jr.err.output.data.stderr
+
+  return err {
+    msg = fmt('Error installing %s: %s', plugin.full_name, table.concat(jr.err.output.data.stderr, '\n')),
+    output = jr.err.output
   }
-
-  local r: Result<PluginResult> = result.ok{}
-
-  disp:task_update(plugin.full_name, 'cloning...')
-  do
-    local jr = git_run(install_cmd, installer_opts)
-    if jr.err then
-      r = err{
-        msg = fmt('Error cloning plugin %s to %s', plugin.full_name, plugin.install_path),
-        output = jr.err.output
-      }
-      return r
-    end
-  end
-
-  installer_opts.cwd = plugin.install_path
-
-  if r.ok and plugin.commit then
-    local jr = checkout(plugin.commit, installer_opts, disp)
-    if jr.err then
-      r = err {
-        msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin.full_name),
-        output = jr.err.output
-      }
-    end
-  end
-
-  if r.ok then
-    -- Get current commit
-    local jr = git_run({
-      'log',
-      '--color=never',
-      '--pretty=format:%h %s (%cr)',
-      '--no-show-signature',
-      'HEAD',
-      '-n', '1'
-    }, installer_opts)
-    if jr.err then
-      r = err {
-        msg = 'Error running log',
-        output = jr.err.output,
-      }
-    end
-  end
-
-  if r.ok then
-    -- plugin.messages = r.ok.output.data.stdout
-  else
-    plugin.err = r.err.output.data.stderr
-    if not r.err.msg then
-      r.err = {
-        msg = fmt('Error installing %s: %s', plugin.full_name, table.concat(r.err.output.data.stderr, '\n')),
-        output = r.err.output
-      }
-    end
-  end
-
-  return r
 end, 2)
 
 local function get_current_branch(plugin: Plugin): string, string

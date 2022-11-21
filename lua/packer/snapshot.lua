@@ -29,6 +29,8 @@ local M = {SResult = {Completed = {}, }, Completion = {}, }
 
 
 
+M.completion = {}
+
 
 
 M.completion.snapshot = function(lead, _, _)

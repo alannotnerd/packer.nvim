@@ -78,13 +78,17 @@ end
 local function make_commands()
    local snapshot_cmpl = setmetatable({}, {
       __index = function(_, k)
-         return (require('packer.snapshot').completion)[k]
+         return function(...)
+            return (require('packer.snapshot').completion)[k](...)
+         end
       end,
    })
 
    local actions = setmetatable({}, {
       __index = function(_, k)
-         return (require('packer.actions'))[k]
+         return function(...)
+            return (require('packer.actions'))[k](...)
+         end
       end,
    })
 

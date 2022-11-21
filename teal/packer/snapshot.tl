@@ -29,6 +29,8 @@ local record M
   create   : function(snapshot_path: string, plugins: {string:Plugin}): Result<SResult>
 end
 
+M.completion = {}
+
 --- Completion for listing snapshots in `config.snapshot_path`
 --- Intended to provide completion for PackerSnapshotDelete command
 M.completion.snapshot = function(lead: string, _: string, _: integer): {string}
