@@ -4,8 +4,6 @@ local config = require('packer.config')
 local awrap = require('packer.async').wrap
 local fmt = string.format
 
-local in_headless = #api.nvim_list_uis() == 0
-
 local function set_extmark(buf, ns, id, line, col)
    if not api.nvim_buf_is_valid(buf) then
       return
@@ -96,6 +94,66 @@ local function is_plugin_line(line)
    return false
 end
 
+local M = {Display = {Item = {}, Results = {}, Callbacks = {}, }, }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+local Display = M.Display
+
 
 local function valid_display(disp)
    return disp and disp.interactive and api.nvim_buf_is_valid(disp.buf) and api.nvim_win_is_valid(disp.win)
@@ -177,9 +235,7 @@ local function diff(disp)
       return
    end
 
-   local plugin_type = require('packer.plugin_types')[plugin.type]
-
-   plugin_type.diff(plugin, commit, function(lines, err)
+   disp.callbacks.diff(plugin, commit, function(lines, err)
       if err then
          log.warn('Unable to get diff!')
          return
@@ -246,8 +302,7 @@ local function continue(disp)
       end
    end
    if #plugins > 0 then
-
-
+      disp.callbacks.update({ pull_head = true, preview_updates = false }, unpack(plugins))
    else
       log.warn('No plugins selected!')
    end
@@ -372,8 +427,7 @@ local function prompt_revert(disp)
          '?',
       }, function(ans)
          if ans then
-            local plugin_type = require('packer.plugin_types')[plugin.type]
-            plugin_type.revert_last(plugin)
+            disp.callbacks.revert_last(plugin)
          end
       end)
    else
@@ -381,7 +435,9 @@ local function prompt_revert(disp)
    end
 end
 
-local display = setmetatable({
+local in_headless = #api.nvim_list_uis() == 0
+
+M.display = setmetatable({
    marks = {},
    plugins = {},
    interactive = not config.display.non_interactive and not in_headless,
@@ -390,6 +446,7 @@ local display = setmetatable({
    __index = Display,
 })
 
+local display = M.display
 
 display.ask_user = awrap(prompt_user, 3)
 
@@ -449,11 +506,9 @@ local keymaps = {
       action = 'retry failed operations',
       rhs = function()
          if display.any_failed_install then
-
-
+            display.callbacks.install()
          elseif #display.failed_update_list > 0 then
-
-
+            display.callbacks.update(unpack(display.failed_update_list))
          end
       end,
    },
@@ -934,7 +989,7 @@ local function setup_display_buf(bufnr)
 end
 
 
-function display.open()
+function display.open(cbs)
    if display.win and api.nvim_win_is_valid(display.win) then
       api.nvim_win_close(display.win, true)
    end
@@ -946,6 +1001,7 @@ function display.open()
       display.buf = api.nvim_get_current_buf()
 
       display.ns = api.nvim_create_namespace('')
+      display.callbacks = cbs
       make_header(display)
       setup_display_buf(display.buf)
    end
@@ -953,4 +1009,4 @@ function display.open()
    return display
 end
 
-return display
+return M

@@ -3,6 +3,7 @@ local result = require('packer.result')
 local a = require('packer.async')
 local log = require('packer.log')
 local plugin_utils = require('packer.plugin_utils')
+local Display = require('packer.display').Display
 
 local fmt = string.format
 local async = a.sync

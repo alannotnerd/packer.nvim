@@ -1,6 +1,7 @@
 
 .PHONY: build
 build:
+	cyan check teal/**/*.tl
 	cyan build
 
 test:

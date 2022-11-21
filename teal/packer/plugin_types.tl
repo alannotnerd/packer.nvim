@@ -1,3 +1,5 @@
+local Display = require 'packer.display'.Display
+
 local record PluginHandler
   installer   : function(plugin: Plugin, disp: Display): Result<PluginResult>
   updater     : function(plugin: Plugin, disp: Display, opts: table): Result<PluginResult>

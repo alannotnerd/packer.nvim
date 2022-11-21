@@ -2,6 +2,7 @@ local a = require('packer.async')
 local log = require('packer.log')
 local util = require('packer.util')
 local result = require('packer.result')
+local Display = require('packer.display').Display
 
 local uv = vim.loop
 

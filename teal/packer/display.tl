@@ -4,8 +4,6 @@ local config = require 'packer.config'
 local awrap = require 'packer.async'.wrap
 local fmt = string.format
 
-local in_headless = #api.nvim_list_uis() == 0
-
 local function set_extmark(buf: integer, ns: integer, id: integer, line: integer, col: integer): integer
   if not api.nvim_buf_is_valid(buf) then
     return
@@ -96,6 +94,66 @@ local function is_plugin_line(line: string): boolean
   return false
 end
 
+local record M
+  record Display
+    record Item
+      plugin        : Plugin
+      lines         : {string}
+      displayed     : boolean
+      ignore_update : boolean
+    end
+
+    interactive   : boolean
+    buf           : integer
+    win           : integer
+    ns            : integer
+    opts          : Config.Display
+
+    record Results
+      removals: {string}
+      moves: {string:Result<PluginResult>}
+      installs: {string:Result<PluginResult>}
+      updates: {string:Result<PluginResult>}
+    end
+
+    results       : Results
+    items         : {string:Item}
+    item_order    : {string}
+
+    marks         : {string:integer}
+
+    running: boolean
+
+    any_failed_install : boolean
+    failed_update_list : {string}
+
+    open                    : function(Display.Callbacks): Display
+    task_update             : function(Display, plugin: string, msg: string)
+    task_start              : function(Display, plugin: string, msg: string)
+    task_succeeded          : function(Display, plugin: string, msg: string)
+    task_failed             : function(Display, plugin: string, msg: string)
+    update_headline_message : function(Display, string)
+    set_status              : function(Display, {string:Plugin})
+    is_previewing           : function(Display): boolean
+    has_changes             : function(Display, Plugin): boolean
+    final_results           : function(Display, any, number, Config.Display)
+    ask_user                : function(string, {string}): boolean
+
+    record Callbacks
+      diff: function(plugin: Plugin, commit: string, callback: function): Result<PluginResult>
+      update: function(string|table, ...: string)
+      revert_last: function(Plugin)
+      install: function()
+    end
+
+    callbacks: Callbacks
+  end
+
+  display: Display
+end
+
+local Display = M.Display
+
 --- Check if we have a valid display window
 local function valid_display(disp: Display): boolean
   return disp and disp.interactive and api.nvim_buf_is_valid(disp.buf) and api.nvim_win_is_valid(disp.win)
@@ -177,9 +235,7 @@ local function diff(disp: Display)
     return
   end
 
-  local plugin_type = require'packer.plugin_types'[plugin.type]
-
-  plugin_type.diff(plugin, commit, function(lines: {string}, err: string)
+  disp.callbacks.diff(plugin, commit, function(lines: {string}, err: string)
     if err then
       log.warn 'Unable to get diff!'
       return
@@ -246,8 +302,7 @@ local function continue(disp: Display)
     end
   end
   if #plugins > 0 then
-    -- TODO(lewis6991): circular dependency
-    -- require('packer').update({pull_head = true, preview_updates = false}, unpack(plugins))
+    disp.callbacks.update({pull_head = true, preview_updates = false}, unpack(plugins))
   else
     log.warn 'No plugins selected!'
   end
@@ -372,8 +427,7 @@ local function prompt_revert(disp: Display)
         .. '?',
     }, function(ans: boolean)
       if ans then
-        local plugin_type = require'packer.plugin_types'[plugin.type]
-        plugin_type.revert_last(plugin)
+        disp.callbacks.revert_last(plugin)
       end
     end)
   else
@@ -381,7 +435,9 @@ local function prompt_revert(disp: Display)
   end
 end
 
-local display <const>: Display = setmetatable({
+local in_headless = #api.nvim_list_uis() == 0
+
+M.display = setmetatable({
   marks = {},
   plugins = {},
   interactive = not config.display.non_interactive and not in_headless,
@@ -390,6 +446,7 @@ local display <const>: Display = setmetatable({
   __index = Display
 })
 
+local display = M.display
 
 display.ask_user = awrap(prompt_user, 3)
 
@@ -449,11 +506,9 @@ local keymaps: {string:Keymap} = {
     action = 'retry failed operations',
     rhs = function()
       if display.any_failed_install then
-        -- TODO(lewis6991): circular dependency
-        -- require('packer').install()
+        display.callbacks.install()
       elseif #display.failed_update_list > 0 then
-        -- TODO(lewis6991): circular dependency
-        -- require('packer').update(unpack(display.failed_update_list))
+        display.callbacks.update(unpack(display.failed_update_list))
       end
     end
   },
@@ -934,7 +989,7 @@ local function setup_display_buf(bufnr: integer)
 end
 
 --- Open a new display window
-function display.open(): Display
+function display.open(cbs: Display.Callbacks): Display
   if display.win and api.nvim_win_is_valid(display.win) then
     api.nvim_win_close(display.win, true)
   end
@@ -946,6 +1001,7 @@ function display.open(): Display
     display.buf = api.nvim_get_current_buf()
 
     display.ns = api.nvim_create_namespace ''
+    display.callbacks = cbs
     make_header(display)
     setup_display_buf(display.buf)
   end
@@ -953,4 +1009,4 @@ function display.open(): Display
   return display
 end
 
-return display
+return M

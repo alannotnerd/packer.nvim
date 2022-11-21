@@ -61,7 +61,7 @@ return a.sync(function(plugins, fs_state, removals)
    local config = require('packer.config')
    local display = require('packer.display')
 
-   if config.autoremove or display.ask_user('Removing the following directories. OK? (y/N)', lines) then
+   if config.autoremove or display.display.ask_user('Removing the following directories. OK? (y/N)', lines) then
       if removals then
          for i, r in ipairs(dirty_plugins) do
             removals[i] = r

@@ -3,6 +3,7 @@ local util = require('packer.util')
 local log = require('packer.log')
 local config = require('packer.config')
 local result = require('packer.result')
+local Display = require('packer.display').Display
 
 local fn = vim.fn
 local uv = vim.loop

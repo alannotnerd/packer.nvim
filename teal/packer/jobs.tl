@@ -4,6 +4,7 @@ local uv = vim.loop
 local a = require 'packer.async'
 local log = require 'packer.log'
 local result = require 'packer.result'
+local Display = require 'packer.display'.Display
 
 local record M
   record JobResult

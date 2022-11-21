@@ -4,6 +4,7 @@ local jobs   = require 'packer.jobs'
 local log    = require 'packer.log'
 local result = require 'packer.result'
 local util   = require 'packer.util'
+local Display = require 'packer.display'.Display
 
 local void = a.void
 local async = a.sync

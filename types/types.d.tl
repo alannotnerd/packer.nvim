@@ -127,50 +127,6 @@ global record PluginResult
 end
 
 
-global record Display
-  record Item
-    plugin        : Plugin
-    lines         : {string}
-    displayed     : boolean
-    ignore_update : boolean
-  end
-
-  interactive   : boolean
-  buf           : integer
-  win           : integer
-  ns            : integer
-  opts          : Config.Display
-
-  record Results
-    removals: {string}
-    moves: {string:Result<PluginResult>}
-    installs: {string:Result<PluginResult>}
-    updates: {string:Result<PluginResult>}
-  end
-
-  results       : Results
-  items         : {string:Item}
-  item_order    : {string}
-
-  marks         : {string:integer}
-
-  running: boolean
-
-  any_failed_install : boolean
-  failed_update_list : {string}
-
-  open: function(): Display
-  task_update: function(Display, plugin: string, msg: string)
-  task_start: function(Display, plugin: string, msg: string)
-  task_succeeded: function(Display, plugin: string, msg: string)
-  task_failed: function(Display, plugin: string, msg: string)
-  update_headline_message: function(Display, string)
-  set_status: function(Display, {string:Plugin})
-  is_previewing: function(Display): boolean
-  has_changes: function(Display, Plugin): boolean
-  final_results: function(Display, any, number, Config.Display)
-  ask_user: function(string, {string}): boolean
-end
 
 global record jit
   arch: string
