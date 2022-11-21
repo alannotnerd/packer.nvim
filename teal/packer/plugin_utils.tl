@@ -2,7 +2,6 @@ local a = require 'packer.async'
 local util = require 'packer.util'
 local log = require 'packer.log'
 local config = require 'packer.config'
-local Display = require 'packer.display'.Display
 
 local fn = vim.fn
 local uv = vim.loop
@@ -20,7 +19,6 @@ local record M
   end
 
   get_fs_state: function({string:Plugin}): FSState
-  post_update_hook: function(Plugin, any): {string}
 end
 
 local function guess_dir_type(dir: string): Plugin.Type
@@ -123,68 +121,5 @@ M.get_fs_state = a.sync(function(plugins: {string:Plugin}): M.FSState
     missing = find_missing_plugins(plugins, opt_plugins, start_plugins)
   }
 end, 1)
-
-local function load_plugin(plugin: Plugin)
-  if plugin.opt then
-    vim.cmd.packadd(plugin.name)
-    return
-  end
-
-  vim.o.runtimepath = vim.o.runtimepath .. ',' .. plugin.install_path
-
-  for _, path in ipairs {
-    util.join_paths(plugin.install_path, 'plugin', '**', '*.vim'),
-    util.join_paths(plugin.install_path, 'plugin', '**', '*.lua'),
-    util.join_paths(plugin.install_path, 'after', 'plugin', '**', '*.vim'),
-    util.join_paths(plugin.install_path, 'after', 'plugin', '**', '*.lua'),
-  } do
-    local ok, files = pcall(fn.glob, path, false, true)
-    if not ok then
-      if (files as string):find('E77') then  -- E77: Too many file names
-        vim.cmd('silent exe "source ' .. path .. '"')
-      else
-        error(files)
-      end
-    else
-      for _, file in ipairs(files --[[@as string[] ]]) do
-        vim.cmd.source{file, mods = {silent=true}}
-      end
-    end
-  end
-end
-
-M.post_update_hook = a.sync(function(plugin: Plugin, disp: Display): {string}
-  local plugin_name = plugin.full_name
-  if plugin.run or not plugin.opt then
-    a.main()
-    load_plugin(plugin)
-  end
-
-  if not plugin.run then
-    return
-  end
-
-  disp:task_update(plugin_name, 'running post update hooks...')
-
-  for _, run_task in ipairs(plugin.run) do
-    if run_task is function then
-      local ok, err = pcall(run_task, plugin, disp)
-      if not ok then
-        return { 'Error running post update hook: ' .. vim.inspect(err) }
-      end
-    elseif type(run_task) == 'string' and run_task:sub(1, 1) == ':' then
-      -- Run a vim command
-      a.main()
-      vim.cmd(run_task:sub(2))
-    else
-      local jobs = require 'packer.jobs'
-      local jr = jobs.run(run_task, { cwd = plugin.install_path })
-
-      if not jr:ok() then
-        return {string.format('Error running post update hook: %s', table.concat(jr.output.data.stderr, '\n'))}
-      end
-    end
-  end
-end, 2)
 
 return M

@@ -99,6 +99,69 @@ local function update_helptags(results: {string:PluginResult})
   end
 end
 
+local function load_plugin(plugin: Plugin)
+  if plugin.opt then
+    vim.cmd.packadd(plugin.name)
+    return
+  end
+
+  vim.o.runtimepath = vim.o.runtimepath .. ',' .. plugin.install_path
+
+  for _, path in ipairs {
+    util.join_paths(plugin.install_path, 'plugin', '**', '*.vim'),
+    util.join_paths(plugin.install_path, 'plugin', '**', '*.lua'),
+    util.join_paths(plugin.install_path, 'after', 'plugin', '**', '*.vim'),
+    util.join_paths(plugin.install_path, 'after', 'plugin', '**', '*.lua'),
+  } do
+    local ok, files = pcall(fn.glob, path, false, true)
+    if not ok then
+      if (files as string):find('E77') then  -- E77: Too many file names
+        vim.cmd('silent exe "source ' .. path .. '"')
+      else
+        error(files)
+      end
+    else
+      for _, file in ipairs(files --[[@as string[] ]]) do
+        vim.cmd.source{file, mods = {silent=true}}
+      end
+    end
+  end
+end
+
+local post_update_hook = a.sync(function(plugin: Plugin, disp: Display): {string}
+  local plugin_name = plugin.full_name
+  if plugin.run or not plugin.opt then
+    a.main()
+    load_plugin(plugin)
+  end
+
+  if not plugin.run then
+    return
+  end
+
+  disp:task_update(plugin_name, 'running post update hooks...')
+
+  for _, run_task in ipairs(plugin.run) do
+    if run_task is function then
+      local ok, err = pcall(run_task, plugin, disp)
+      if not ok then
+        return { 'Error running post update hook: ' .. vim.inspect(err) }
+      end
+    elseif type(run_task) == 'string' and run_task:sub(1, 1) == ':' then
+      -- Run a vim command
+      a.main()
+      vim.cmd(run_task:sub(2))
+    else
+      local jobs = require 'packer.jobs'
+      local jr = jobs.run(run_task, { cwd = plugin.install_path })
+
+      if not jr:ok() then
+        return {string.format('Error running post update hook: %s', table.concat(jr.output.data.stderr, '\n'))}
+      end
+    end
+  end
+end, 2)
+
 local install_task = a.sync(function(plugin: Plugin, disp: Display, installs: {string:PluginResult}): {string}
   disp:task_start(plugin.full_name, 'installing...')
 
@@ -107,7 +170,7 @@ local install_task = a.sync(function(plugin: Plugin, disp: Display, installs: {s
   local err = plugin_type.installer(plugin, disp)
 
   if not err then
-    err = plugin_utils.post_update_hook(plugin, disp)
+    err = post_update_hook(plugin, disp)
   end
 
   if not err then
@@ -139,36 +202,6 @@ local function install(
 
   return tasks
 end
-
---- Install operation:
--- Installs missing plugins, then updates helptags and rplugins
-M.install = a.sync(function()
-  log.debug 'packer.install: requiring modules'
-
-  local fs_state = plugin_utils.get_fs_state(_G.packer_plugins)
-  local install_plugins = vim.tbl_keys(fs_state.missing)
-  if #install_plugins == 0 then
-    log.info 'All configured plugins are installed'
-    return
-  end
-
-  a.main()
-
-  log.debug 'Gathering install tasks'
-
-  local disp = open_display()
-  local installs: {string:PluginResult} = {}
-
-  local delta = measure(function()
-    local install_tasks = install(_G.packer_plugins, install_plugins, disp, installs)
-    run_tasks(install_tasks, disp)
-
-    a.main()
-    update_helptags(installs)
-  end)
-
-  disp:final_results({installs = installs}, delta)
-end)
 
 local function move_plugin(plugin: Plugin, moves: {string:PluginResult}, fs_state: plugin_utils.FSState)
   local from: string
@@ -218,7 +251,7 @@ local update_task = a.sync(function(plugin: Plugin, disp: Display, updates: {str
       msg = fmt('updated: %s...%s', revs[1], revs[2])
       if not opts.preview_updates then
         log.debug(fmt('Updated %s', plugin_name))
-        err = plugin_utils.post_update_hook(plugin, disp)
+        err = post_update_hook(plugin, disp)
       end
     else
       msg = 'already up to date'
@@ -377,6 +410,36 @@ local record Results
   moves    : {string:PluginResult}
   updates  : {string:PluginResult}
 end
+
+--- Install operation:
+-- Installs missing plugins, then updates helptags and rplugins
+M.install = a.sync(function()
+  log.debug 'packer.install: requiring modules'
+
+  local fs_state = plugin_utils.get_fs_state(_G.packer_plugins)
+  local install_plugins = vim.tbl_keys(fs_state.missing)
+  if #install_plugins == 0 then
+    log.info 'All configured plugins are installed'
+    return
+  end
+
+  a.main()
+
+  log.debug 'Gathering install tasks'
+
+  local disp = open_display()
+  local installs: {string:PluginResult} = {}
+
+  local delta = measure(function()
+    local install_tasks = install(_G.packer_plugins, install_plugins, disp, installs)
+    run_tasks(install_tasks, disp)
+
+    a.main()
+    update_helptags(installs)
+  end)
+
+  disp:final_results({installs = installs}, delta)
+end)
 
 --- Update operation:
 --- Takes an optional list of plugin names as an argument. If no list is given,
