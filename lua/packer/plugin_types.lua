@@ -8,6 +8,7 @@ local Display = require('packer.display').Display
 
 
 
+
 local plugin_types = {}
 
 return setmetatable(plugin_types, {

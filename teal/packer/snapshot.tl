@@ -2,7 +2,6 @@ local a = require 'packer.async'
 local util = require 'packer.util'
 local log = require 'packer.log'
 local plugin_utils = require 'packer.plugin_utils'
--- local git = require 'packer.plugin_types.git'
 local result = require 'packer.result'
 local async = a.sync
 local fmt = string.format
@@ -107,9 +106,8 @@ local generate_snapshot = async(function(plugins:{string:Plugin}): Result<M.SRes
   end, plugins)
 
   for _, plugin in pairs(plugins) do
-    -- TODO(lewis6991): get_rev
-    -- local rev, err = plugin.get_rev()
-    local rev, err = nil, 'not implemented'
+    local plugin_type = require'packer.plugin_types'[plugin.type]
+    local rev, err = plugin_type.get_rev(plugin)
 
     if err then
       failed[plugin.name] =

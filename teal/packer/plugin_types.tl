@@ -5,6 +5,7 @@ local record PluginHandler
   updater     : function(plugin: Plugin, disp: Display, opts: table): Result<PluginResult>
   revert_last : function(plugin: Plugin): Result<PluginResult>
   diff        : function(plugin: Plugin, commit: string, callback: function): Result<PluginResult>
+  get_rev     : function(plugin: Plugin): string, string
   job_env     : {string}
 end
 
