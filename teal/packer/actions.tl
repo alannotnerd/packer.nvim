@@ -81,10 +81,10 @@ local function helptags_stale(dir: string): boolean
   return txt_newest > tag_oldest
 end
 
-local function update_helptags(results: {string:Result<PluginResult>})
+local function update_helptags(results: {string:PluginResult})
   local paths = {}
-  for plugin_name, r in pairs(results as {string:Result<PluginResult>}) do
-    if r.ok then
+  for plugin_name, r in pairs(results as {string:PluginResult}) do
+    if not r.err then
       paths[#paths+1] = _G.packer_plugins[plugin_name].install_path
     end
   end
@@ -116,7 +116,7 @@ M.install = a.sync(function()
   log.debug 'Gathering install tasks'
 
   local disp = open_display()
-  local installs: {string:Result<PluginResult>} = {}
+  local installs: {string:PluginResult} = {}
 
   local delta = measure(function()
     local install = require('packer.install')
@@ -153,9 +153,9 @@ end
 
 local record Results
   removals : {string}
-  installs : {string:Result<PluginResult>}
-  moves    : {string:Result<PluginResult>}
-  updates  : {string:Result<PluginResult>}
+  installs : {string:PluginResult}
+  moves    : {string:PluginResult}
+  updates  : {string:PluginResult}
 end
 
 --- Update operation:

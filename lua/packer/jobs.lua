@@ -3,10 +3,10 @@ local split = vim.split
 local uv = vim.loop
 local a = require('packer.async')
 local log = require('packer.log')
-local result = require('packer.result')
 local Display = require('packer.display').Display
 
 local M = {JobResult = {}, StdioCallbacks = {}, Opts = {}, }
+
 
 
 
@@ -120,14 +120,6 @@ local function spawn(cmd, options, callback)
    end
 end
 
-
-local function was_successful(r)
-   if r.exit_code == 0 then
-      return result.ok(r)
-   end
-   return result.err(r)
-end
-
 local function setup_pipe(kind, callbacks, capture_output, output)
    if not capture_output then
       return
@@ -144,19 +136,25 @@ local function setup_pipe(kind, callbacks, capture_output, output)
    return handle
 end
 
+local function job_ok(self)
+   return self.exit_code == 0
+end
+
 
 
 M.run = a.wrap(function(task, opts, callback)
-
-   local job_result = { exit_code = -1, signal = -1 }
-   local success_test = opts.success_test or was_successful
+   local job_result = {
+      exit_code = -1,
+      signal = -1,
+      ok = job_ok,
+   }
    local output = M.output_table()
    local callbacks = {}
 
    local stdout = setup_pipe('stdout', callbacks, opts.capture_output, output)
 
    if stdout == false then
-      callback(success_test(job_result))
+      callback(job_result)
       return
    end
 
@@ -165,7 +163,7 @@ M.run = a.wrap(function(task, opts, callback)
    local stderr = setup_pipe('stderr', callbacks, opts.capture_output, output)
 
    if stderr == false then
-      callback(success_test(job_result))
+      callback(job_result)
       return
    end
 
@@ -187,11 +185,12 @@ M.run = a.wrap(function(task, opts, callback)
       env = opts.env,
       hide = true,
    }, function(exit_code, signal)
-      job_result = { exit_code = exit_code, signal = signal }
+      job_result.exit_code = exit_code
+      job_result.signal = signal
       if opts.capture_output == true then
          job_result.output = output
       end
-      callback(success_test(job_result))
+      callback(job_result)
    end)
 
    for kind, pipe in pairs({ stdout = stdout, stderr = stderr }) do

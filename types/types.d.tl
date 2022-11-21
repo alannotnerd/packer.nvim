@@ -123,8 +123,6 @@ global record PluginResult
   to: string
 end
 
-
-
 global record jit
   arch: string
   os: string

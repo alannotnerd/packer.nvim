@@ -3,7 +3,6 @@ local split = vim.split
 local uv = vim.loop
 local a = require 'packer.async'
 local log = require 'packer.log'
-local result = require 'packer.result'
 local Display = require 'packer.display'.Display
 
 local record M
@@ -11,6 +10,8 @@ local record M
     exit_code: integer
     signal: integer | string
     output: JobOutput
+
+    ok: function(JobResult): boolean
   end
 
   enum StdioType
@@ -24,14 +25,13 @@ local record M
   end
 
   record Opts
-    success_test: function(r: JobResult): Result<JobResult>
     capture_output: boolean
     cwd: string
     timeout: integer
     env: {string}
   end
 
-  run: function(task: any, opt: any): Result<JobResult>
+  run: function(task: any, opt: any): JobResult
 end
 
 --- Utility function to make a "standard" logging callback for a given set of tables
@@ -120,14 +120,6 @@ local function spawn(cmd: string, options: uv.SpawnOpts, callback: function(inte
   end
 end
 
---- Utility function to perform a common check for process success and return a result object
-local function was_successful(r: M.JobResult): Result<M.JobResult>
-  if r.exit_code == 0 then
-    return result.ok(r)
-  end
-  return result.err(r)
-end
-
 local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, capture_output: boolean, output: JobOutput): boolean | uv.Pipe
   if not capture_output then
     return
@@ -144,19 +136,25 @@ local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, captur
   return handle
 end
 
+local function job_ok(self: M.JobResult): boolean
+  return self.exit_code == 0
+end
+
 --- Main exposed function for the jobs module. Takes a task and options and returns an async
 -- function that will run the task with the given opts via vim.loop.spawn
-M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(Result<M.JobResult>))
-  ---@type JobResult
-  local job_result = { exit_code = -1, signal = -1 } as M.JobResult
-  local success_test = opts.success_test or was_successful
+M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(M.JobResult))
+  local job_result: M.JobResult = {
+    exit_code = -1,
+    signal = -1,
+    ok = job_ok
+  }
   local output = M.output_table()
   local callbacks = {}
 
   local stdout = setup_pipe('stdout', callbacks, opts.capture_output, output)
 
   if stdout == false then
-    callback(success_test(job_result))
+    callback(job_result)
     return
   end
 
@@ -165,7 +163,7 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
   local stderr = setup_pipe('stderr', callbacks, opts.capture_output, output)
 
   if stderr == false then
-    callback(success_test(job_result))
+    callback(job_result)
     return
   end
 
@@ -187,11 +185,12 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
     env     = opts.env,
     hide    = true
   }, function(exit_code: integer, signal: string)
-    job_result = { exit_code = exit_code, signal = signal }
+    job_result.exit_code = exit_code
+    job_result.signal = signal
     if opts.capture_output == true then
       job_result.output = output
     end
-    callback(success_test(job_result))
+    callback(job_result)
   end)
 
   for kind, pipe in pairs{ stdout = stdout, stderr = stderr } do

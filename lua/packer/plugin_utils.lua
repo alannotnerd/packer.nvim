@@ -183,8 +183,8 @@ M.post_update_hook = a.sync(function(plugin, disp)
             cwd = plugin.install_path,
          })
 
-         if jr.err then
-            return { string.format('Error running post update hook: %s', table.concat(jr.err.output.data.stderr, '\n')) }
+         if not jr:ok() then
+            return { string.format('Error running post update hook: %s', table.concat(jr.output.data.stderr, '\n')) }
          end
       end
    end

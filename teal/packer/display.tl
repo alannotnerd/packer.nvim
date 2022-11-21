@@ -111,7 +111,7 @@ local record M
 
     record Results
       removals: {string}
-      moves: {string:Result<PluginResult>}
+      moves: {string:PluginResult}
       installs: {string:PluginResult}
       updates: {string:PluginResult}
     end
@@ -757,15 +757,15 @@ display.final_results = vim.schedule_wrap(function(self: Display, results: Displ
   if results.moves then
     for plugin, result in pairs(results.moves) do
       table.insert(item_order, plugin)
-      local from = (result.ok or result.err).from
-      local to = (result.ok or result.err).to
+      local from = result.from
+      local to = result.to
 
       table.insert(
         raw_lines,
         fmt(
           ' %s %s %s: %s %s %s',
-          result.ok and config.display.done_sym or config.display.error_sym,
-          result.ok and 'Moved' or 'Failed to move',
+          not result.err and config.display.done_sym or config.display.error_sym,
+          not result.err and 'Moved' or 'Failed to move',
           plugin,
           from,
           config.display.moved_sym,

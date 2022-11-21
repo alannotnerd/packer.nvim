@@ -36,7 +36,7 @@ local function install(
   plugins: {string:Plugin},
   missing_plugins: {string},
   disp: Display,
-  installs: {string:Result<PluginResult>}
+  installs: {string:PluginResult}
 ): {a.Thunk}
   if #missing_plugins == 0 then
     return {}

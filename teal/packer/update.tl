@@ -1,5 +1,4 @@
 local util = require 'packer.util'
-local result = require 'packer.result'
 local a = require 'packer.async'
 local log = require 'packer.log'
 local plugin_utils = require 'packer.plugin_utils'
@@ -10,7 +9,7 @@ local async = a.sync
 
 local config = require('packer.config')
 
-local function move_plugin(plugin: Plugin, moves: {string:Result<PluginResult>}, fs_state: plugin_utils.FSState)
+local function move_plugin(plugin: Plugin, moves: {string:PluginResult}, fs_state: plugin_utils.FSState)
   local from: string
   local to: string
   if plugin.opt then
@@ -30,10 +29,10 @@ local function move_plugin(plugin: Plugin, moves: {string:Result<PluginResult>},
   local success, msg = os.rename(from, to)
   if not success then
     log.error(fmt('Failed to move %s to %s: %s', from, to, msg))
-    moves[plugin.name] = result.err({from = from, to = to} as PluginResult)
+    moves[plugin.name] = {from = from, to = to}
   else
     log.debug(fmt('Moved %s from %s to %s', plugin.name, from, to))
-    moves[plugin.name] = result.ok({from = from, to = to} as PluginResult)
+    moves[plugin.name] = {from = from, to = to}
   end
 end
 
@@ -81,13 +80,13 @@ function M.update(
   plugins: {string:Plugin},
   update_plugins: {string},
   disp: Display,
-  updates: {string:Result<PluginResult>},
+  updates: {string:PluginResult},
   opts: table
 ): {a.Thunk}
   local tasks = {}
   for _, v in ipairs(update_plugins) do
     local plugin = plugins[v]
-    if plugin == nil then
+    if not plugin then
       log.error(fmt('Unknown plugin: %s', v))
     end
     if plugin and not plugin.lock then
@@ -105,7 +104,7 @@ end
 function M.fix_plugin_types(
   plugins: {string:Plugin},
   plugin_names: {string},
-  moves: {string:Result<PluginResult>},
+  moves: {string:PluginResult},
   fs_state: plugin_utils.FSState
 )
   log.debug 'Fixing plugin types'

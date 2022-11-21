@@ -1,5 +1,4 @@
 local util = require('packer.util')
-local result = require('packer.result')
 local a = require('packer.async')
 local log = require('packer.log')
 local plugin_utils = require('packer.plugin_utils')
@@ -30,10 +29,10 @@ local function move_plugin(plugin, moves, fs_state)
    local success, msg = os.rename(from, to)
    if not success then
       log.error(fmt('Failed to move %s to %s: %s', from, to, msg))
-      moves[plugin.name] = result.err({ from = from, to = to })
+      moves[plugin.name] = { from = from, to = to }
    else
       log.debug(fmt('Moved %s from %s to %s', plugin.name, from, to))
-      moves[plugin.name] = result.ok({ from = from, to = to })
+      moves[plugin.name] = { from = from, to = to }
    end
 end
 
@@ -87,7 +86,7 @@ function M.update(
    local tasks = {}
    for _, v in ipairs(update_plugins) do
       local plugin = plugins[v]
-      if plugin == nil then
+      if not plugin then
          log.error(fmt('Unknown plugin: %s', v))
       end
       if plugin and not plugin.lock then

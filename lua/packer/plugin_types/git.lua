@@ -111,8 +111,8 @@ local handle_checkouts = void(function(plugin, disp, opts)
          'tag', '-l', plugin.tag,
          '--sort', '-version:refname',
       }, job_opts)
-      if jr.ok then
-         local data = jr.ok.output.data.stdout[1]
+      if jr:ok() then
+         local data = jr.output.data.stdout[1]
          plugin.tag = vim.split(data, '\n')[1]
       else
          log.warn(fmt(
@@ -120,22 +120,22 @@ local handle_checkouts = void(function(plugin, disp, opts)
          plugin.name))
 
          plugin.tag = nil
-         return jr.err.output.data.stderr
+         return jr.output.data.stderr
       end
    end
 
    if (plugin.branch or (plugin.tag and not opts.preview_updates)) then
       local branch_or_tag = plugin.branch or plugin.tag
       local jr = checkout(branch_or_tag, job_opts, disp)
-      if jr.err then
-         return jr.err.output.data.stderr
+      if not jr:ok() then
+         return jr.output.data.stderr
       end
    end
 
    if plugin.commit then
       local jr = checkout(plugin.commit, job_opts, disp)
-      if jr.err then
-         return jr.err.output.data.stderr
+      if not jr:ok() then
+         return jr.output.data.stderr
       end
    end
 
@@ -167,8 +167,8 @@ local function mark_breaking_changes(
       capture_output = true,
       cwd = plugin.install_path,
    })
-   if r.ok then
-      plugin.breaking_commits = get_breaking_commits(r.ok.output.data.stdout)
+   if r:ok() then
+      plugin.breaking_commits = get_breaking_commits(r.output.data.stdout)
    end
    return r
 end
@@ -197,7 +197,7 @@ local function install(plugin, disp)
       capture_output = true,
       timeout = config.git.clone_timeout,
    })
-   if jr.err then
+   if not jr:ok() then
       return jr
    end
 
@@ -206,7 +206,7 @@ local function install(plugin, disp)
          capture_output = true,
          cwd = plugin.install_path,
       }, disp)
-      if jr.err then
+      if not jr:ok() then
          return jr
       end
    end
@@ -230,12 +230,12 @@ end
 M.installer = async(function(plugin, disp)
    local jr = install(plugin, disp)
 
-   if jr.ok then
-      plugin.messages = jr.ok.output.data.stdout
+   if jr:ok() then
+      plugin.messages = jr.output.data.stdout
       return
    end
 
-   plugin.err = jr.err.output.data.stderr
+   plugin.err = jr.output.data.stderr
 
    return plugin.err
 end, 2)
@@ -247,10 +247,10 @@ local function get_current_branch(plugin)
       cwd = plugin.install_path,
    })
    local current_branch, er
-   if jr.ok then
-      current_branch = jr.ok.output.data.stdout[1]
+   if jr:ok() then
+      current_branch = jr.output.data.stdout[1]
    else
-      er = table.concat(jr.err.output.data.stderr, '\n')
+      er = table.concat(jr.output.data.stderr, '\n')
    end
    return current_branch, er
 end
@@ -262,10 +262,10 @@ local function get_ref(plugin, ref)
    })
 
    local ref1, er
-   if jr.ok then
-      ref1 = jr.ok.output.data.stdout[1]
+   if jr:ok() then
+      ref1 = jr.output.data.stdout[1]
    else
-      er = table.concat(jr.err.output.data.stderr, '\n')
+      er = table.concat(jr.output.data.stderr, '\n')
    end
 
    return ref1, er
@@ -320,8 +320,8 @@ local function update(plugin, disp, opts)
          capture_output = true,
          cwd = plugin.install_path,
       })
-      if jr.err then
-         return jr.err.output.data.stderr
+      if not jr:ok() then
+         return jr.output.data.stderr
       end
 
       local coerr = handle_checkouts(plugin, disp, opts)
@@ -354,8 +354,8 @@ local function update(plugin, disp, opts)
          capture_output = true,
          cwd = plugin.install_path,
       })
-      if jr.err then
-         return jr.err.output.data.stderr
+      if not jr:ok() then
+         return jr.output.data.stderr
       end
    end
 
@@ -384,16 +384,16 @@ local function update(plugin, disp, opts)
          cwd = plugin.install_path,
       })
 
-      if jr.err then
-         return jr.err.output.data.stderr
+      if not jr:ok() then
+         return jr.output.data.stderr
       end
 
-      plugin.messages = jr.ok.output.data.stdout
+      plugin.messages = jr.output.data.stdout
 
       if config.git.mark_breaking_changes then
          jr = mark_breaking_changes(plugin, disp, opts.preview_updates)
-         if jr.err then
-            return jr.err.output.data.stderr
+         if not jr:ok() then
+            return jr.output.data.stderr
          end
       end
    end
@@ -412,8 +412,8 @@ M.remote_url = async(function(plugin)
       cwd = plugin.install_path,
    })
 
-   if r.ok then
-      return r.ok.output.data.stdout[1]
+   if r:ok() then
+      return r.output.data.stdout[1]
    end
 end, 1)
 
@@ -427,10 +427,10 @@ M.diff = async(function(plugin, commit, callback)
       cwd = plugin.install_path,
    })
 
-   if jr.ok then
-      return callback(split_messages(jr.ok.output.data.stdout))
+   if jr:ok() then
+      return callback(split_messages(jr.output.data.stdout))
    else
-      return callback(nil, jr.err.output.data.stderr)
+      return callback(nil, jr.output.data.stderr)
    end
 end, 3)
 
@@ -440,9 +440,9 @@ M.revert_last = async(function(plugin)
       cwd = plugin.install_path,
    })
 
-   if jr.err then
+   if not jr:ok() then
       log.error(fmt('Reverting update for %s failed!', plugin.full_name))
-      return jr.err.output.data.stderr
+      return jr.output.data.stderr
    end
 
    if (plugin.tag or plugin.commit or plugin.branch) ~= nil then
@@ -464,8 +464,8 @@ M.revert_to = async(function(plugin, commit)
       cwd = plugin.install_path,
    })
 
-   if jr.err then
-      return jr.err.output.data.stderr
+   if not jr:ok() then
+      return jr.output.data.stderr
    end
 end, 2)
 

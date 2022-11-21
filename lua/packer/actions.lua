@@ -84,7 +84,7 @@ end
 local function update_helptags(results)
    local paths = {}
    for plugin_name, r in pairs(results) do
-      if r.ok then
+      if not r.err then
          paths[#paths + 1] = _G.packer_plugins[plugin_name].install_path
       end
    end
