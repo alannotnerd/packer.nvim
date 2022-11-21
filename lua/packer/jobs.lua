@@ -32,22 +32,6 @@ local M = {JobOutput = {E = {}, }, JobResult = {}, Opts = {}, }
 
 
 
-function M.output_table()
-   return {
-      err = { stdout = {}, stderr = {} },
-      data = { stdout = {}, stderr = {} },
-   }
-end
-
-
-
-function M.extend_output(to, from)
-   vim.list_extend(to.stdout, from.stdout)
-   vim.list_extend(to.stderr, from.stderr)
-   return to
-end
-
-
 
 
 local function spawn(cmd, options, callback)
@@ -79,7 +63,6 @@ local function spawn(cmd, options, callback)
       timer = uv.new_timer()
       timer:start(timeout, 0, function()
          timer:stop()
-
          timer:close()
          if handle and handle:is_active() then
             log.warn('Killing ' .. cmd .. ' due to timeout!')
@@ -137,7 +120,10 @@ M.run = a.wrap(function(task, opts, callback)
       ok = job_ok,
    }
 
-   local output = M.output_table()
+   local output = {
+      err = { stdout = {}, stderr = {} },
+      data = { stdout = {}, stderr = {} },
+   }
    local callbacks = {}
 
    local stdout = setup_pipe('stdout', callbacks, output)

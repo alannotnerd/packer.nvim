@@ -31,22 +31,6 @@ local record M
   run: function(task: string|{string}, opts: M.Opts): M.JobResult
 end
 
---- Utility function to make a table for capturing output with "standard" structure
-function M.output_table(): M.JobOutput
-  return {
-    err  = { stdout = {}, stderr = {} },
-    data = { stdout = {}, stderr = {} }
-  }
-end
-
---- Utility function to merge stdout and stderr from two tables with "standard" structure (either
---  the err or data subtables, specifically)
-function M.extend_output(to: M.JobOutput.E, from: M.JobOutput.E): M.JobOutput.E
-  vim.list_extend(to.stdout, from.stdout)
-  vim.list_extend(to.stderr, from.stderr)
-  return to
-end
-
 --- Wrapper for vim.loop.spawn. Takes a command, options, and callback just like
 --- vim.loop.spawn, but ensures that all output from the command has been
 --- flushed before calling the callback.
@@ -136,7 +120,10 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
     ok = job_ok
   }
 
-  local output = M.output_table()
+  local output = {
+    err  = { stdout = {}, stderr = {} },
+    data = { stdout = {}, stderr = {} }
+  }
   local callbacks = {}
 
   local stdout = setup_pipe('stdout', callbacks, output)
