@@ -158,7 +158,6 @@ global record Display
 
   any_failed_install : boolean
   failed_update_list : {string}
-  disp: Display
 
   open: function(): Display
   task_update: function(Display, plugin: string, msg: string)

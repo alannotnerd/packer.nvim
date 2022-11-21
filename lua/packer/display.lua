@@ -82,12 +82,6 @@ local plugin_keys_exclude = {
    name = true,
 }
 
-
-
-
-
-
-
 local function is_plugin_line(line)
    for _, sym in ipairs({
          config.display.item_sym,
@@ -387,10 +381,23 @@ local function prompt_revert(disp)
    end
 end
 
-local display = {
+local display = setmetatable({
+   marks = {},
+   plugins = {},
+   interactive = not config.display.non_interactive and not in_headless,
    running = false,
-   ask_user = awrap(prompt_user, 3),
-}
+}, {
+   __index = Display,
+})
+
+
+display.ask_user = awrap(prompt_user, 3)
+
+
+
+
+
+
 
 local keymaps = {
    quit = {
@@ -406,45 +413,35 @@ local keymaps = {
    diff = {
       action = 'show the diff',
       rhs = function()
-         if display.disp then
-            diff(display.disp)
-         end
+         diff(display)
       end,
    },
 
    toggle_update = {
       action = 'toggle update',
       rhs = function()
-         if display.disp then
-            toggle_update(display.disp)
-         end
+         toggle_update(display)
       end,
    },
 
    continue = {
       action = 'continue with updates',
       rhs = function()
-         if display.disp then
-            continue(display.disp)
-         end
+         continue(display)
       end,
    },
 
    toggle_info = {
       action = 'show more info',
       rhs = function()
-         if display.disp then
-            toggle_info(display.disp)
-         end
+         toggle_info(display)
       end,
    },
 
    prompt_revert = {
       action = 'revert an update',
       rhs = function()
-         if display.disp then
-            prompt_revert(display.disp)
-         end
+         prompt_revert(display)
       end,
    },
 
@@ -517,12 +514,12 @@ end)
 
 
 function display:task_succeeded(plugin, message)
-   task_done(display, plugin, message, true)
+   task_done(self, plugin, message, true)
 end
 
 
 function display:task_failed(plugin, message)
-   task_done(display, plugin, message, false)
+   task_done(self, plugin, message, false)
 end
 
 
@@ -776,6 +773,8 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
       end
    end
 
+   self.item_order = item_order
+
    if #raw_lines == 0 then
       table.insert(raw_lines, ' Everything already up to date!')
    end
@@ -838,7 +837,6 @@ display.final_results = vim.schedule_wrap(function(self, results, time, opts)
       self.items[plugin_name] = item
    end
 
-   self.item_order = item_order
    if config.display.show_all_info then
       show_all_info(self)
    end
@@ -894,18 +892,17 @@ local function set_config_keymaps()
 end
 
 
-local function make_header(disp)
+local function make_header(d)
    local width = api.nvim_win_get_width(0)
    local pad_width = math.floor((width - config.display.title:len()) / 2.0)
-   api.nvim_buf_set_lines(disp.buf, 0, 1, true, {
+   api.nvim_buf_set_lines(d.buf, 0, 1, true, {
       (' '):rep(pad_width) .. config.display.title,
       ' ' .. config.display.header_sym:rep(width - 2),
    })
 end
 
 
-local function setup_window(disp)
-   local bufnr = disp.buf
+local function setup_display_buf(bufnr)
    vim.bo[bufnr].filetype = 'packer'
    api.nvim_buf_set_name(bufnr, '[packer]')
    set_config_keymaps()
@@ -925,7 +922,12 @@ local function setup_window(disp)
    vim.bo[bufnr].buflisted = false
    vim.bo[bufnr].swapfile = false
 
-   local ft_cmds = make_filetype_cmds(config.display.working_sym, config.display.done_sym, config.display.error_sym)
+   local ft_cmds = make_filetype_cmds(
+   config.display.working_sym,
+   config.display.done_sym,
+   config.display.error_sym)
+
+
    for _, c in ipairs(ft_cmds) do
       vim.cmd(c)
    end
@@ -933,36 +935,22 @@ end
 
 
 function display.open()
-   local opener = config.display.open_cmd
-
-   if display.disp then
-      if api.nvim_win_is_valid(display.disp.win) then
-         api.nvim_win_close(display.disp.win, true)
-      end
-
-      display.disp = nil
+   if display.win and api.nvim_win_is_valid(display.win) then
+      api.nvim_win_close(display.win, true)
    end
 
-   local disp = setmetatable({
-      marks = {},
-      plugins = {},
-      interactive = not config.display.non_interactive and not in_headless,
-   }, {
-      __index = display,
-   })
-
-   if disp.interactive then
+   if display.interactive then
+      local opener = config.display.open_cmd
       vim.cmd(opener)
-      disp.win = api.nvim_get_current_win()
-      disp.buf = api.nvim_get_current_buf()
+      display.win = api.nvim_get_current_win()
+      display.buf = api.nvim_get_current_buf()
 
-      disp.ns = api.nvim_create_namespace('')
-      make_header(disp)
-      setup_window(disp)
-      display.disp = disp
+      display.ns = api.nvim_create_namespace('')
+      make_header(display)
+      setup_display_buf(display.buf)
    end
 
-   return disp
+   return display
 end
 
 return display
