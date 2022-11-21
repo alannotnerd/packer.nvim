@@ -26,12 +26,9 @@ local M = {}
 
 
 
+local job_env = {}
 
-local function ensure_git_env()
-   if M.job_env then
-      return
-   end
-
+do
    local blocked_env_vars = {
       GIT_DIR = true,
       GIT_INDEX_FILE = true,
@@ -41,7 +38,6 @@ local function ensure_git_env()
       GIT_COMMON_DIR = true,
    }
 
-   local job_env = {}
    for k, v in pairs(vim.fn.environ()) do
       if not blocked_env_vars[k] then
          job_env[#job_env + 1] = k .. '=' .. v
@@ -49,8 +45,6 @@ local function ensure_git_env()
    end
 
    job_env[#job_env + 1] = 'GIT_TERMINAL_PROMPT=0'
-
-   M.job_env = job_env
 end
 
 local function has_wildcard(tag)
@@ -94,10 +88,8 @@ local function get_breaking_commits(commit_bodies)
    return ret
 end
 
-ensure_git_env()
-
 local function git_run(args, opts)
-   opts.env = opts.env or M.job_env
+   opts.env = opts.env or job_env
    return jobs.run({ config.git.cmd, unpack(args) }, opts)
 end
 
