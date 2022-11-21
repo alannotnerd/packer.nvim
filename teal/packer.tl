@@ -34,7 +34,9 @@ local function plugin_complete(lead: string, _:string): {string}
 end
 
 local function load_plugin_configs()
-  local cond_plugins: {string:{string:Plugin}} = {
+  local Handlers = require('packer.handlers')
+
+  local cond_plugins: {Handlers.Type:{string:Plugin}} = {
     cmd   = {},
     keys  = {},
     ft    = {},
@@ -43,9 +45,11 @@ local function load_plugin_configs()
 
   local uncond_plugins = {}
 
+  local conds = {'cmd', 'keys', 'ft', 'event'} as {Handlers.Type}
+
   for name, plugin in pairs(_G.packer_plugins) do
     local has_cond = false
-    for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
+    for _, cond in ipairs(conds) do
       if (plugin as {string:any})[cond] then
         has_cond = true
         cond_plugins[cond][name] = plugin
@@ -61,9 +65,9 @@ local function load_plugin_configs()
     apply_config(plugin)
   end
 
-  for _, cond in ipairs{'cmd', 'keys', 'ft', 'event'} do
+  for _, cond in ipairs(conds) do
     if next(cond_plugins[cond]) then
-      require('packer.handlers')(cond, cond_plugins[cond], loader)
+      Handlers[cond](cond_plugins[cond], loader)
     end
   end
 end

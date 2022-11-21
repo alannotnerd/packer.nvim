@@ -389,7 +389,6 @@ local function prompt_user(headline, body, callback)
       check:stop()
       if not prompted then
          prompted = true
-
          local ans = string.lower(vim.fn.input('OK to remove? [y/N] ')) == 'y'
          api.nvim_win_close(win, true)
          callback(ans)

@@ -121,7 +121,7 @@ local function load_plugin(plugin: Plugin)
         error(files)
       end
     else
-      for _, file in ipairs(files --[[@as string[] ]]) do
+      for _, file in ipairs(files) do
         vim.cmd.source{file, mods = {silent=true}}
       end
     end
