@@ -3,17 +3,7 @@ local uv = vim.loop
 local a = require('packer.async')
 local log = require('packer.log')
 
-local M = {JobOutput = {E = {}, }, JobResult = {}, StdioCallbacks = {}, Opts = {}, }
-
-
-
-
-
-
-
-
-
-
+local M = {JobOutput = {E = {}, }, JobResult = {}, Opts = {}, }
 
 
 
@@ -104,6 +94,16 @@ local function spawn(cmd, options, callback)
       end)
    end
 end
+
+
+
+
+
+
+
+
+
+
 
 local function setup_pipe(kind, callbacks, output)
    local handle, uv_err = uv.new_pipe(false)

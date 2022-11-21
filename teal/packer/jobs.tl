@@ -22,16 +22,6 @@ local record M
     ok: function(JobResult): boolean
   end
 
-  enum StdioType
-    'stdout'
-    'stderr'
-  end
-
-  record StdioCallbacks
-    stdout: function(string, string)
-    stderr: function(string, string)
-  end
-
   record Opts
     output: boolean
     cwd: string
@@ -39,7 +29,7 @@ local record M
     env: {string}
   end
 
-  run: function(task: any, opt: any): JobResult
+  run: function(task: string|{string}, opts: M.Opts): M.JobResult
 end
 
 --- Utility function to make a table for capturing output with "standard" structure
@@ -105,7 +95,17 @@ local function spawn(cmd: string, options: uv.SpawnOpts, callback: function(inte
   end
 end
 
-local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, output: M.JobOutput): string | uv.Pipe
+local enum StdioType
+  'stdout'
+  'stderr'
+end
+
+local record StdioCallbacks
+  stdout: function(string, string)
+  stderr: function(string, string)
+end
+
+local function setup_pipe(kind: StdioType, callbacks: StdioCallbacks, output: M.JobOutput): string | uv.Pipe
   local handle, uv_err = uv.new_pipe(false)
   if uv_err then
     log.error(string.format('Failed to open %s pipe: %s', kind, uv_err))
@@ -182,11 +182,11 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
     callback(job_result)
   end)
 
-  for kind, pipe in pairs{ stdout = stdout, stderr = stderr } do
-    if pipe and callbacks[kind as M.StdioType] then
+  for kind, pipe in pairs({ stdout = stdout, stderr = stderr } as {StdioType:vim.loop.Pipe}) do
+    if pipe and callbacks[kind] then
       pipe:read_start(function(err: string, data: string)
         if data then
-          callbacks[kind as M.StdioType](err, data)
+          callbacks[kind](err, data)
         else
           pipe:read_stop()
           pipe:close()

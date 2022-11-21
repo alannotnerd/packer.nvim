@@ -179,7 +179,7 @@ M.post_update_hook = a.sync(function(plugin: Plugin, disp: Display): {string}
     else
       local jobs = require 'packer.jobs'
       local jr = jobs.run(run_task, {
-        capture_output = true,
+        output = true,
         cwd = plugin.install_path
       })
 
