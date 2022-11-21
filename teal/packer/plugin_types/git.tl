@@ -5,7 +5,6 @@ local log    = require 'packer.log'
 local util   = require 'packer.util'
 local Display = require 'packer.display'.Display
 
-local void = a.void
 local async = a.sync
 
 local fmt = string.format
@@ -91,7 +90,8 @@ local function checkout(ref: string, opts: jobs.Opts, disp: Display): jobs.JobRe
   return git_run({'checkout', ref, '--' }, opts)
 end
 
-local handle_checkouts = void(function(plugin: Plugin, disp: Display, opts: UpdateOpts): {string}
+---@async
+local handle_checkouts = function(plugin: Plugin, disp: Display, opts: UpdateOpts): {string}
   local function update_disp(msg: string)
     if disp then
       disp:task_update(plugin.full_name, msg)
@@ -139,7 +139,7 @@ local handle_checkouts = void(function(plugin: Plugin, disp: Display, opts: Upda
   end
 
   return {}
-end)
+end
 
 local function split_messages(messages: {string}): {string}
   local lines = {}
@@ -188,6 +188,7 @@ local function get_install_cmd(plugin: Plugin): {string}
   return install_cmd
 end
 
+---@async
 local function install(plugin: Plugin, disp: Display): jobs.JobResult
   disp:task_update(plugin.full_name, 'cloning...')
 
@@ -231,6 +232,7 @@ M.installer = async(function(plugin: Plugin, disp: Display): {string}
   return plugin.err
 end, 2)
 
+---@async
 local function get_current_branch(plugin: Plugin): string, string
   -- local branch_cmd = {config.git.cmd, 'rev-parse', '--abbrev-ref', 'HEAD'}
   local jr = git_run({ 'branch', '--show-current' }, {
@@ -245,6 +247,7 @@ local function get_current_branch(plugin: Plugin): string, string
   return current_branch, er
 end
 
+---@async
 local function get_ref(plugin: Plugin, ref: string): string, string
   local jr = git_run({ 'rev-parse', '--short', ref }, {
     cwd = plugin.install_path
@@ -268,6 +271,7 @@ local function file_lines(file: string): {string}
   return text
 end
 
+---@async
 local function update(plugin: Plugin, disp: Display, opts: table): {string}
   disp:task_update(plugin.full_name, 'checking current commit...')
   local current_commit, ccerr = get_ref(plugin, 'HEAD')

@@ -1,29 +1,25 @@
 local record Async
+  type Thunk = function(function(...:any))
+
   -- Order by highest number of return types
 
-  void: function       (function()     ): function()
-  void: function<A1>   (function(A1)   ): function(A1)
-  void: function<A1,A2>(function(A1,A2)): function(A1,A2)
-  void: function<A1,A2,A3,A4,R1>(function(A1,A2,A3,A4): R1): function(A1,A2,A3,A4): R1
-  void: function<A1,A2,A3,A4,A5,R1>(function(A1,A2,A3,A4,A5): R1): function(A1,A2,A3,A4,A5): R1
+  void: function             (function()           ): function()
+  void: function<A1>         (function(A1)         ): function(A1)
+  void: function<A1,A2>      (function(A1,A2)      ): function(A1,A2)
   void: function<A1,A2,A3,A4>(function(A1,A2,A3,A4)): function(A1,A2,A3,A4)
 
-  wrap: function<A1,A2,R1,R2>   (function(A1,A2,      function(R1,R2)), integer): function(A1,A2): R1,R2
-  wrap: function<A1,A2,R1>      (function(A1,A2,      function(R1)), integer): function(A1,A2): R1
-  wrap: function<A1,A2,A3,R1,R2>(function(A1,A2,A3,   function(R1,R2)), integer): function(A1,A2,A3): R1,R2
-  wrap: function<A1,A2,A3,A4,R1>(function(A1,A2,A3,A4,function(R1)   ), integer): function(A1,A2,A3,A4): R1
-  wrap: function<A1,A2,A3,R1>   (function(A1,A2,A3,   function(R1)   ), integer): function(A1,A2,A3): R1
+  wrap: function<A1,A2,R1,R2>      (function(A1,A2,      function(R1,R2)), integer): function(A1,A2         ): R1,R2
+  wrap: function<A1,A2,R1>         (function(A1,A2,      function(R1)   ), integer): function(A1,A2         ): R1
+  wrap: function<A1,A2,A3,R1,R2>   (function(A1,A2,A3,   function(R1,R2)), integer): function(A1,A2,A3      ): R1,R2
+  wrap: function<A1,A2,A3,A4,R1>   (function(A1,A2,A3,A4,function(R1)   ), integer): function(A1,A2,A3,A4   ): R1
+  wrap: function<A1,A2,A3,R1>      (function(A1,A2,A3,   function(R1)   ), integer): function(A1,A2,A3      ): R1
   wrap: function<A1,A2,A3,A4,A5,R1>(function(A1,A2,A3,A4,A5,function(R1)), integer): function(A1,A2,A3,A4,A5): R1
-  wrap: function<A1,A2,A3>      (function(A1,A2,A3,   function())     , integer): function(A1,A2,A3)
+  wrap: function<A1,A2,A3>         (function(A1,A2,A3,   function())     , integer): function(A1,A2,A3      )
 
   sync: function<T>(T, integer): T
 
-  type Thunk = function(function(...:any))
-
   main: function()
-
   join: function(integer, (function(): boolean), {Thunk}): {any}
-
   curry: function(fn: function, ...: any): Async.Thunk
 end
 

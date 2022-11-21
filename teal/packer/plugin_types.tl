@@ -11,15 +11,11 @@ end
 local plugin_types: {string:PluginHandler} = {}
 
 return setmetatable(plugin_types, {
-  __index = function(self: {string:PluginHandler}, k: string): PluginHandler
+  __index = function(_: {string:PluginHandler}, k: string): PluginHandler
     if k == 'git' then
-      local v = require('packer.plugin_types.git')
-      self[k] = v
-      return v
+      return require('packer.plugin_types.git')
     elseif k == 'local' then
-      local v = require('packer.plugin_types.local')
-      self[k] = v
-      return v
+      return require('packer.plugin_types.local')
     end
   end,
 })

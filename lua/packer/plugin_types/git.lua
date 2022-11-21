@@ -5,7 +5,6 @@ local log = require('packer.log')
 local util = require('packer.util')
 local Display = require('packer.display').Display
 
-local void = a.void
 local async = a.sync
 
 local fmt = string.format
@@ -91,7 +90,8 @@ local function checkout(ref, opts, disp)
    return git_run({ 'checkout', ref, '--' }, opts)
 end
 
-local handle_checkouts = void(function(plugin, disp, opts)
+
+local handle_checkouts = function(plugin, disp, opts)
    local function update_disp(msg)
       if disp then
          disp:task_update(plugin.full_name, msg)
@@ -139,7 +139,7 @@ local handle_checkouts = void(function(plugin, disp, opts)
    end
 
    return {}
-end)
+end
 
 local function split_messages(messages)
    local lines = {}
@@ -267,6 +267,7 @@ local function file_lines(file)
    end
    return text
 end
+
 
 local function update(plugin, disp, opts)
    disp:task_update(plugin.full_name, 'checking current commit...')
