@@ -116,10 +116,7 @@ global record JobOutput
 end
 
 global record PluginResult
-  msg: string
-  data: any
-
-  output: JobOutput
+  err: {string}
 
   -- Used for moves
   from: string

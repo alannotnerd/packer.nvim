@@ -1,16 +1,15 @@
 local a = require 'packer.async'
 local log = require 'packer.log'
 local util = require 'packer.util'
-local result = require 'packer.result'
 local Display = require 'packer.display'.Display
 
 local uv = vim.loop
 
 local record M
-  installer   : function(plugin: Plugin, disp: Display): Result<PluginResult>
-  updater     : function(plugin: Plugin, disp: Display, opts: table): Result<PluginResult>
-  revert_last : function(plugin: Plugin): Result<PluginResult>
-  diff        : function(plugin: Plugin, commit: string, callback: function): Result<PluginResult>
+  installer   : function(plugin: Plugin, disp: Display): {string}
+  updater     : function(plugin: Plugin, disp: Display, opts: table): {string}
+  revert_last : function(plugin: Plugin): {string}
+  diff        : function(plugin: Plugin, commit: string, callback: function): {string}
   get_rev     : function(plugin: Plugin): string, string
 end
 
@@ -31,7 +30,7 @@ end
 local symlink = a.wrap(symlink_fn, 4)
 local unlink = a.wrap(uv.fs_unlink, 2)
 
-M.installer = a.sync(function(plugin: Plugin, disp: Display): Result<PluginResult>
+M.installer = a.sync(function(plugin: Plugin, disp: Display): {string}
   local from = uv.fs_realpath(util.strip_trailing_sep(plugin.url))
   local to = util.strip_trailing_sep(plugin.install_path)
 
@@ -39,12 +38,11 @@ M.installer = a.sync(function(plugin: Plugin, disp: Display): Result<PluginResul
   local err, success = symlink(from, to, { dir = true })
   if not success then
     plugin.err = { err }
-    return result.err({msg = err} as PluginResult)
+    return plugin.err
   end
-  return result.ok()
 end, 2)
 
-M.updater = a.sync(function(plugin: Plugin, disp: Display): Result<PluginResult>
+M.updater = a.sync(function(plugin: Plugin, disp: Display): {string}
   local from = uv.fs_realpath(util.strip_trailing_sep(plugin.url))
   local to = util.strip_trailing_sep(plugin.install_path)
   disp:task_update(plugin.full_name, 'checking symlink...')
@@ -56,20 +54,17 @@ M.updater = a.sync(function(plugin: Plugin, disp: Display): Result<PluginResult>
       err = symlink(from, to, { dir = true })
     end
     if err then
-      return result.err(err)
+      return err
     end
   end
-  return result.ok{}
 end, 1)
 
-M.revert_last = function(_: Plugin): Result<PluginResult>
+M.revert_last = function(_: Plugin): {string}
   log.warn "Can't revert a local plugin!"
-  return result.ok{}
 end
 
-M.diff = function(_: Plugin, _: string, _: function): Result<PluginResult>
+M.diff = function(_: Plugin, _: string, _: function): {string}
   log.warn "Can't diff a local plugin!"
-  return result.ok{}
 end
 
 return M

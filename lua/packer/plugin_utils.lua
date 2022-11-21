@@ -2,7 +2,6 @@ local a = require('packer.async')
 local util = require('packer.util')
 local log = require('packer.log')
 local config = require('packer.config')
-local result = require('packer.result')
 local Display = require('packer.display').Display
 
 local fn = vim.fn
@@ -162,7 +161,7 @@ M.post_update_hook = a.sync(function(plugin, disp)
    end
 
    if not plugin.run then
-      return result.ok({})
+      return
    end
 
    disp:task_update(plugin_name, 'running post update hooks...')
@@ -171,9 +170,7 @@ M.post_update_hook = a.sync(function(plugin, disp)
       if type(run_task) == "function" then
          local ok, err = pcall(run_task, plugin, disp)
          if not ok then
-            return result.err({
-               msg = 'Error running post update hook: ' .. vim.inspect(err),
-            })
+            return { 'Error running post update hook: ' .. vim.inspect(err) }
          end
       elseif type(run_task) == 'string' and run_task:sub(1, 1) == ':' then
 
@@ -187,15 +184,10 @@ M.post_update_hook = a.sync(function(plugin, disp)
          })
 
          if jr.err then
-            return result.err({
-               msg = string.format('Error running post update hook: %s', table.concat(jr.err.output.data.stderr, '\n')),
-               data = jr.err,
-            })
+            return { string.format('Error running post update hook: %s', table.concat(jr.err.output.data.stderr, '\n')) }
          end
       end
    end
-
-   return result.ok({})
 end, 2)
 
 return M

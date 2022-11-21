@@ -48,35 +48,31 @@ local update_plugin = async(function(plugin, disp, updates, opts)
 
    local plugin_type = require('packer.plugin_types')[plugin.type]
 
-   local r = plugin_type.updater(plugin, disp, opts)
+   local err = plugin_type.updater(plugin, disp, opts)
    local msg = 'up to date'
-   if r.ok and plugin.type == 'git' then
+   if not err and plugin.type == 'git' then
       local revs = plugin.revs
       local actual_update = revs[1] ~= revs[2]
       if actual_update then
          msg = fmt('updated: %s...%s', revs[1], revs[2])
          if not opts.preview_updates then
-            log.debug(fmt('Updated %s: %s', plugin_name, vim.inspect(r)))
-            r = plugin_utils.post_update_hook(plugin, disp)
+            log.debug(fmt('Updated %s', plugin_name))
+            err = plugin_utils.post_update_hook(plugin, disp)
          end
       else
          msg = 'already up to date'
       end
    end
 
-   if r.ok then
+   if not err then
       disp:task_succeeded(plugin_name, msg)
    else
       disp:task_failed(plugin_name, 'failed to update')
-      local errmsg = '<unknown error>'
-      if r ~= nil and r.err ~= nil then
-         errmsg = vim.inspect(r.err)
-      end
-      log.debug(fmt('Failed to update %s: %s', plugin_name, errmsg))
+      log.debug(fmt('Failed to update %s: %s', plugin_name, plugin.err))
    end
 
-   updates[plugin_name] = r
-   return plugin_name, r
+   updates[plugin_name] = err and { err = err } or {}
+   return plugin_name, err
 end, 4)
 
 local M = {}

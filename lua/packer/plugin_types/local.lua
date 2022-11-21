@@ -1,7 +1,6 @@
 local a = require('packer.async')
 local log = require('packer.log')
 local util = require('packer.util')
-local result = require('packer.result')
 local Display = require('packer.display').Display
 
 local uv = vim.loop
@@ -39,9 +38,8 @@ M.installer = a.sync(function(plugin, disp)
    local err, success = symlink(from, to, { dir = true })
    if not success then
       plugin.err = { err }
-      return result.err({ msg = err })
+      return plugin.err
    end
-   return result.ok()
 end, 2)
 
 M.updater = a.sync(function(plugin, disp)
@@ -56,20 +54,17 @@ M.updater = a.sync(function(plugin, disp)
          err = symlink(from, to, { dir = true })
       end
       if err then
-         return result.err(err)
+         return err
       end
    end
-   return result.ok({})
 end, 1)
 
 M.revert_last = function(_)
    log.warn("Can't revert a local plugin!")
-   return result.ok({})
 end
 
 M.diff = function(_, _, _)
    log.warn("Can't diff a local plugin!")
-   return result.ok({})
 end
 
 return M

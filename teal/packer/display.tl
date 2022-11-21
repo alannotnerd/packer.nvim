@@ -112,8 +112,8 @@ local record M
     record Results
       removals: {string}
       moves: {string:Result<PluginResult>}
-      installs: {string:Result<PluginResult>}
-      updates: {string:Result<PluginResult>}
+      installs: {string:PluginResult}
+      updates: {string:PluginResult}
     end
 
     results       : Results
@@ -140,7 +140,7 @@ local record M
     ask_user                : function(string, {string}): boolean
 
     record Callbacks
-      diff: function(plugin: Plugin, commit: string, callback: function): Result<PluginResult>
+      diff: function(plugin: Plugin, commit: string, callback: function): {string}
       update: function(string|table, ...: string)
       revert_last: function(Plugin)
       install: function()
@@ -785,12 +785,12 @@ display.final_results = vim.schedule_wrap(function(self: Display, results: Displ
         raw_lines,
         fmt(
           ' %s %s %s',
-          result.ok and config.display.done_sym or config.display.error_sym,
-          result.ok and 'Installed' or 'Failed to install',
+          not result.err and config.display.done_sym or config.display.error_sym,
+          not result.err and 'Installed' or 'Failed to install',
           plugin
         )
       )
-      display.any_failed_install = display.any_failed_install or not result.ok
+      display.any_failed_install = display.any_failed_install or result.err ~= nil
     end
   end
 
@@ -806,7 +806,7 @@ display.final_results = vim.schedule_wrap(function(self: Display, results: Displ
       local message = {}
       local actual_update = true
       local failed_update = false
-      if result.ok then
+      if not result.err then
         if self:has_changes(plugin) then
           table.insert(item_order, plugin_name)
           table.insert(message, make_update_msg(config.display.done_sym, status_msg, plugin_name, plugin))

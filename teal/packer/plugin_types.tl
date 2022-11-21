@@ -1,10 +1,10 @@
 local Display = require 'packer.display'.Display
 
 local record PluginHandler
-  installer   : function(plugin: Plugin, disp: Display): Result<PluginResult>
-  updater     : function(plugin: Plugin, disp: Display, opts: table): Result<PluginResult>
-  revert_last : function(plugin: Plugin): Result<PluginResult>
-  diff        : function(plugin: Plugin, commit: string, callback: function): Result<PluginResult>
+  installer   : function(plugin: Plugin, disp: Display): {string}
+  updater     : function(plugin: Plugin, disp: Display, opts: table): {string}
+  revert_last : function(plugin: Plugin): {string}
+  diff        : function(plugin: Plugin, commit: string, callback: function): {string}
   get_rev     : function(plugin: Plugin): string, string
 end
 

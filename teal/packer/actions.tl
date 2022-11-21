@@ -21,7 +21,7 @@ end
 
 local function open_display(): Display
   return display.display.open({
-    diff = function(plugin: Plugin, commit: string, callback: function): Result<PluginResult>
+    diff = function(plugin: Plugin, commit: string, callback: function): {string}
       local plugin_type = require'packer.plugin_types'[plugin.type]
       return plugin_type.diff(plugin, commit, callback)
     end,

@@ -2,7 +2,6 @@ local a = require('packer.async')
 local config = require('packer.config')
 local jobs = require('packer.jobs')
 local log = require('packer.log')
-local result = require('packer.result')
 local util = require('packer.util')
 local Display = require('packer.display').Display
 
@@ -100,10 +99,6 @@ local function checkout(ref, opts, disp)
    return git_run({ 'checkout', ref, '--' }, opts)
 end
 
-local function err(t)
-   return result.err(t)
-end
-
 local handle_checkouts = void(function(plugin, disp, opts)
    local function update_disp(msg)
       if disp then
@@ -118,8 +113,6 @@ local handle_checkouts = void(function(plugin, disp, opts)
       cwd = plugin.install_path,
    }
 
-   local r = result.ok({})
-
    if plugin.tag and has_wildcard(plugin.tag) then
       update_disp(fmt('getting tag for wildcard %s...', plugin.tag))
       local jr = git_run({
@@ -130,56 +123,31 @@ local handle_checkouts = void(function(plugin, disp, opts)
          local data = jr.ok.output.data.stdout[1]
          plugin.tag = vim.split(data, '\n')[1]
       else
-         r = err({ output = jr.err.output })
          log.warn(fmt(
          'Wildcard expansion did not found any tag for plugin %s: defaulting to latest commit...',
          plugin.name))
 
          plugin.tag = nil
+         return jr.err.output.data.stderr
       end
    end
 
-   if r.ok and (plugin.branch or (plugin.tag and not opts.preview_updates)) then
+   if (plugin.branch or (plugin.tag and not opts.preview_updates)) then
       local branch_or_tag = plugin.branch or plugin.tag
       local jr = checkout(branch_or_tag, job_opts, disp)
       if jr.err then
-         r = err({
-            msg = fmt(
-            'Error checking out %s %s for %s',
-            plugin.branch and 'branch' or 'tag',
-            branch_or_tag,
-            plugin.full_name),
-
-            data = jr.err,
-            output = jr.err.output,
-         })
+         return jr.err.output.data.stderr
       end
    end
 
-   if r.ok and plugin.commit then
+   if plugin.commit then
       local jr = checkout(plugin.commit, job_opts, disp)
       if jr.err then
-         r = err({
-            msg = fmt('Error checking out commit %s for %s', plugin.commit, plugin.full_name),
-            data = jr.err,
-            output = jr.err.output,
-         })
+         return jr.err.output.data.stderr
       end
    end
 
-   if r.ok then
-      r.ok = {
-         output = r.ok.output,
-      }
-   else
-      r.err = {
-         msg = fmt('Error updating %s: %s', plugin.full_name, vim.inspect(r.err)),
-         data = r.err,
-         output = r.err.output,
-      }
-   end
-
-   return r
+   return {}
 end)
 
 local function split_messages(messages)
@@ -272,15 +240,12 @@ M.installer = async(function(plugin, disp)
 
    if jr.ok then
       plugin.messages = jr.ok.output.data.stdout
-      return result.ok({})
+      return
    end
 
    plugin.err = jr.err.output.data.stderr
 
-   return err({
-      msg = fmt('Error installing %s: %s', plugin.full_name, table.concat(jr.err.output.data.stderr, '\n')),
-      output = jr.err.output,
-   })
+   return plugin.err
 end, 2)
 
 local function get_current_branch(plugin)
@@ -322,26 +287,20 @@ local function file_lines(file)
    return text
 end
 
-M.updater = async(function(plugin, disp, opts)
-   local r = result.ok({})
-
+local function update(plugin, disp, opts)
    disp:task_update(plugin.full_name, 'checking current commit...')
    local current_commit, ccerr = get_ref(plugin, 'HEAD')
-   if not current_commit or ccerr ~= nil then
-      plugin.err = { ccerr }
-      return err({
-         msg = fmt('Error checking current commit for %s: %s', plugin.full_name, ccerr),
-      })
+   if ccerr then
+      return { ccerr }
    end
 
    plugin.revs[1] = current_commit
 
    disp:task_update(plugin.full_name, 'checking current branch...')
+
    local current_branch, cberr = get_current_branch(plugin)
-   if not current_branch or cberr ~= nil then
-      return err({
-         msg = fmt('Error checking current branch for %s: %s', plugin.full_name, cberr),
-      })
+   if cberr then
+      return { cberr }
    end
 
    local needs_checkout = (plugin.tag or plugin.commit or plugin.branch) ~= nil
@@ -364,27 +323,19 @@ M.updater = async(function(plugin, disp, opts)
       end
    end
 
-   local update_opts = {
-      capture_output = true,
-      cwd = plugin.install_path,
-   }
-
    if needs_checkout then
-      local jr = git_run({ 'fetch', '--depth', '999999', '--progress' }, update_opts)
-      if jr.ok then
-         r = handle_checkouts(plugin, disp, opts)
+      local jr = git_run({ 'fetch', '--depth', '999999', '--progress' }, {
+         capture_output = true,
+         cwd = plugin.install_path,
+      })
+      if jr.err then
+         return jr.err.output.data.stderr
       end
 
-      if r.err then
-         plugin.err = jr.err.output.data.stderr
-         local errmsg = '<unknown error>'
-         if r.err.msg ~= nil then
-            errmsg = r.err.msg
-         end
-         return err({
-            msg = errmsg .. ' ' .. table.concat(r.err.output.data.stderr, '\n'),
-            data = r.err.data,
-         })
+      local coerr = handle_checkouts(plugin, disp, opts)
+
+      if coerr then
+         return coerr
       end
    end
 
@@ -407,12 +358,12 @@ M.updater = async(function(plugin, disp, opts)
       end
 
       disp:task_update(plugin.full_name, msg)
-      local jr = git_run(cmd, update_opts)
+      local jr = git_run(cmd, {
+         capture_output = true,
+         cwd = plugin.install_path,
+      })
       if jr.err then
-         return err({
-            msg = fmt('Failed to get updates for %s', plugin.name),
-            data = jr.err,
-         })
+         return jr.err.output.data.stderr
       end
    end
 
@@ -420,16 +371,13 @@ M.updater = async(function(plugin, disp, opts)
    local ref = plugin.tag ~= nil and fmt('%s^{}', plugin.tag) or 'FETCH_HEAD'
 
    disp:task_update(plugin.full_name, 'checking updated commit...')
+
    local new_rev, crerr = get_ref(plugin, ref)
    if crerr then
-      plugin.err = { crerr }
-      return err({
-         msg = fmt('Error checking updated commit for %s: %s', plugin.full_name, crerr),
-         data = crerr,
-      })
-   else
-      plugin.revs[2] = new_rev
+      return { crerr }
    end
+
+   plugin.revs[2] = new_rev
 
    if plugin.revs[1] ~= plugin.revs[2] then
       disp:task_update(plugin.full_name, 'getting commit messages...')
@@ -444,17 +392,26 @@ M.updater = async(function(plugin, disp, opts)
          cwd = plugin.install_path,
       })
 
-      if jr.ok then
-         plugin.messages = jr.ok.output.data.stdout
-         if config.git.mark_breaking_changes then
-            jr = mark_breaking_changes(plugin, disp, opts.preview_updates)
+      if jr.err then
+         return jr.err.output.data.stderr
+      end
+
+      plugin.messages = jr.ok.output.data.stdout
+
+      if config.git.mark_breaking_changes then
+         jr = mark_breaking_changes(plugin, disp, opts.preview_updates)
+         if jr.err then
+            return jr.err.output.data.stderr
          end
-      else
-         plugin.err = jr.err.output.data.stderr
       end
    end
 
-   return r
+   return nil
+end
+
+M.updater = async(function(plugin, disp, opts)
+   plugin.err = update(plugin, disp, opts)
+   return plugin.err
 end, 4)
 
 M.remote_url = async(function(plugin)
@@ -485,44 +442,39 @@ M.diff = async(function(plugin, commit, callback)
    end
 end, 3)
 
-local function topluginres(r)
-   if r.ok then
-      return result.ok({
-         output = r.ok.output,
-      })
-   end
-   return result.err({
-      output = r.ok.output,
-   })
-end
-
 M.revert_last = async(function(plugin)
    local jr = git_run({ 'reset', '--hard', 'HEAD@{1}' }, {
       capture_output = true,
       cwd = plugin.install_path,
    })
-   local r = topluginres(jr)
 
-   local needs_checkout = (plugin.tag or plugin.commit or plugin.branch) ~= nil
-   if needs_checkout and r.ok then
-      r = handle_checkouts(plugin, nil, {})
-      if r.ok then
-         log.info('Reverted update for ' .. plugin.full_name)
-      else
+   if jr.err then
+      log.error(fmt('Reverting update for %s failed!', plugin.full_name))
+      return jr.err.output.data.stderr
+   end
+
+   if (plugin.tag or plugin.commit or plugin.branch) ~= nil then
+      local coerr = handle_checkouts(plugin, nil, {})
+      if coerr then
          log.error(fmt('Reverting update for %s failed!', plugin.full_name))
+         return coerr
       end
    end
-   return r
+   log.info('Reverted update for ' .. plugin.full_name)
 end, 1)
 
 
 M.revert_to = async(function(plugin, commit)
    assert(type(commit) == 'string', fmt("commit: string expected but '%s' provided", type(commit)))
    require('packer.log').debug(fmt("Reverting '%s' to commit '%s'", plugin.name, commit))
-   return topluginres(git_run({ 'reset', '--hard', commit, '--' }, {
+   local jr = git_run({ 'reset', '--hard', commit, '--' }, {
       capture_output = true,
       cwd = plugin.install_path,
-   }))
+   })
+
+   if jr.err then
+      return jr.err.output.data.stderr
+   end
 end, 2)
 
 

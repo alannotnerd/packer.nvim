@@ -8,28 +8,28 @@ local fmt = string.format
 local install_plugin = a.sync(function(
   plugin: Plugin,
   disp: Display,
-  installs: {string:Result<PluginResult>}
-): Result<PluginResult>
+  installs: {string:PluginResult}
+): {string}
   disp:task_start(plugin.full_name, 'installing...')
 
   local plugin_type = require'packer.plugin_types'[plugin.type]
 
-  local r = plugin_type.installer(plugin, disp)
+  local err = plugin_type.installer(plugin, disp)
 
-  if r.ok then
-    r = plugin_utils.post_update_hook(plugin, disp)
+  if not err then
+    err = plugin_utils.post_update_hook(plugin, disp)
   end
 
-  if r.ok then
+  if not err then
     disp:task_succeeded(plugin.full_name, 'installed')
     log.debug(fmt('Installed %s', plugin.full_name))
   else
     disp:task_failed(plugin.full_name, 'failed to install')
-    log.debug(fmt('Failed to install %s: %s', plugin.full_name, vim.inspect(r.err)))
+    log.debug(fmt('Failed to install %s: %s', plugin.full_name, vim.inspect(err)))
   end
 
-  installs[plugin.name] = r
-  return r
+  installs[plugin.name] = err and { err = err } or {}
+  return err
 end, 3)
 
 local function install(
