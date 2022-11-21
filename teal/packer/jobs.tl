@@ -1,9 +1,7 @@
 -- Interface with Neovim job control and provide a simple job sequencing structure
-local split = vim.split
 local uv = vim.loop
 local a = require 'packer.async'
 local log = require 'packer.log'
-local Display = require 'packer.display'.Display
 
 local record M
   record JobOutput
@@ -52,7 +50,7 @@ end
 --      output flushes before finishing reading
 -- - disp: optional packer.display object for updating task status. Requires `name`
 -- - name: optional string name for a current task. Used to update task status
-local function logging_callback(err_tbl: {string}, data_tbl: {string}, disp: Display, name: string): function(string, string)
+local function logging_callback(err_tbl: {string}, data_tbl: {string}): function(string, string)
   return function(err: string, data: string)
     if err then
       table.insert(err_tbl, vim.trim(err))
@@ -60,9 +58,6 @@ local function logging_callback(err_tbl: {string}, data_tbl: {string}, disp: Dis
     if data ~= nil then
       local trimmed = vim.trim(data)
       table.insert(data_tbl, trimmed)
-      if disp then
-        disp:task_update(name, split(trimmed, '\n')[1])
-      end
     end
   end
 end
