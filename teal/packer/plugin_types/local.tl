@@ -10,10 +10,8 @@ local record M
   installer   : function(plugin: Plugin, disp: Display): Result<PluginResult>
   updater     : function(plugin: Plugin, disp: Display, opts: table): Result<PluginResult>
   revert_last : function(plugin: Plugin): Result<PluginResult>
-  remote_url  : function(plugin: Plugin): string
   diff        : function(plugin: Plugin, commit: string, callback: function): Result<PluginResult>
   get_rev     : function(plugin: Plugin): string, string
-  job_env     : {string}
 end
 
 -- Due to #679, we know that fs_symlink requires admin privileges on Windows. This is a workaround,

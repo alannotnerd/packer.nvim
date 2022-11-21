@@ -17,8 +17,6 @@ local M = {}
 
 
 
-
-
 local symlink_fn
 if util.is_windows then
    symlink_fn = function(path, new_path, flags, callback)
