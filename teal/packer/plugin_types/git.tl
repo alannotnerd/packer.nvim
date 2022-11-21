@@ -55,32 +55,24 @@ local BREAKING_CHANGE_PAT    = '[[bB][rR][eE][aA][kK][iI][nN][gG][ _][cC][hH][aA
 local TYPE_EXCLAIM_PAT       = '[[a-zA-Z]+!:]'
 local TYPE_SCOPE_EXPLAIN_PAT = '[[a-zA-Z]+%([^)]+%)!:]'
 
+local function is_breaking(x: string): boolean
+    return x and (
+      x:match(BREAKING_CHANGE_PAT)
+      or x:match(BREAK_TAG_PAT)
+      or x:match(TYPE_EXCLAIM_PAT)
+      or x:match(TYPE_SCOPE_EXPLAIN_PAT)
+    ) ~= nil
+end
+
 local function get_breaking_commits(commit_bodies: {string}): {string}
   local ret = {}
   local commits = vim.gsplit(table.concat(commit_bodies, '\n'), '===COMMIT_START===', true)
+
   for commit in commits do
     local commit_parts = vim.split(commit, '===BODY_START===')
     local body = commit_parts[2]
     local lines = vim.split(commit_parts[1], '\n')
-    local is_breaking = (
-      body ~= nil
-      and (
-        (body:match(BREAKING_CHANGE_PAT) ~= nil)
-        or (body:match(BREAK_TAG_PAT) ~= nil)
-        or (body:match(TYPE_EXCLAIM_PAT) ~= nil)
-        or (body:match(TYPE_SCOPE_EXPLAIN_PAT) ~= nil)
-      )
-    )
-      or (
-        lines[2] ~= nil
-        and (
-          (lines[2]:match(BREAKING_CHANGE_PAT) ~= nil)
-          or (lines[2]:match(BREAK_TAG_PAT) ~= nil)
-          or (lines[2]:match(TYPE_EXCLAIM_PAT) ~= nil)
-          or (lines[2]:match(TYPE_SCOPE_EXPLAIN_PAT) ~= nil)
-        )
-      )
-    if is_breaking then
+    if is_breaking(body) or is_breaking(lines[2]) then
       ret[#ret+1] = lines[1]
     end
   end
