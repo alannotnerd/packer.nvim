@@ -105,16 +105,6 @@ global record Result<V>
   err: V
 end
 
-global record JobOutput
-  record E
-    stdout: {string}
-    stderr: {string}
-  end
-
-  data: E
-  err: E
-end
-
 global record PluginResult
   err: {string}
 

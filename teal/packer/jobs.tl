@@ -6,6 +6,16 @@ local log = require 'packer.log'
 local Display = require 'packer.display'.Display
 
 local record M
+  record JobOutput
+    record E
+      stdout: {string}
+      stderr: {string}
+    end
+
+    data: E
+    err: E
+  end
+
   record JobResult
     exit_code: integer
     signal: integer | string
@@ -58,7 +68,7 @@ local function logging_callback(err_tbl: {string}, data_tbl: {string}, disp: Dis
 end
 
 --- Utility function to make a table for capturing output with "standard" structure
-function M.output_table(): JobOutput
+function M.output_table(): M.JobOutput
   return {
     err  = { stdout = {}, stderr = {} },
     data = { stdout = {}, stderr = {} }
@@ -67,7 +77,7 @@ end
 
 --- Utility function to merge stdout and stderr from two tables with "standard" structure (either
 --  the err or data subtables, specifically)
-function M.extend_output(to: JobOutput.E, from: JobOutput.E): JobOutput.E
+function M.extend_output(to: M.JobOutput.E, from: M.JobOutput.E): M.JobOutput.E
   vim.list_extend(to.stdout, from.stdout)
   vim.list_extend(to.stderr, from.stderr)
   return to
@@ -120,7 +130,7 @@ local function spawn(cmd: string, options: uv.SpawnOpts, callback: function(inte
   end
 end
 
-local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, capture_output: boolean, output: JobOutput): boolean | uv.Pipe
+local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, capture_output: boolean, output: M.JobOutput): boolean | uv.Pipe
   if not capture_output then
     return
   end

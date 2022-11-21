@@ -5,7 +5,17 @@ local a = require('packer.async')
 local log = require('packer.log')
 local Display = require('packer.display').Display
 
-local M = {JobResult = {}, StdioCallbacks = {}, Opts = {}, }
+local M = {JobOutput = {E = {}, }, JobResult = {}, StdioCallbacks = {}, Opts = {}, }
+
+
+
+
+
+
+
+
+
+
 
 
 
