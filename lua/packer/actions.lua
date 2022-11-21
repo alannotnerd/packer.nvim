@@ -99,11 +99,7 @@ local function update_helptags(results)
    end
 end
 
-local install_plugin = a.sync(function(
-   plugin,
-   disp,
-   installs)
-
+local install_task = a.sync(function(plugin, disp, installs)
    disp:task_start(plugin.full_name, 'installing...')
 
    local plugin_type = require('packer.plugin_types')[plugin.type]
@@ -138,7 +134,7 @@ local function install(
 
    local tasks = {}
    for _, v in ipairs(missing_plugins) do
-      table.insert(tasks, a.curry(install_plugin, plugins[v], disp, installs))
+      tasks[#tasks + 1] = a.curry(install_task, plugins[v], disp, installs)
    end
 
    return tasks
@@ -189,19 +185,20 @@ local function move_plugin(plugin, moves, fs_state)
    fs_state.opt[from] = nil
    fs_state.missing[plugin.name] = nil
 
+   moves[plugin.name] = { from = from, to = to }
+
 
 
    local success, msg = os.rename(from, to)
    if not success then
       log.error(fmt('Failed to move %s to %s: %s', from, to, msg))
-      moves[plugin.name] = { from = from, to = to }
+      moves[plugin.name] = { err = { msg } }
    else
       log.debug(fmt('Moved %s from %s to %s', plugin.name, from, to))
-      moves[plugin.name] = { from = from, to = to }
    end
 end
 
-local update_plugin = a.sync(function(plugin, disp, updates, opts)
+local update_task = a.sync(function(plugin, disp, updates, opts)
    local plugin_name = plugin.full_name
    disp:task_start(plugin_name, 'updating...')
 
@@ -253,7 +250,7 @@ local function update(
          log.error(fmt('Unknown plugin: %s', v))
       end
       if plugin and not plugin.lock then
-         table.insert(tasks, a.curry(update_plugin, plugin, disp, updates, opts))
+         tasks[#tasks + 1] = a.curry(update_task, plugin, disp, updates, opts)
       end
    end
 
@@ -413,14 +410,12 @@ M.update = a.void(function(first, ...)
       local tasks = {}
 
       log.debug('Gathering install tasks')
-      local install_tasks = install(plugins, missing_plugins, disp, results.installs)
-      vim.list_extend(tasks, install_tasks)
+      vim.list_extend(tasks, install(plugins, missing_plugins, disp, results.installs))
 
-      log.debug('Gathering update tasks')
       a.main()
 
-      local update_tasks = update(plugins, installed_plugins, disp, results.updates, opts)
-      vim.list_extend(tasks, update_tasks)
+      log.debug('Gathering update tasks')
+      vim.list_extend(tasks, update(plugins, installed_plugins, disp, results.updates, opts))
 
       run_tasks(tasks, disp)
 
