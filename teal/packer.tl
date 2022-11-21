@@ -1,9 +1,6 @@
 local api = vim.api
 local fn = vim.fn
 
-local config = require 'packer.config'
-local log    = require 'packer.log'
-
 local plugins: {string:Plugin} = {}
 
 local M = {}
@@ -78,43 +75,27 @@ local function load_plugin_configs()
   end
 end
 
-local function do_snapshot(k: string): function
-  return function(arglead: string, cmdline: string): {string}
-    (require('packer.snapshot') as {string:function})[k](arglead, cmdline)
-  end
-end
-
-local function do_snapshot_cmpl(k: string): function(string, string): {string}
-  return function(arglead: string, cmdline: string): {string}
-    (require('packer.snapshot').completion as {string:function})[k](arglead, cmdline)
-  end
-end
-
-local function do_install()
-  require'packer.actions'.install()
-end
-
-local function do_update(first: string|table, ...:string)
-  require'packer.actions'.update(first, ...)
-end
-
-local function do_clean()
-  require'packer.actions'.clean()
-end
-
-local function do_status()
-  require'packer.actions'.status()
-end
-
 local function make_commands()
+  local snapshot_cmpl = setmetatable({}, {
+    __index = function(_, k: string): function
+      return (require'packer.snapshot'.completion as {string:function})[k]
+    end
+  }) as {string:function(string, string): {string}}
+
+  local actions = setmetatable({}, {
+    __index = function(_, k: string): function
+      return (require'packer.actions' as {string:function})[k]
+    end
+  }) as {string:function}
+
   for _, cmd in ipairs {
-    { 'PackerSnapshot'         , '+', do_snapshot('create')  , do_snapshot_cmpl('create')   },
-    { 'PackerSnapshotRollback' , '+', do_snapshot('rollback'), do_snapshot_cmpl('rollback') },
-    { 'PackerSnapshotDelete'   , '+', do_snapshot('delete')  , do_snapshot_cmpl('snapshot') },
-    { 'PackerInstall'          , '*', do_install   , M.plugin_complete },
-    { 'PackerUpdate'           , '*', do_update    , M.plugin_complete },
-    { 'PackerClean'            , '*', do_clean },
-    { 'PackerStatus'           , '*', do_status },
+    { 'PackerSnapshot'         , '+', actions.create  , snapshot_cmpl.create   },
+    { 'PackerSnapshotRollback' , '+', actions.rollback, snapshot_cmpl.rollback },
+    { 'PackerSnapshotDelete'   , '+', actions.delete  , snapshot_cmpl.snapshot },
+    { 'PackerInstall'          , '*', actions.install , M.plugin_complete      },
+    { 'PackerUpdate'           , '*', actions.update  , M.plugin_complete      },
+    { 'PackerClean'            , '*', actions.clean                            },
+    { 'PackerStatus'           , '*', actions.status                           },
   } do
     api.nvim_create_user_command(cmd[1], function(args: vim.api.UserCmdParams)
       cmd[3](unpack(args.fargs))
@@ -132,6 +113,9 @@ end
 -- spec can be a table with a table of plugin specifications as its first
 -- element, config overrides as another element.
 function M.startup(spec: SSpec)
+  local config = require 'packer.config'
+  local log    = require 'packer.log'
+
   assert(type(spec) == 'table')
   assert(type(spec[1]) == 'table')
 
@@ -151,7 +135,6 @@ function M.startup(spec: SSpec)
     log.warn("Couldn't create " .. config.snapshot_path)
   end
 
-  -- process_plugin_spec{
   plugins = require 'packer.plugin'.process_spec{
     spec = spec[1],
     line = debug.getinfo(2, 'l').currentline,
