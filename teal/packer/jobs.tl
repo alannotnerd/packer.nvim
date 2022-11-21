@@ -23,7 +23,6 @@ local record M
   end
 
   record Opts
-    output: boolean
     cwd: string
     timeout: integer
     env: {string}
@@ -80,7 +79,6 @@ local function spawn(cmd: string, options: uv.SpawnOpts, callback: function(inte
     timer = uv.new_timer()
     timer:start(timeout, 0, function()
       timer:stop()
-      ---@diagnostic disable-next-line
       timer:close()
       if handle and handle:is_active() then
         log.warn('Killing ' .. cmd .. ' due to timeout!')
@@ -137,10 +135,11 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
     signal = -1,
     ok = job_ok
   }
+
   local output = M.output_table()
   local callbacks = {}
 
-  local stdout = opts.output and setup_pipe('stdout', callbacks, output) or nil
+  local stdout = setup_pipe('stdout', callbacks, output)
 
   if stdout is string then
     callback(job_result)
@@ -149,7 +148,7 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
 
   stdout = stdout as uv.Pipe
 
-  local stderr = opts.output and setup_pipe('stderr', callbacks, output) or nil
+  local stderr = setup_pipe('stderr', callbacks, output)
 
   if stderr is string then
     callback(job_result)
@@ -176,9 +175,7 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
   }, function(exit_code: integer, signal: string)
     job_result.exit_code = exit_code
     job_result.signal = signal
-    if opts.output == true then
-      job_result.output = output
-    end
+    job_result.output = output
     callback(job_result)
   end)
 

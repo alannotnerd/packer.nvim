@@ -32,7 +32,6 @@ local M = {JobOutput = {E = {}, }, JobResult = {}, Opts = {}, }
 
 
 
-
 function M.output_table()
    return {
       err = { stdout = {}, stderr = {} },
@@ -137,10 +136,11 @@ M.run = a.wrap(function(task, opts, callback)
       signal = -1,
       ok = job_ok,
    }
+
    local output = M.output_table()
    local callbacks = {}
 
-   local stdout = opts.output and setup_pipe('stdout', callbacks, output) or nil
+   local stdout = setup_pipe('stdout', callbacks, output)
 
    if type(stdout) == "string" then
       callback(job_result)
@@ -149,7 +149,7 @@ M.run = a.wrap(function(task, opts, callback)
 
    stdout = stdout
 
-   local stderr = opts.output and setup_pipe('stderr', callbacks, output) or nil
+   local stderr = setup_pipe('stderr', callbacks, output)
 
    if type(stderr) == "string" then
       callback(job_result)
@@ -176,9 +176,7 @@ M.run = a.wrap(function(task, opts, callback)
    }, function(exit_code, signal)
       job_result.exit_code = exit_code
       job_result.signal = signal
-      if opts.output == true then
-         job_result.output = output
-      end
+      job_result.output = output
       callback(job_result)
    end)
 
