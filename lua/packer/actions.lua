@@ -550,13 +550,13 @@ M.snapshot = a.void(function(snapshot_name, ...)
 
    if write_snapshot then
       local r = require('packer.snapshot').create(snapshot_path, target_plugins)
-      if r.ok then
-         log.info(r.ok.message)
-         if next(r.ok.failed) then
-            log.warn("Couldn't snapshot " .. vim.inspect(r.ok.failed))
+      if not r.err then
+         log.info(r.message)
+         if next(r.failed) then
+            log.warn("Couldn't snapshot " .. vim.inspect(r.failed))
          end
       else
-         log.warn(r.err.message)
+         log.warn(r.message)
       end
    end
 end)
@@ -590,11 +590,11 @@ M.rollback = a.void(function(snapshot_name, ...)
 
    local r = require('packer.snapshot').rollback(snapshot_path, target_plugins)
 
-   if r.ok then
+   if not r then
       a.main()
       log.info(fmt('Rollback to "%s" completed', snapshot_path))
-      if next(r.ok.failed) then
-         log.warn("Couldn't rollback " .. vim.inspect(r.ok.failed))
+      if next(r.failed) then
+         log.warn("Couldn't rollback " .. vim.inspect(r.failed))
       end
    else
       a.main()

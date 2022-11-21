@@ -2,7 +2,6 @@ local a = require('packer.async')
 local util = require('packer.util')
 local log = require('packer.log')
 local plugin_utils = require('packer.plugin_utils')
-local result = require('packer.result')
 local async = a.sync
 local fmt = string.format
 local uv = vim.loop
@@ -10,6 +9,7 @@ local uv = vim.loop
 local config = require('packer.config')
 
 local M = {SResult = {Completed = {}, }, Completion = {}, }
+
 
 
 
@@ -119,17 +119,8 @@ local generate_snapshot = async(function(plugins)
       end
    end
 
-   local r = { failed = failed, completed = completed }
-   return result.ok(r)
+   return { failed = failed, completed = completed }
 end, 1)
-
-local function ok(x)
-   return result.ok(x)
-end
-
-local function err(x)
-   return result.err(x)
-end
 
 
 
@@ -143,29 +134,30 @@ M.create = async(function(snapshot_path, plugins)
 
    a.main()
 
-   local snapshot_content = vim.json.encode(commits.ok.completed)
+   local snapshot_content = vim.json.encode(commits.completed)
 
    local status, res = pcall(function()
       return vim.fn.writefile({ snapshot_content }, snapshot_path) == 0
    end)
 
    if status and res then
-      return ok({
+      return {
          message = fmt("Snapshot '%s' complete", snapshot_path),
-         completed = commits.ok.completed,
-         failed = commits.ok.failed,
-      })
+         completed = commits.completed,
+         failed = commits.failed,
+      }
    else
-      return err({
+      return {
+         err = true,
          message = fmt("Error on creation of snapshot '%s': '%s'", snapshot_path, res),
-      })
+      }
    end
 end, 2)
 
 
 
 M.rollback = async(function(_snapshot_path, _plugins)
-   return err({ message = 'Not implemented' })
+   return { message = 'Not implemented' }
 
 
 

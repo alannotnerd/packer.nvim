@@ -100,11 +100,6 @@ end
 
 global packer_plugins: {string:Plugin}
 
-global record Result<V>
-  ok: V
-  err: V
-end
-
 global record PluginResult
   err: {string}
 
