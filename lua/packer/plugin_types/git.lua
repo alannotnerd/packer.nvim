@@ -188,6 +188,7 @@ local function get_install_cmd(plugin)
    return install_cmd
 end
 
+
 local function install(plugin, disp)
    disp:task_update(plugin.full_name, 'cloning...')
 
@@ -204,16 +205,17 @@ local function install(plugin, disp)
    end
 
 
-   jr = git_run({
-      'log',
-      '--color=never',
-      '--pretty=format:%h %s (%cr)',
-      '--no-show-signature',
-      'HEAD',
-      '-n', '1',
-   }, {
-      cwd = plugin.install_path,
-   })
+
+
+
+
+
+
+
+
+
+
+
 
    return jr
 end
@@ -231,6 +233,7 @@ M.installer = async(function(plugin, disp)
    return plugin.err
 end, 2)
 
+
 local function get_current_branch(plugin)
 
    local jr = git_run({ 'branch', '--show-current' }, {
@@ -244,6 +247,7 @@ local function get_current_branch(plugin)
    end
    return current_branch, er
 end
+
 
 local function get_ref(plugin, ref)
    local jr = git_run({ 'rev-parse', '--short', ref }, {

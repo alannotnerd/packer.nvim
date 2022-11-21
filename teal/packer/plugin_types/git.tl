@@ -204,17 +204,18 @@ local function install(plugin: Plugin, disp: Display): jobs.JobResult
     end
   end
 
+  -- TODO(lewis6991): why do this?
   -- Get current commit
-  jr = git_run({
-    'log',
-    '--color=never',
-    '--pretty=format:%h %s (%cr)',
-    '--no-show-signature',
-    'HEAD',
-    '-n', '1'
-  }, {
-    cwd = plugin.install_path
-  })
+  -- jr = git_run({
+  --   'log',
+  --   '--color=never',
+  --   '--pretty=format:%h %s (%cr)',
+  --   '--no-show-signature',
+  --   'HEAD',
+  --   '-n', '1'
+  -- }, {
+  --   cwd = plugin.install_path
+  -- })
 
   return jr
 end
