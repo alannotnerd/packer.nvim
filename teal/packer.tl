@@ -30,7 +30,7 @@ end
 
 -- Completion user plugins
 -- Intended to provide completion for PackerUpdate/Sync/Install command
-function M.plugin_complete(lead: string, _:string): {string}
+local function plugin_complete(lead: string, _:string): {string}
   local completion_list = vim.tbl_filter(function(name: string): boolean
     return vim.startswith(name, lead)
   end, vim.tbl_keys(_G.packer_plugins))
@@ -96,8 +96,8 @@ local function make_commands()
     { 'PackerSnapshot'         , '+', actions.create  , snapshot_cmpl.create   },
     { 'PackerSnapshotRollback' , '+', actions.rollback, snapshot_cmpl.rollback },
     { 'PackerSnapshotDelete'   , '+', actions.delete  , snapshot_cmpl.snapshot },
-    { 'PackerInstall'          , '*', actions.install , M.plugin_complete      },
-    { 'PackerUpdate'           , '*', actions.update  , M.plugin_complete      },
+    { 'PackerInstall'          , '*', actions.install , plugin_complete        },
+    { 'PackerUpdate'           , '*', actions.update  , plugin_complete        },
     { 'PackerClean'            , '*', actions.clean                            },
     { 'PackerStatus'           , '*', actions.status                           },
   } do
