@@ -145,6 +145,7 @@ local function process_spec(plugin_data: PluginData, plugins: {string:Plugin})
 
   -- Add the git URL for displaying in PackerStatus and PackerSync.
   spec.url = remove_ending_git_url(spec.url)
+  spec.revs = {}
 
   plugins[name] = spec
 

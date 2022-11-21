@@ -325,8 +325,6 @@ end
 M.updater = async(function(plugin, disp, opts)
    local r = result.ok({})
 
-   plugin.revs = {}
-
    disp:task_update(plugin.full_name, 'checking current commit...')
    local current_commit, ccerr = get_ref(plugin, 'HEAD')
    if not current_commit or ccerr ~= nil then

@@ -145,6 +145,7 @@ local function process_spec(plugin_data, plugins)
 
 
    spec.url = remove_ending_git_url(spec.url)
+   spec.revs = {}
 
    plugins[name] = spec
 
