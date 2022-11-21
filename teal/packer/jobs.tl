@@ -35,7 +35,7 @@ local record M
   end
 
   record Opts
-    capture_output: boolean
+    output: boolean
     cwd: string
     timeout: integer
     env: {string}
@@ -161,7 +161,7 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
   local output = M.output_table()
   local callbacks = {}
 
-  local stdout = setup_pipe('stdout', callbacks, opts.capture_output, output)
+  local stdout = setup_pipe('stdout', callbacks, opts.output, output)
 
   if stdout == false then
     callback(job_result)
@@ -170,7 +170,7 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
 
   stdout = stdout as uv.Pipe
 
-  local stderr = setup_pipe('stderr', callbacks, opts.capture_output, output)
+  local stderr = setup_pipe('stderr', callbacks, opts.output, output)
 
   if stderr == false then
     callback(job_result)
@@ -197,7 +197,7 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
   }, function(exit_code: integer, signal: string)
     job_result.exit_code = exit_code
     job_result.signal = signal
-    if opts.capture_output == true then
+    if opts.output == true then
       job_result.output = output
     end
     callback(job_result)

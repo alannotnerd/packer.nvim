@@ -101,7 +101,7 @@ local handle_checkouts = void(function(plugin, disp, opts)
    update_disp('fetching reference...')
 
    local job_opts = {
-      capture_output = true,
+      output = true,
       cwd = plugin.install_path,
    }
 
@@ -164,7 +164,7 @@ local function mark_breaking_changes(
       '--pretty=format:===COMMIT_START===%h%n%s===BODY_START===%b',
       preview_updates and 'HEAD...FETCH_HEAD' or 'HEAD@{1}...HEAD',
    }, {
-      capture_output = true,
+      output = true,
       cwd = plugin.install_path,
    })
    if r:ok() then
@@ -194,7 +194,7 @@ local function install(plugin, disp)
    disp:task_update(plugin.full_name, 'cloning...')
 
    local jr = git_run(get_install_cmd(plugin), {
-      capture_output = true,
+      output = true,
       timeout = config.git.clone_timeout,
    })
    if not jr:ok() then
@@ -203,7 +203,7 @@ local function install(plugin, disp)
 
    if plugin.commit then
       jr = checkout(plugin.commit, {
-         capture_output = true,
+         output = true,
          cwd = plugin.install_path,
       }, disp)
       if not jr:ok() then
@@ -220,7 +220,7 @@ local function install(plugin, disp)
       'HEAD',
       '-n', '1',
    }, {
-      capture_output = true,
+      output = true,
       cwd = plugin.install_path,
    })
 
@@ -243,7 +243,7 @@ end, 2)
 local function get_current_branch(plugin)
 
    local jr = git_run({ 'branch', '--show-current' }, {
-      capture_output = true,
+      output = true,
       cwd = plugin.install_path,
    })
    local current_branch, er
@@ -257,7 +257,7 @@ end
 
 local function get_ref(plugin, ref)
    local jr = git_run({ 'rev-parse', '--short', ref }, {
-      capture_output = true,
+      output = true,
       cwd = plugin.install_path,
    })
 
@@ -317,7 +317,7 @@ local function update(plugin, disp, opts)
 
    if needs_checkout then
       local jr = git_run({ 'fetch', '--depth', '999999', '--progress' }, {
-         capture_output = true,
+         output = true,
          cwd = plugin.install_path,
       })
       if not jr:ok() then
@@ -351,7 +351,7 @@ local function update(plugin, disp, opts)
 
       disp:task_update(plugin.full_name, msg)
       local jr = git_run(cmd, {
-         capture_output = true,
+         output = true,
          cwd = plugin.install_path,
       })
       if not jr:ok() then
@@ -380,7 +380,7 @@ local function update(plugin, disp, opts)
          '--no-show-signature',
          fmt('%s...%s', plugin.revs[1], plugin.revs[2]),
       }, {
-         capture_output = true,
+         output = true,
          cwd = plugin.install_path,
       })
 
@@ -408,7 +408,7 @@ end, 4)
 
 M.remote_url = async(function(plugin)
    local r = git_run({ 'remote', 'get-url', 'origin' }, {
-      capture_output = true,
+      output = true,
       cwd = plugin.install_path,
    })
 
@@ -423,7 +423,7 @@ M.diff = async(function(plugin, commit, callback)
       '--pretty=medium',
       commit,
    }, {
-      capture_output = true,
+      output = true,
       cwd = plugin.install_path,
    })
 
@@ -436,7 +436,7 @@ end, 3)
 
 M.revert_last = async(function(plugin)
    local jr = git_run({ 'reset', '--hard', 'HEAD@{1}' }, {
-      capture_output = true,
+      output = true,
       cwd = plugin.install_path,
    })
 
@@ -460,7 +460,7 @@ M.revert_to = async(function(plugin, commit)
    assert(type(commit) == 'string', fmt("commit: string expected but '%s' provided", type(commit)))
    require('packer.log').debug(fmt("Reverting '%s' to commit '%s'", plugin.name, commit))
    local jr = git_run({ 'reset', '--hard', commit, '--' }, {
-      capture_output = true,
+      output = true,
       cwd = plugin.install_path,
    })
 
