@@ -1,9 +1,7 @@
 
-local split = vim.split
 local uv = vim.loop
 local a = require('packer.async')
 local log = require('packer.log')
-local Display = require('packer.display').Display
 
 local M = {JobOutput = {E = {}, }, JobResult = {}, StdioCallbacks = {}, Opts = {}, }
 
@@ -43,29 +41,6 @@ local M = {JobOutput = {E = {}, }, JobResult = {}, StdioCallbacks = {}, Opts = {
 
 
 
-
-
-
-
-
-
-
-
-
-local function logging_callback(err_tbl, data_tbl, disp, name)
-   return function(err, data)
-      if err then
-         table.insert(err_tbl, vim.trim(err))
-      end
-      if data ~= nil then
-         local trimmed = vim.trim(data)
-         table.insert(data_tbl, trimmed)
-         if disp then
-            disp:task_update(name, split(trimmed, '\n')[1])
-         end
-      end
-   end
-end
 
 
 function M.output_table()
@@ -130,18 +105,22 @@ local function spawn(cmd, options, callback)
    end
 end
 
-local function setup_pipe(kind, callbacks, capture_output, output)
-   if not capture_output then
-      return
-   end
-
+local function setup_pipe(kind, callbacks, output)
    local handle, uv_err = uv.new_pipe(false)
    if uv_err then
       log.error(string.format('Failed to open %s pipe: %s', kind, uv_err))
-      return false
+      return uv_err
    end
 
-   callbacks[kind] = logging_callback(output.err[kind], output.data[kind])
+   callbacks[kind] = function(err, data)
+      if err then
+         table.insert(output.err[kind], vim.trim(err))
+      end
+      if data ~= nil then
+         local trimmed = vim.trim(data)
+         table.insert(output.data[kind], trimmed)
+      end
+   end
 
    return handle
 end
@@ -161,18 +140,18 @@ M.run = a.wrap(function(task, opts, callback)
    local output = M.output_table()
    local callbacks = {}
 
-   local stdout = setup_pipe('stdout', callbacks, opts.output, output)
+   local stdout = opts.output and setup_pipe('stdout', callbacks, output) or nil
 
-   if stdout == false then
+   if type(stdout) == "string" then
       callback(job_result)
       return
    end
 
    stdout = stdout
 
-   local stderr = setup_pipe('stderr', callbacks, opts.output, output)
+   local stderr = opts.output and setup_pipe('stderr', callbacks, output) or nil
 
-   if stderr == false then
+   if type(stderr) == "string" then
       callback(job_result)
       return
    end

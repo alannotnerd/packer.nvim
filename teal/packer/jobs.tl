@@ -42,26 +42,6 @@ local record M
   run: function(task: any, opt: any): JobResult
 end
 
---- Utility function to make a "standard" logging callback for a given set of tables
--- Arguments:
--- - err_tbl: table to which err messages will be logged
--- - data_tbl: table to which data (non-err messages) will be logged
--- - pipe: the pipe for which this callback will be used. Passed in so that we can make sure all
---      output flushes before finishing reading
--- - disp: optional packer.display object for updating task status. Requires `name`
--- - name: optional string name for a current task. Used to update task status
-local function logging_callback(err_tbl: {string}, data_tbl: {string}): function(string, string)
-  return function(err: string, data: string)
-    if err then
-      table.insert(err_tbl, vim.trim(err))
-    end
-    if data ~= nil then
-      local trimmed = vim.trim(data)
-      table.insert(data_tbl, trimmed)
-    end
-  end
-end
-
 --- Utility function to make a table for capturing output with "standard" structure
 function M.output_table(): M.JobOutput
   return {
@@ -125,18 +105,22 @@ local function spawn(cmd: string, options: uv.SpawnOpts, callback: function(inte
   end
 end
 
-local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, capture_output: boolean, output: M.JobOutput): boolean | uv.Pipe
-  if not capture_output then
-    return
-  end
-
+local function setup_pipe(kind: M.StdioType, callbacks: M.StdioCallbacks, output: M.JobOutput): string | uv.Pipe
   local handle, uv_err = uv.new_pipe(false)
   if uv_err then
     log.error(string.format('Failed to open %s pipe: %s', kind, uv_err))
-    return false
+    return uv_err
   end
 
-  callbacks[kind] = logging_callback(output.err[kind], output.data[kind])
+  callbacks[kind] = function(err: string, data: string)
+    if err then
+      table.insert(output.err[kind], vim.trim(err))
+    end
+    if data ~= nil then
+      local trimmed = vim.trim(data)
+      table.insert(output.data[kind], trimmed)
+    end
+  end
 
   return handle
 end
@@ -156,18 +140,18 @@ M.run = a.wrap(function(task: string|{string}, opts: M.Opts, callback: function(
   local output = M.output_table()
   local callbacks = {}
 
-  local stdout = setup_pipe('stdout', callbacks, opts.output, output)
+  local stdout = opts.output and setup_pipe('stdout', callbacks, output) or nil
 
-  if stdout == false then
+  if stdout is string then
     callback(job_result)
     return
   end
 
   stdout = stdout as uv.Pipe
 
-  local stderr = setup_pipe('stderr', callbacks, opts.output, output)
+  local stderr = opts.output and setup_pipe('stderr', callbacks, output) or nil
 
-  if stderr == false then
+  if stderr is string then
     callback(job_result)
     return
   end
