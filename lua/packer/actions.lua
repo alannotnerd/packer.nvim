@@ -5,6 +5,7 @@ local a = require('packer.async')
 local config = require('packer.config')
 local log = require('packer.log')
 local util = require('packer.util')
+local plugin_utils = require('packer.plugin_utils')
 
 local display = require('packer.display')
 
@@ -98,12 +99,56 @@ local function update_helptags(results)
    end
 end
 
+local install_plugin = a.sync(function(
+   plugin,
+   disp,
+   installs)
+
+   disp:task_start(plugin.full_name, 'installing...')
+
+   local plugin_type = require('packer.plugin_types')[plugin.type]
+
+   local err = plugin_type.installer(plugin, disp)
+
+   if not err then
+      err = plugin_utils.post_update_hook(plugin, disp)
+   end
+
+   if not err then
+      disp:task_succeeded(plugin.full_name, 'installed')
+      log.debug(fmt('Installed %s', plugin.full_name))
+   else
+      disp:task_failed(plugin.full_name, 'failed to install')
+      log.debug(fmt('Failed to install %s: %s', plugin.full_name, vim.inspect(err)))
+   end
+
+   installs[plugin.name] = err and { err = err } or {}
+   return err
+end, 3)
+
+local function install(
+   plugins,
+   missing_plugins,
+   disp,
+   installs)
+
+   if #missing_plugins == 0 then
+      return {}
+   end
+
+   local tasks = {}
+   for _, v in ipairs(missing_plugins) do
+      table.insert(tasks, a.curry(install_plugin, plugins[v], disp, installs))
+   end
+
+   return tasks
+end
+
 
 
 M.install = a.sync(function()
    log.debug('packer.install: requiring modules')
 
-   local plugin_utils = require('packer.plugin_utils')
    local fs_state = plugin_utils.get_fs_state(_G.packer_plugins)
    local install_plugins = vim.tbl_keys(fs_state.missing)
    if #install_plugins == 0 then
@@ -119,7 +164,6 @@ M.install = a.sync(function()
    local installs = {}
 
    local delta = measure(function()
-      local install = require('packer.install')
       local install_tasks = install(_G.packer_plugins, install_plugins, disp, installs)
       run_tasks(install_tasks, disp)
 
@@ -130,6 +174,113 @@ M.install = a.sync(function()
    disp:final_results({ installs = installs }, delta)
 end)
 
+local function move_plugin(plugin, moves, fs_state)
+   local from
+   local to
+   if plugin.opt then
+      from = util.join_paths(config.start_dir, plugin.name)
+      to = util.join_paths(config.opt_dir, plugin.name)
+   else
+      from = util.join_paths(config.opt_dir, plugin.name)
+      to = util.join_paths(config.start_dir, plugin.name)
+   end
+
+   fs_state.start[to] = true
+   fs_state.opt[from] = nil
+   fs_state.missing[plugin.name] = nil
+
+
+
+   local success, msg = os.rename(from, to)
+   if not success then
+      log.error(fmt('Failed to move %s to %s: %s', from, to, msg))
+      moves[plugin.name] = { from = from, to = to }
+   else
+      log.debug(fmt('Moved %s from %s to %s', plugin.name, from, to))
+      moves[plugin.name] = { from = from, to = to }
+   end
+end
+
+local update_plugin = a.sync(function(plugin, disp, updates, opts)
+   local plugin_name = plugin.full_name
+   disp:task_start(plugin_name, 'updating...')
+
+   if plugin.lock then
+      disp:task_succeeded(plugin_name, 'locked')
+      return
+   end
+
+   local plugin_type = require('packer.plugin_types')[plugin.type]
+
+   local err = plugin_type.updater(plugin, disp, opts)
+   local msg = 'up to date'
+   if not err and plugin.type == 'git' then
+      local revs = plugin.revs
+      local actual_update = revs[1] ~= revs[2]
+      if actual_update then
+         msg = fmt('updated: %s...%s', revs[1], revs[2])
+         if not opts.preview_updates then
+            log.debug(fmt('Updated %s', plugin_name))
+            err = plugin_utils.post_update_hook(plugin, disp)
+         end
+      else
+         msg = 'already up to date'
+      end
+   end
+
+   if not err then
+      disp:task_succeeded(plugin_name, msg)
+   else
+      disp:task_failed(plugin_name, 'failed to update')
+      log.debug(fmt('Failed to update %s: %s', plugin_name, plugin.err))
+   end
+
+   updates[plugin_name] = err and { err = err } or {}
+   return plugin_name, err
+end, 4)
+
+local function update(
+   plugins,
+   update_plugins,
+   disp,
+   updates,
+   opts)
+
+   local tasks = {}
+   for _, v in ipairs(update_plugins) do
+      local plugin = plugins[v]
+      if not plugin then
+         log.error(fmt('Unknown plugin: %s', v))
+      end
+      if plugin and not plugin.lock then
+         table.insert(tasks, a.curry(update_plugin, plugin, disp, updates, opts))
+      end
+   end
+
+   if #tasks == 0 then
+      log.info('Nothing to update!')
+   end
+
+   return tasks
+end
+
+local function fix_plugin_types(
+   plugins,
+   plugin_names,
+   moves,
+   fs_state)
+
+   log.debug('Fixing plugin types')
+
+   for _, v in ipairs(plugin_names) do
+      local plugin = plugins[v]
+      local wrong_install_dir = util.join_paths(plugin.opt and config.start_dir or config.opt_dir, plugin.name)
+      if vim.loop.fs_stat(wrong_install_dir) then
+         move_plugin(plugin, moves, fs_state)
+      end
+   end
+   log.debug('Done fixing plugin types')
+end
 
 
 
@@ -167,11 +318,8 @@ end
 M.update = a.void(function(first, ...)
    local plugins = _G.packer_plugins
    local opts, update_plugins = filter_opts_from_plugins(first, ...)
-   local plugin_utils = require('packer.plugin_utils')
    local fs_state = plugin_utils.get_fs_state(plugins)
    local missing_plugins, installed_plugins = util.partition(vim.tbl_keys(fs_state.missing), update_plugins)
-
-   local update = require('packer.update')
 
    local results = {
       moves = {},
@@ -180,7 +328,7 @@ M.update = a.void(function(first, ...)
       updates = {},
    }
 
-   update.fix_plugin_types(plugins, missing_plugins, results.moves, fs_state)
+   fix_plugin_types(plugins, missing_plugins, results.moves, fs_state)
    require('packer.clean')(plugins, fs_state, results.removals)
 
    missing_plugins = ({ util.partition(vim.tbl_keys(results.moves), missing_plugins) })[2]
@@ -193,13 +341,13 @@ M.update = a.void(function(first, ...)
       local tasks = {}
 
       log.debug('Gathering install tasks')
-      local install_tasks = require('packer.install')(plugins, missing_plugins, disp, results.installs)
+      local install_tasks = install(plugins, missing_plugins, disp, results.installs)
       vim.list_extend(tasks, install_tasks)
 
       log.debug('Gathering update tasks')
       a.main()
 
-      local update_tasks = update.update(plugins, installed_plugins, disp, results.updates, opts)
+      local update_tasks = update(plugins, installed_plugins, disp, results.updates, opts)
       vim.list_extend(tasks, update_tasks)
 
       run_tasks(tasks, disp)
